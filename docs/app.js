@@ -262,6 +262,12 @@ const el = {
   leagueAvatar: document.querySelector("#league-avatar"),
 };
 
+let leagueLoadPromise = null;
+let leagueLoadAnimationTimer = null;
+let leagueLoadStartedAt = 0;
+let copyFeedbackTimer = null;
+let shareFeedbackTimer = null;
+
 el.leagueLoadForm?.addEventListener("submit", requestLoadLeague);
 el.loadLeagueBtn?.addEventListener("pointerdown", handleLoadLeaguePointerDown);
 el.loadLeagueBtn?.addEventListener("click", requestLoadLeague);
@@ -280,6 +286,7 @@ el.leagueId?.addEventListener("keydown", (event) => {
     requestLoadLeague(event);
   }
 });
+el.railDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
 el.railDemoBtn?.addEventListener("click", loadDemoLeague);
 el.copyLeagueIdBtn?.addEventListener("click", copyHelperLeagueId);
 el.pageTabButtons?.forEach((button) => {
@@ -288,6 +295,7 @@ el.pageTabButtons?.forEach((button) => {
 el.pageTabs?.addEventListener("keydown", handlePageTabKeydown);
 el.themeToggleBtn?.addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
 el.shareLinkBtn?.addEventListener("click", copyShareLink);
+el.landingDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
 el.landingDemoBtn?.addEventListener("click", loadDemoLeague);
 el.landingFocusBtn?.addEventListener("click", () => {
   el.leagueId?.focus();
@@ -296,7 +304,7 @@ el.landingFocusBtn?.addEventListener("click", () => {
 el.workspace?.addEventListener("click", handleWorkspaceClick);
 el.workspace?.addEventListener("change", handleWorkspaceChange);
 el.workspace?.addEventListener("input", handleWorkspaceInput);
-el.playerSearch.addEventListener("input", () => {
+el.playerSearch?.addEventListener("input", () => {
   invalidateResults();
   renderPlayerSearch();
 });
@@ -313,7 +321,7 @@ el.modeCards?.forEach((button) => {
   });
 });
 el.clearTargetBtn?.addEventListener("click", clearTargetAsset);
-el.meSelect.addEventListener("change", () => {
+el.meSelect?.addEventListener("change", () => {
   invalidateResults();
   state.meRosterId = Number(el.meSelect.value);
   state.lensRosterId = null;
@@ -326,7 +334,7 @@ el.meSelect.addEventListener("change", () => {
   renderSessionSnapshot();
   updateUrlState();
 });
-el.generateBtn.addEventListener("click", generateTradeIdeas);
+el.generateBtn?.addEventListener("click", generateTradeIdeas);
 el.analyticsDashboard?.addEventListener("click", handleHistoryCompareClick);
 el.analyticsDashboard?.addEventListener("change", handleHistoryCompareChange);
 
@@ -334,11 +342,6 @@ applyTheme(readStoredTheme(), { persist: false });
 renderSessionSnapshot();
 syncTradeModeUi();
 bootFromUrl();
-
-let leagueLoadAnimationTimer = null;
-let leagueLoadStartedAt = 0;
-let copyFeedbackTimer = null;
-let shareFeedbackTimer = null;
 
 function invalidateResults() {
   el.resultsSection.classList.add("hidden");
@@ -768,7 +771,8 @@ function getDemoLeagueId() {
   return el.copyLeagueIdBtn?.textContent?.trim() || DEMO_LEAGUE_ID;
 }
 
-function loadDemoLeague() {
+function loadDemoLeague(event) {
+  event?.preventDefault?.();
   if (el.leagueId) el.leagueId.value = getDemoLeagueId();
   void loadLeague();
 }
@@ -778,14 +782,24 @@ function requestLoadLeague(event) {
   void loadLeague();
 }
 
+function isPrimaryPointer(event) {
+  return !(event.pointerType === "mouse" && event.button !== 0);
+}
+
 function handleLoadLeaguePointerDown(event) {
-  if (event.pointerType === "mouse" && event.button !== 0) return;
+  if (!isPrimaryPointer(event)) return;
   event.preventDefault();
   void loadLeague();
 }
 
+function handleDemoLeaguePointerDown(event) {
+  if (!isPrimaryPointer(event)) return;
+  event.preventDefault();
+  loadDemoLeague(event);
+}
+
 async function loadLeague() {
-  if (el.loadLeagueBtn?.disabled) return;
+  if (leagueLoadPromise) return leagueLoadPromise;
 
   const leagueId = parseLeagueId(el.leagueId?.value);
   if (!leagueId) {
@@ -795,47 +809,56 @@ async function loadLeague() {
   }
   if (el.leagueId) el.leagueId.value = leagueId;
 
-  startLeagueLoadingUi();
-  state.targetAsset = null;
-  state.shopAsset = null;
-  state.selectedOutgoingAssetIds.clear();
-  state.excludedOutgoingAssetIds.clear();
-  state.customParticipantRosterIds = [];
-  state.tradedPicks = [];
-  state.currentDraftContext = null;
-  state.trendingAdds = [];
-  state.trendingDrops = [];
-  state.trendingLoaded = false;
-  state.playerMetadataLoaded = false;
-  state.playerMetadataFailed = false;
-  state.activePage = "home";
-  state.transactions = [];
-  state.transactionsLoaded = false;
-  state.transactionsFailed = false;
-  state.transactionWeeksLoaded = 0;
-  state.transactionLoadError = "";
-  state.leagueHistory = [];
-  state.historyTransactions = [];
-  state.historyTransactionsLoaded = false;
-  state.historyTransactionsFailed = false;
-  state.historyTransactionLeaguesLoaded = 0;
-  state.historyTransactionLoadError = "";
-  resetHistoryCompareState();
-  resetSeasonState();
-  state.lensRosterId = null;
-  state.homeWeek = null;
-  state.awardsWeek = null;
-  state.recapWeek = null;
-  state.standingsView = "overall";
-  resetCalculatorState({ keepPartner: false });
-  if (el.playerSearch) el.playerSearch.value = "";
-  el.powerSection?.classList.add("hidden");
-  el.analyticsSection?.classList.add("hidden");
-  hideAppPages();
-  el.resultsList.innerHTML = "";
-  el.resultsSection.classList.add("hidden");
-
+  leagueLoadPromise = runLeagueLoad(leagueId);
   try {
+    await leagueLoadPromise;
+  } finally {
+    leagueLoadPromise = null;
+  }
+}
+
+async function runLeagueLoad(leagueId) {
+  try {
+    startLeagueLoadingUi();
+    state.targetAsset = null;
+    state.shopAsset = null;
+    state.selectedOutgoingAssetIds.clear();
+    state.excludedOutgoingAssetIds.clear();
+    state.customParticipantRosterIds = [];
+    state.tradedPicks = [];
+    state.currentDraftContext = null;
+    state.trendingAdds = [];
+    state.trendingDrops = [];
+    state.trendingLoaded = false;
+    state.playerMetadataLoaded = false;
+    state.playerMetadataFailed = false;
+    state.activePage = "home";
+    state.transactions = [];
+    state.transactionsLoaded = false;
+    state.transactionsFailed = false;
+    state.transactionWeeksLoaded = 0;
+    state.transactionLoadError = "";
+    state.leagueHistory = [];
+    state.historyTransactions = [];
+    state.historyTransactionsLoaded = false;
+    state.historyTransactionsFailed = false;
+    state.historyTransactionLeaguesLoaded = 0;
+    state.historyTransactionLoadError = "";
+    resetHistoryCompareState();
+    resetSeasonState();
+    state.lensRosterId = null;
+    state.homeWeek = null;
+    state.awardsWeek = null;
+    state.recapWeek = null;
+    state.standingsView = "overall";
+    resetCalculatorState({ keepPartner: false });
+    if (el.playerSearch) el.playerSearch.value = "";
+    el.powerSection?.classList.add("hidden");
+    el.analyticsSection?.classList.add("hidden");
+    hideAppPages();
+    if (el.resultsList) el.resultsList.innerHTML = "";
+    el.resultsSection?.classList.add("hidden");
+
     const [coreData, nflState] = await Promise.all([
       loadLeagueCoreData(leagueId),
       apiGetWithRetry(`/state/nfl`, { timeoutMs: 8000, retries: 1 }).catch(() => null),
@@ -871,10 +894,10 @@ async function loadLeague() {
     hydrateManagerSelector();
     syncTradeModeUi();
     renderSessionSnapshot();
-    el.identitySection.classList.remove("hidden");
+    el.identitySection?.classList.remove("hidden");
     el.powerSection?.classList.remove("hidden");
     el.analyticsSection?.classList.remove("hidden");
-    el.playerSection.classList.remove("hidden");
+    el.playerSection?.classList.remove("hidden");
     el.settingsSection?.classList.remove("hidden");
     showAppPages();
     scrollLoadedWorkspaceIntoView();
@@ -12299,15 +12322,17 @@ function withTimeout(promise, timeoutMs, message) {
 }
 
 function setStatus(message, { ok = false, loading = false } = {}) {
-  el.leagueStatusText.textContent = message;
-  el.leagueStatus.className = `status ${ok ? "ok" : loading ? "loading" : "muted"}`;
-  el.leagueStatusLoader.classList.toggle("hidden", !loading);
+  if (el.leagueStatusText) el.leagueStatusText.textContent = message;
+  if (el.leagueStatus) el.leagueStatus.className = `status ${ok ? "ok" : loading ? "loading" : "muted"}`;
+  el.leagueStatusLoader?.classList.toggle("hidden", !loading);
 }
 
 function startLeagueLoadingUi() {
-  el.loadLeagueBtn.disabled = true;
-  el.loadLeagueBtn.classList.add("loading");
-  el.loadLeagueBtn.textContent = "Loading...";
+  if (el.loadLeagueBtn) {
+    el.loadLeagueBtn.disabled = true;
+    el.loadLeagueBtn.classList.add("loading");
+    el.loadLeagueBtn.textContent = "Loading...";
+  }
 
   leagueLoadStartedAt = Date.now();
   setStatus("Loading Sleeper data...", { loading: true });
@@ -12322,6 +12347,7 @@ function startLeagueLoadingUi() {
 function stopLeagueLoadingUi() {
   clearInterval(leagueLoadAnimationTimer);
   leagueLoadAnimationTimer = null;
+  if (!el.loadLeagueBtn) return;
   el.loadLeagueBtn.disabled = false;
   el.loadLeagueBtn.classList.remove("loading");
   el.loadLeagueBtn.textContent = "Load League";
