@@ -1,51 +1,51 @@
 # FantasyDynastyAnalyzer
 
-Reads the Sleeper API to pull in your league and advises on dynasty trades using KeepTradeCut-style values.
+Sleeper dynasty league desk: live scores, standings, playoff odds, awards, archive, and a trade lab. Values are KeepTradeCut-style. The site is static. It talks to Sleeper from the browser.
 
-## What now exists in this monorepo
-- **Python CLI (existing MVP):** command-line trade suggestions.
-- **Static website UI (new):** a browser-based flow you can host on GitHub Pages and open via link.
+## What is in this repo
+- **Web app (GitHub Pages):** `docs/` — League Command Center.
+- **Python CLI:** `src/` — still there if you want terminal trade suggestions.
 
-## Web app (no terminal required)
-The full UI lives in `docs/` and is deployable on GitHub Pages.
+## Web app
 
-### User flow in the website
-1. Enter Sleeper League ID.
-2. Pick which manager you are.
-3. Choose one simple trade mode:
-   - shop one of your own players or picks across the league
-   - target a player or pick from another roster
-   - generate a surprise multi-team blockbuster
-4. Search/select the player or pick when the selected mode needs one.
-5. Generate a short ranked list of trade ideas.
+Open `docs/` locally or the GitHub Pages URL. Paste a Sleeper league ID, pick your manager, go.
 
-### Value source behavior
-- Uses optional JSON endpoint if you provide one (shape: `[{"asset_id":"player:8155","value":8200}]`).
-- Falls back to repo sample values in `docs/data/ktc_values_sample.csv`.
-- For assets missing values, uses a lightweight position/age estimate so the UI can still produce suggestions.
-- Applies an extra premium to high-end players so one elite asset is not valued like an interchangeable pile of smaller pieces.
-- Draft picks are labeled with their original owner when Sleeper provides it, and will also show prior-season PF finish when the linked previous league is available.
+### Pages
+1. **Command Center** — live scoreboard with pre-game win%, standings, luck / all-play, Monte Carlo playoff and title odds, dynasty power board.
+2. **Teams** — tap any roster: power scout card, optimal lineup, bench, nicknames, pick vault, season log, jump into a trade.
+3. **Awards** — weekly honors (marked live if the week is still going), season superlatives, luck index, all-time record book from archive matchups.
+4. **History** — dynasty archive: comparisons, finish matrix, rivalries, trades.
+5. **Trade Lab** — shop an asset, acquire a target, generate a blockbuster, or use the **Calculator** to build both sides by hand and get a verdict.
+6. **Recap** — group-chat paste in desk / hype / roast voice. Copy to clipboard.
 
-## GitHub Pages deployment
-A workflow is included at `.github/workflows/deploy-pages.yml`.
+Shareable URLs keep `?league=&me=&tab=`. The last league is remembered. Theme toggle is in the rail.
 
-After pushing to GitHub:
-1. In your repo, go to **Settings → Pages**.
-2. Ensure source is **GitHub Actions**.
-3. Wait for the **Deploy static site to GitHub Pages** workflow to complete.
-4. Open your Pages URL (typically `https://<your-user>.github.io/<repo-name>/`).
+Demo league on the landing page: [Try Hard or Die Hard](https://sleeper.app/leagues/1315165104303513600) (`1315165104303513600`).
 
-## CLI (still available)
+### Value source
+- Optional JSON endpoint (`[{"asset_id":"player:8155","value":8200}]`).
+- Falls back to `docs/data/ktc_values_sample.csv`.
+- Missing assets get a light position/age estimate.
+- Elite players get a premium so one star is not a pile of scraps.
+- Draft picks show original owner when Sleeper sends it, plus prior-season finish when the previous league is linked.
 
-### Setup
+## GitHub Pages
+
+Workflow: `.github/workflows/deploy-pages.yml`.
+
+1. Repo **Settings → Pages**, source **GitHub Actions**.
+2. Wait for **Deploy static site to GitHub Pages**.
+3. Open `https://<user>.github.io/<repo>/`.
+
+The deploy job also refreshes KTC sample values via `scripts/update_ktc_values.py`.
+
+## CLI
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-```
 
-### Usage
-```bash
 python -m src.cli \
   --league <LEAGUE_ID> \
   --me niko \
@@ -56,7 +56,7 @@ python -m src.cli \
   --max-results 5
 ```
 
-If you don't have `--league`, provide `--username` and `--season` for auto-discovery:
+No league id? Discover it:
 
 ```bash
 python -m src.cli \
@@ -68,7 +68,6 @@ python -m src.cli \
 ```
 
 ## Notes
-- Asset IDs are normalized as:
-  - Players: `player:<sleeper_player_id>`
-  - Picks: `pick:<season>:r<round>:<original_owner|any>`
-- Suggestions may differ depending on how complete your valuation dataset is.
+- Player assets: `player:<sleeper_player_id>`
+- Pick assets: `pick:<season>:r<round>:<original_owner|any>`
+- Playoff odds are a 4000-season Monte Carlo. Early weeks shrink last year's pace toward the league mean so one 11-3 campaign is not a 99% lock in Week 1.

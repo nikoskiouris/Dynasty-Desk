@@ -1,6 +1,31 @@
+import {
+  buildSeasonModel,
+  simulateSeason,
+  computeWeeklyAwards,
+  computeSeasonSuperlatives,
+  computeRecordBook,
+  winProbability,
+  buildTeamDistributions,
+  formatPoints,
+} from "./modules/season.js";
+import { buildRecap, RECAP_TONES } from "./modules/recap.js";
+
 const API_BASE = "https://api.sleeper.app/v1";
+const SLEEPER_AVATAR_BASE = "https://sleepercdn.com/avatars/thumbs/";
 const SAMPLE_VALUES_PATH = "./data/ktc_values_sample.csv";
 const PLAYERS_CACHE_KEY = "fda_players_nfl_cache_v1";
+const THEME_STORAGE_KEY = "dynasty_desk_theme";
+const LAST_LEAGUE_STORAGE_KEY = "dynasty_desk_last_league";
+const SIM_ITERATIONS = 4000;
+const PAGE_IDS = ["home", "teams", "awards", "analytics", "trader", "recap"];
+const PAGE_LABELS = {
+  home: "Command Center",
+  teams: "Teams",
+  awards: "Awards",
+  analytics: "History",
+  trader: "Trade Lab",
+  recap: "Recap",
+};
 const PLAYERS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const DEFAULT_FAIRNESS_PCT = 20;
 const DEFAULT_MAX_RESULTS = 3;
@@ -123,7 +148,7 @@ const state = {
   trendingLoaded: false,
   playerMetadataLoaded: false,
   playerMetadataFailed: false,
-  activePage: "analytics",
+  activePage: "home",
   transactions: [],
   transactionsLoaded: false,
   transactionsFailed: false,
@@ -146,6 +171,28 @@ const state = {
     leftManagerKey: "",
     rightManagerKey: "",
   },
+  nflState: null,
+  seasonWeekRows: new Map(),
+  seasonLoaded: false,
+  seasonLoadError: "",
+  seasonModelCache: { key: "", model: null },
+  simCache: { key: "", result: null },
+  lensRosterId: null,
+  homeWeek: null,
+  standingsView: "overall",
+  awardsWeek: null,
+  recapWeek: null,
+  recapTone: "desk",
+  calc: {
+    partnerRosterId: null,
+    myAssetIds: new Set(),
+    theirAssetIds: new Set(),
+    myQuery: "",
+    theirQuery: "",
+  },
+  pendingMeRosterId: null,
+  pendingTab: null,
+  theme: "dark",
 };
 
 const el = {
@@ -187,6 +234,29 @@ const el = {
   resultsSection: document.querySelector("#results-section"),
   resultsSubtitle: document.querySelector("#results-subtitle"),
   resultsList: document.querySelector("#results-list"),
+  workspace: document.querySelector(".workspace"),
+  pageTabButtons: document.querySelectorAll(".page-tab"),
+  pages: Object.fromEntries(PAGE_IDS.map((page) => [page, document.querySelector(`#${page}-page`)])),
+  homeDashboard: document.querySelector("#home-dashboard"),
+  teamsGrid: document.querySelector("#teams-grid"),
+  powerHeading: document.querySelector("#power-heading"),
+  rosterSheet: document.querySelector("#roster-sheet"),
+  rosterSheetHeading: document.querySelector("#roster-sheet-heading"),
+  awardsDashboard: document.querySelector("#awards-dashboard"),
+  recapDashboard: document.querySelector("#recap-dashboard"),
+  ticker: document.querySelector("#ticker"),
+  tickerTrack: document.querySelector("#ticker-track"),
+  calculatorSection: document.querySelector("#calculator-section"),
+  calculatorShell: document.querySelector("#calculator-shell"),
+  themeToggleBtn: document.querySelector("#theme-toggle-btn"),
+  shareLinkBtn: document.querySelector("#share-link-btn"),
+  shareLinkFeedback: document.querySelector("#share-link-feedback"),
+  landingDemoBtn: document.querySelector("#landing-demo-btn"),
+  landingFocusBtn: document.querySelector("#landing-focus-btn"),
+  heroTitle: document.querySelector("#hero-title"),
+  heroLede: document.querySelector("#hero-lede"),
+  heroEyebrow: document.querySelector("#hero-eyebrow"),
+  leagueAvatar: document.querySelector("#league-avatar"),
 };
 
 el.loadLeagueBtn.addEventListener("click", loadLeague);
@@ -197,8 +267,22 @@ el.leagueId?.addEventListener("keydown", (event) => {
   }
 });
 el.copyLeagueIdBtn?.addEventListener("click", copyHelperLeagueId);
-el.analyticsTab?.addEventListener("click", () => setActivePage("analytics"));
-el.traderTab?.addEventListener("click", () => setActivePage("trader"));
+el.pageTabButtons?.forEach((button) => {
+  button.addEventListener("click", () => setActivePage(button.dataset.page));
+});
+el.themeToggleBtn?.addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
+el.shareLinkBtn?.addEventListener("click", copyShareLink);
+el.landingDemoBtn?.addEventListener("click", () => {
+  el.leagueId.value = el.copyLeagueIdBtn?.textContent?.trim() || "";
+  loadLeague();
+});
+el.landingFocusBtn?.addEventListener("click", () => {
+  el.leagueId?.focus();
+  el.leagueId?.scrollIntoView({ behavior: "smooth", block: "center" });
+});
+el.workspace?.addEventListener("click", handleWorkspaceClick);
+el.workspace?.addEventListener("change", handleWorkspaceChange);
+el.workspace?.addEventListener("input", handleWorkspaceInput);
 el.playerSearch.addEventListener("input", () => {
   invalidateResults();
   renderPlayerSearch();
@@ -219,24 +303,29 @@ el.clearTargetBtn?.addEventListener("click", clearTargetAsset);
 el.meSelect.addEventListener("change", () => {
   invalidateResults();
   state.meRosterId = Number(el.meSelect.value);
+  state.lensRosterId = null;
+  resetCalculatorState({ keepPartner: false });
   renderPlayerSearch();
   pruneSelectedOutgoingAssets();
   pruneExcludedOutgoingAssets();
   syncTradeModeUi();
-  renderPowerDashboard();
-  renderLeagueAnalyticsDashboard();
+  renderActivePage();
   renderSessionSnapshot();
+  updateUrlState();
 });
 el.generateBtn.addEventListener("click", generateTradeIdeas);
 el.analyticsDashboard?.addEventListener("click", handleHistoryCompareClick);
 el.analyticsDashboard?.addEventListener("change", handleHistoryCompareChange);
 
+applyTheme(readStoredTheme(), { persist: false });
 renderSessionSnapshot();
 syncTradeModeUi();
+bootFromUrl();
 
 let leagueLoadAnimationTimer = null;
 let leagueLoadStartedAt = 0;
 let copyFeedbackTimer = null;
+let shareFeedbackTimer = null;
 
 function invalidateResults() {
   el.resultsSection.classList.add("hidden");
@@ -245,33 +334,167 @@ function invalidateResults() {
 
 function showAppPages() {
   el.pageTabs?.classList.remove("hidden");
-  setActivePage(state.activePage || "analytics");
+  el.shareLinkBtn?.classList.remove("hidden");
+  const requested = state.pendingTab && PAGE_IDS.includes(state.pendingTab) ? state.pendingTab : state.activePage || "home";
+  state.pendingTab = null;
+  setActivePage(requested);
 }
 
 function hideAppPages() {
   el.pageTabs?.classList.add("hidden");
-  el.analyticsPage?.classList.add("hidden");
-  el.traderPage?.classList.add("hidden");
+  el.shareLinkBtn?.classList.add("hidden");
+  el.ticker?.classList.add("hidden");
+  PAGE_IDS.forEach((page) => el.pages[page]?.classList.add("hidden"));
 }
 
 function setActivePage(page) {
-  const nextPage = page === "trader" ? "trader" : "analytics";
+  const nextPage = PAGE_IDS.includes(page) ? page : "home";
   state.activePage = nextPage;
 
-  el.analyticsPage?.classList.toggle("hidden", nextPage !== "analytics");
-  el.traderPage?.classList.toggle("hidden", nextPage !== "trader");
-  el.analyticsTab?.classList.toggle("active", nextPage === "analytics");
-  el.traderTab?.classList.toggle("active", nextPage === "trader");
-  el.analyticsTab?.setAttribute("aria-selected", String(nextPage === "analytics"));
-  el.traderTab?.setAttribute("aria-selected", String(nextPage === "trader"));
+  PAGE_IDS.forEach((pageId) => {
+    el.pages[pageId]?.classList.toggle("hidden", pageId !== nextPage);
+  });
+  el.pageTabButtons?.forEach((button) => {
+    const isActive = button.dataset.page === nextPage;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  });
   renderSessionSnapshot();
+  renderActivePage();
+  updateUrlState();
+}
 
-  if (nextPage === "analytics") {
-    renderPowerDashboard();
-    renderLeagueAnalyticsDashboard();
+function renderActivePage() {
+  if (!state.leagueId) return;
+  switch (state.activePage) {
+    case "home":
+      renderHomePage();
+      break;
+    case "teams":
+      renderTeamsPage();
+      break;
+    case "awards":
+      renderAwardsPage();
+      break;
+    case "analytics":
+      renderLeagueAnalyticsDashboard();
+      break;
+    case "trader":
+      syncTradeModeUi();
+      break;
+    case "recap":
+      renderRecapPage();
+      break;
+    default:
+      renderHomePage();
+  }
+  renderTicker();
+}
+
+function readStoredTheme() {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === "light" || stored === "dark") return stored;
+  } catch {
+    // Storage unavailable; fall through to the default.
+  }
+  return "dark";
+}
+
+function applyTheme(theme, { persist = true } = {}) {
+  const nextTheme = theme === "light" ? "light" : "dark";
+  state.theme = nextTheme;
+  document.documentElement.dataset.theme = nextTheme;
+  if (el.themeToggleBtn) {
+    el.themeToggleBtn.textContent = nextTheme === "dark" ? "Light mode" : "Dark mode";
+    el.themeToggleBtn.setAttribute("aria-pressed", String(nextTheme === "light"));
+  }
+  if (persist) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    } catch {
+      // Non-fatal.
+    }
+  }
+}
+
+function bootFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const leagueParam = String(params.get("league") || "").trim();
+  const meParam = Number(params.get("me"));
+  const tabParam = String(params.get("tab") || "").trim();
+  if (Number.isFinite(meParam) && meParam > 0) state.pendingMeRosterId = meParam;
+  if (PAGE_IDS.includes(tabParam)) state.pendingTab = tabParam;
+
+  if (leagueParam) {
+    el.leagueId.value = leagueParam;
+    loadLeague();
     return;
   }
-  syncTradeModeUi();
+
+  try {
+    const lastLeague = localStorage.getItem(LAST_LEAGUE_STORAGE_KEY);
+    if (lastLeague && el.leagueId && !el.leagueId.value) {
+      el.leagueId.value = lastLeague;
+      setStatus("Last league remembered. Press Load League to reopen it.");
+    }
+  } catch {
+    // Storage unavailable.
+  }
+}
+
+function updateUrlState() {
+  if (!state.leagueId || typeof history?.replaceState !== "function") return;
+  const params = new URLSearchParams();
+  params.set("league", state.leagueId);
+  if (state.meRosterId) params.set("me", String(state.meRosterId));
+  if (state.activePage && state.activePage !== "home") params.set("tab", state.activePage);
+  const nextUrl = `${window.location.pathname}?${params.toString()}`;
+  if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+    history.replaceState(null, "", nextUrl);
+  }
+}
+
+function buildShareUrl() {
+  const params = new URLSearchParams();
+  params.set("league", state.leagueId);
+  if (state.meRosterId) params.set("me", String(state.meRosterId));
+  return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+}
+
+async function copyShareLink() {
+  if (!state.leagueId) return;
+  const copied = await copyTextToClipboard(buildShareUrl());
+  if (!el.shareLinkFeedback) return;
+  el.shareLinkFeedback.textContent = copied ? "Link copied" : "Copy failed";
+  el.shareLinkFeedback.classList.remove("hidden");
+  clearTimeout(shareFeedbackTimer);
+  shareFeedbackTimer = setTimeout(() => el.shareLinkFeedback.classList.add("hidden"), 1600);
+}
+
+async function copyTextToClipboard(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall through to the legacy path.
+  }
+  try {
+    const tempInput = document.createElement("textarea");
+    tempInput.value = text;
+    tempInput.setAttribute("readonly", "");
+    tempInput.style.position = "absolute";
+    tempInput.style.left = "-9999px";
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(tempInput);
+    return copied;
+  } catch {
+    return false;
+  }
 }
 
 function getTradeMode() {
@@ -333,6 +556,7 @@ function syncTargetSearchUi() {
 function isReadyToGenerate() {
   if (!state.meRosterId) return false;
   const mode = getTradeMode();
+  if (mode === "calculator") return false;
   if (mode === "surprise") return true;
   if (mode === "shop") return Boolean(state.shopAsset);
   if (mode === "acquire") return Boolean(state.targetAsset);
@@ -342,6 +566,7 @@ function isReadyToGenerate() {
 function getGenerateHelpText() {
   if (!state.meRosterId) return "Load a league and choose your team first.";
   const mode = getTradeMode();
+  if (mode === "calculator") return "Pick a partner and tap assets on both sides. The desk grades the deal live.";
   if (mode === "surprise") return "Ready. The app will find a three-team blockbuster.";
   if (mode === "shop") {
     return state.shopAsset
@@ -374,14 +599,52 @@ function renderSessionSnapshot() {
     el.chromeManagerLabel.textContent = getMyRoster()?.manager?.displayName || "Select team";
   }
   if (el.chromeModeLabel) {
-    const pageLabel = state.activePage === "trader" ? "Trade Lab" : "Analytics";
-    const modeLabelByMode = {
-      acquire: "Acquire",
-      shop: "Shop",
-      surprise: "Blockbuster",
-    };
-    const modeLabel = state.activePage === "trader" ? modeLabelByMode[getTradeMode()] || "Trade Lab" : pageLabel;
-    el.chromeModeLabel.textContent = modeLabel;
+    el.chromeModeLabel.textContent = state.leagueId ? describeSeasonWeek() : "—";
+  }
+  renderLeagueHero();
+}
+
+function describeSeasonWeek() {
+  const model = state.leagueId ? getSeasonModel() : null;
+  if (!model) return "—";
+  if (model.seasonComplete) return `${model.season} done`;
+  const entry = model.currentWeekEntry;
+  if (!entry) return `Week ${model.currentWeek}`;
+  if (entry.isPlayoff) return `Playoffs Wk ${entry.week}${entry.isLive ? " live" : ""}`;
+  if (entry.isLive) return `Week ${entry.week} live`;
+  return `Week ${entry.week}`;
+}
+
+function renderLeagueHero() {
+  if (!el.heroTitle) return;
+  if (!state.leagueId || !state.league) {
+    el.heroEyebrow.textContent = "Sleeper league intelligence";
+    el.heroTitle.textContent = "Your league, on a broadcast desk.";
+    el.heroLede.textContent = "Live scoreboard and win probability, playoff odds from thousands of simulated seasons, weekly awards, an all-time record book, a roster explorer, and a dynasty trade lab. One link for the whole league.";
+    if (el.leagueAvatar) el.leagueAvatar.innerHTML = `<span>D</span>`;
+    return;
+  }
+  const league = state.league;
+  const model = getSeasonModel();
+  const format = describeLeagueFormat(league);
+  const seasonLabel = `${league.season} season`;
+  const trophy = String(league?.metadata?.trophy_winner_banner_text || "").trim();
+  el.heroEyebrow.textContent = `${seasonLabel} · ${state.normalizedRosters.length} teams · ${model?.playoffTeams || league?.settings?.playoff_teams || "?"} playoff spots`;
+  el.heroTitle.textContent = state.leagueName;
+  const status = model?.seasonComplete
+    ? "Season complete. The archive, awards, and record book are final."
+    : !state.seasonLoaded
+      ? "Matchups are syncing from Sleeper."
+      : model?.currentWeekEntry?.isLive
+        ? `Week ${model.currentWeek} is live. Scores, win probability, and playoff odds update as Sleeper posts points.`
+        : model
+          ? `Week ${model.currentWeek} is next. ${model.remainingGames.length} regular-season games left before the playoffs start in Week ${model.playoffStart}.`
+          : "Matchups are syncing.";
+  el.heroLede.textContent = `${format}. ${status}${trophy ? ` Reigning champion banner: "${trophy}".` : ""}`;
+  if (el.leagueAvatar) {
+    el.leagueAvatar.innerHTML = league.avatar
+      ? `<img src="${SLEEPER_AVATAR_BASE}${escapeHtml(league.avatar)}" alt="" loading="lazy" />`
+      : `<span>${escapeHtml(String(state.leagueName || "L").trim().charAt(0).toUpperCase())}</span>`;
   }
 }
 
@@ -393,7 +656,8 @@ function scrollLoadedWorkspaceIntoView() {
 
 function syncTradeModeUi() {
   const mode = getTradeMode();
-  const searchEnabled = mode !== "surprise";
+  const isCalculator = mode === "calculator";
+  const searchEnabled = mode !== "surprise" && !isCalculator;
   const selectedAsset = getCurrentPrimaryAsset();
   const copyByMode = {
     acquire: {
@@ -408,6 +672,10 @@ function syncTradeModeUi() {
       help: "No player search needed. The app will pick teams and build a multi-team blockbuster.",
       label: "Surprise blockbuster",
     },
+    calculator: {
+      help: "Choose a trade partner, tap assets on both sides, and the desk grades the deal instantly.",
+      label: "Trade calculator",
+    },
   };
 
   el.modeCards?.forEach((button) => {
@@ -419,6 +687,9 @@ function syncTradeModeUi() {
   el.playerSearchLabel?.classList.toggle("hidden", !searchEnabled);
   el.targetSearchShell?.classList.toggle("hidden", !searchEnabled);
   el.playerResults?.classList.toggle("hidden", !searchEnabled);
+  el.calculatorSection?.classList.toggle("hidden", !isCalculator || !state.leagueId);
+  el.settingsSection?.classList.toggle("hidden", isCalculator || !state.leagueId);
+  if (isCalculator) el.resultsSection?.classList.add("hidden");
 
   if (el.tradeModeHelp) el.tradeModeHelp.textContent = copyByMode[mode]?.help || "";
   if (el.playerSearchLabel) el.playerSearchLabel.textContent = copyByMode[mode]?.label || "Search player or pick";
@@ -432,6 +703,9 @@ function syncTradeModeUi() {
       el.playerResults?.classList.add("hidden");
     }
     renderPlayerSearch();
+  }
+  if (isCalculator && state.leagueId) {
+    renderCalculator();
   }
   syncGenerateState();
   renderSessionSnapshot();
@@ -457,7 +731,7 @@ async function loadLeague() {
   state.trendingLoaded = false;
   state.playerMetadataLoaded = false;
   state.playerMetadataFailed = false;
-  state.activePage = "analytics";
+  state.activePage = "home";
   state.transactions = [];
   state.transactionsLoaded = false;
   state.transactionsFailed = false;
@@ -470,10 +744,14 @@ async function loadLeague() {
   state.historyTransactionLeaguesLoaded = 0;
   state.historyTransactionLoadError = "";
   resetHistoryCompareState();
+  resetSeasonState();
+  state.lensRosterId = null;
+  state.homeWeek = null;
+  state.awardsWeek = null;
+  state.recapWeek = null;
+  state.standingsView = "overall";
+  resetCalculatorState({ keepPartner: false });
   if (el.playerSearch) el.playerSearch.value = "";
-  renderSessionSnapshot();
-  renderPowerDashboard();
-  renderLeagueAnalyticsDashboard();
   el.powerSection?.classList.add("hidden");
   el.analyticsSection?.classList.add("hidden");
   hideAppPages();
@@ -481,7 +759,11 @@ async function loadLeague() {
   el.resultsSection.classList.add("hidden");
 
   try {
-    const coreData = await loadLeagueCoreData(leagueId);
+    const [coreData, nflState] = await Promise.all([
+      loadLeagueCoreData(leagueId),
+      apiGetWithRetry(`/state/nfl`, { timeoutMs: 8000, retries: 1 }).catch(() => null),
+    ]);
+    state.nflState = nflState;
     const { league, users, rosters, tradedPicks, drafts } = coreData;
     const leagueHistory = await loadLeagueHistoryContext(leagueId, coreData);
     const previousEntry = leagueHistory.find((entry) => !entry.isCurrent) || null;
@@ -508,6 +790,7 @@ async function loadLeague() {
     state.leagueHistory = leagueHistory;
     state.normalizedRosters = normalizeRosters(league, rosters, users, state.players, previousContext, tradedPicks, currentDraftContext);
 
+    rememberLastLeague(leagueId);
     hydrateManagerSelector();
     syncTradeModeUi();
     renderSessionSnapshot();
@@ -517,8 +800,6 @@ async function loadLeague() {
     el.playerSection.classList.remove("hidden");
     el.settingsSection?.classList.remove("hidden");
     showAppPages();
-    renderPowerDashboard();
-    renderLeagueAnalyticsDashboard();
     scrollLoadedWorkspaceIntoView();
     setStatus(`Loaded ${state.leagueName}. Player names are still syncing...`, { loading: true });
     primeValuationData();
@@ -538,18 +819,17 @@ async function loadLeague() {
           users: state.previousUsers,
           rosters: state.previousRosters,
         }, state.tradedPicks, state.currentDraftContext);
+        invalidateSeasonCaches();
         hydrateManagerSelector();
         syncTradeModeUi();
-        renderPowerDashboard();
-        renderLeagueAnalyticsDashboard();
+        renderActivePage();
         setStatus(`Loaded ${state.leagueName}. Choose your team to continue.`, { ok: true });
       })
       .catch((err) => {
         state.playerMetadataLoaded = false;
         state.playerMetadataFailed = true;
         syncTradeModeUi();
-        renderPowerDashboard();
-        renderLeagueAnalyticsDashboard();
+        renderActivePage();
         setStatus(
           `Loaded ${state.leagueName}, but could not pull full NFL names (${err.message}). You can still use the app.`,
           { ok: true }
@@ -560,6 +840,27 @@ async function loadLeague() {
   } finally {
     stopLeagueLoadingUi();
   }
+}
+
+function rememberLastLeague(leagueId) {
+  try {
+    localStorage.setItem(LAST_LEAGUE_STORAGE_KEY, String(leagueId));
+  } catch {
+    // Non-fatal.
+  }
+}
+
+function resetSeasonState() {
+  state.nflState = null;
+  state.seasonWeekRows = new Map();
+  state.seasonLoaded = false;
+  state.seasonLoadError = "";
+  invalidateSeasonCaches();
+}
+
+function invalidateSeasonCaches() {
+  state.seasonModelCache = { key: "", model: null };
+  state.simCache = { key: "", result: null };
 }
 
 async function copyHelperLeagueId() {
@@ -824,8 +1125,7 @@ async function loadTrendingPlayers() {
     state.trendingDrops = [];
     state.trendingLoaded = false;
   } finally {
-    renderPowerDashboard();
-    renderLeagueAnalyticsDashboard();
+    renderActivePage();
   }
 }
 
@@ -836,7 +1136,7 @@ async function loadLeagueTransactions(leagueId, league) {
   state.transactionsFailed = false;
   state.transactionWeeksLoaded = 0;
   state.transactionLoadError = "";
-  renderLeagueAnalyticsDashboard();
+  renderActivePage();
 
   const weeks = buildTransactionWeeks(league);
   try {
@@ -879,7 +1179,7 @@ async function loadLeagueTransactions(leagueId, league) {
     state.transactionLoadError = err.message || "Could not load Sleeper transactions.";
   } finally {
     if (state.leagueId === loadLeagueId) {
-      renderLeagueAnalyticsDashboard();
+      renderActivePage();
     }
   }
 }
@@ -895,7 +1195,7 @@ async function loadLeagueHistoryTransactions(historyEntries = []) {
   state.historyTransactionsFailed = false;
   state.historyTransactionLeaguesLoaded = 0;
   state.historyTransactionLoadError = "";
-  renderLeagueAnalyticsDashboard();
+  renderActivePage();
 
   if (historicalEntries.length === 0) return;
 
@@ -949,7 +1249,7 @@ async function loadLeagueHistoryTransactions(historyEntries = []) {
     state.historyTransactionLoadError = err.message || "Could not load archived Sleeper transactions.";
   } finally {
     if (state.leagueId === activeLeagueId) {
-      renderLeagueAnalyticsDashboard();
+      renderActivePage();
     }
   }
 }
@@ -980,7 +1280,7 @@ async function loadLeagueHistoryMatchups(historyEntries = []) {
   state.historyMatchupsFailed = false;
   state.historyMatchupLeaguesLoaded = 0;
   state.historyMatchupLoadError = "";
-  renderLeagueAnalyticsDashboard();
+  renderActivePage();
 
   if (entries.length === 0) return;
 
@@ -991,23 +1291,48 @@ async function loadLeagueHistoryMatchups(historyEntries = []) {
       if (state.leagueId !== activeLeagueId) return;
       const weeks = buildTransactionWeeks(entry.league);
       const playoffStart = Number(entry.league?.settings?.playoff_week_start);
-      const settled = await Promise.allSettled(
-        weeks.map((week) =>
-          apiGetWithRetry(`/league/${entry.leagueId}/matchups/${week}`, { timeoutMs: 10000, retries: 1 })
-            .then((weekMatchups) => ({
-              week,
-              matchups: Array.isArray(weekMatchups) ? weekMatchups : [],
-            }))
-        )
-      );
-
+      const currentWeek = Number(state.nflState?.week) || 1;
+      const orderedWeeks = entry.isCurrent
+        ? [...weeks].sort((a, b) => Math.abs(a - currentWeek) - Math.abs(b - currentWeek) || a - b)
+        : weeks;
       let loadedWeeks = 0;
-      settled.forEach((result) => {
-        if (result.status !== "fulfilled") return;
-        loadedWeeks += 1;
-        matchups.push(...buildWeekMatchupRecords(entry, result.value.week, result.value.matchups, playoffStart));
-      });
+      const chunkSize = 4;
+      for (let i = 0; i < orderedWeeks.length; i += chunkSize) {
+        if (state.leagueId !== activeLeagueId) return;
+        const chunk = orderedWeeks.slice(i, i + chunkSize);
+        const settled = await Promise.allSettled(
+          chunk.map((week) =>
+            apiGetWithRetry(`/league/${entry.leagueId}/matchups/${week}`, { timeoutMs: 15000, retries: 1 })
+              .then((weekMatchups) => ({
+                week,
+                matchups: Array.isArray(weekMatchups) ? weekMatchups : [],
+              }))
+          )
+        );
+        settled.forEach((result) => {
+          if (result.status !== "fulfilled") return;
+          loadedWeeks += 1;
+          matchups.push(...buildWeekMatchupRecords(entry, result.value.week, result.value.matchups, playoffStart));
+          if (entry.isCurrent) {
+            state.seasonWeekRows.set(Number(result.value.week), result.value.matchups);
+          }
+        });
+        if (entry.isCurrent && loadedWeeks > 0) {
+          state.seasonLoaded = true;
+          state.seasonLoadError = "";
+          invalidateSeasonCaches();
+          renderSessionSnapshot();
+          renderActivePage();
+        }
+      }
       if (loadedWeeks > 0) loadedLeagues += 1;
+      if (entry.isCurrent) {
+        state.seasonLoaded = loadedWeeks > 0;
+        state.seasonLoadError = loadedWeeks > 0 ? "" : "Sleeper did not return matchups for the current season.";
+        invalidateSeasonCaches();
+        renderSessionSnapshot();
+        renderActivePage();
+      }
     }
 
     if (state.leagueId !== activeLeagueId) return;
@@ -1026,7 +1351,7 @@ async function loadLeagueHistoryMatchups(historyEntries = []) {
     state.historyMatchupLoadError = err.message || "Could not load archived Sleeper matchups.";
   } finally {
     if (state.leagueId === activeLeagueId) {
-      renderLeagueAnalyticsDashboard();
+      renderActivePage();
     }
   }
 }
@@ -1078,7 +1403,7 @@ function handleHistoryCompareClick(event) {
   const mode = button.dataset.historyCompareMode === "managers" ? "managers" : "seasons";
   if (state.historyCompare.mode === mode) return;
   state.historyCompare.mode = mode;
-  renderLeagueAnalyticsDashboard();
+  renderActivePage();
 }
 
 function handleHistoryCompareChange(event) {
@@ -1087,7 +1412,7 @@ function handleHistoryCompareChange(event) {
   const field = select.dataset.historyCompareField;
   if (!["leftSeason", "rightSeason", "leftManagerKey", "rightManagerKey"].includes(field)) return;
   state.historyCompare[field] = select.value;
-  renderLeagueAnalyticsDashboard();
+  renderActivePage();
 }
 
 function buildTransactionWeeks(league) {
@@ -1204,9 +1529,16 @@ function hydrateManagerSelector() {
   const preferredRoster = preferredManager
     ? state.normalizedRosters.find((roster) => roster.manager.displayName === preferredManager)
     : null;
+  const pendingRoster = state.pendingMeRosterId
+    ? state.normalizedRosters.find((roster) => Number(roster.rosterId) === Number(state.pendingMeRosterId))
+    : null;
   const preservedRoster = state.normalizedRosters.find((roster) => roster.rosterId === selectedRosterId);
+  state.pendingMeRosterId = null;
 
-  if (!preservedRoster && preferredRoster) {
+  if (pendingRoster) {
+    state.meRosterId = pendingRoster.rosterId;
+    el.meSelect.value = String(pendingRoster.rosterId);
+  } else if (!preservedRoster && preferredRoster) {
     state.meRosterId = preferredRoster.rosterId;
     el.meSelect.value = String(preferredRoster.rosterId);
   } else if (preservedRoster) {
@@ -1220,8 +1552,7 @@ function hydrateManagerSelector() {
   pruneExcludedOutgoingAssets();
   renderPlayerSearch();
   renderSessionSnapshot();
-  renderPowerDashboard();
-  renderLeagueAnalyticsDashboard();
+  renderActivePage();
 }
 
 function getMyRoster() {
@@ -1231,9 +1562,24 @@ function getMyRoster() {
   return state.normalizedRosters.find((roster) => roster.rosterId === meRosterId) || null;
 }
 
+function getLensRoster() {
+  if (state.lensRosterId != null) {
+    const lens = state.normalizedRosters.find((roster) => Number(roster.rosterId) === Number(state.lensRosterId));
+    if (lens) return lens;
+  }
+  return getMyRoster();
+}
+
+function findNormalizedRoster(rosterId) {
+  return state.normalizedRosters.find((roster) => String(roster.rosterId) === String(rosterId)) || null;
+}
+
 function renderPowerDashboard() {
   if (!el.powerDashboard) return;
-  const meRoster = getMyRoster();
+  const meRoster = getLensRoster();
+  if (el.powerHeading) {
+    el.powerHeading.textContent = meRoster ? `${meRoster.manager.displayName} scout card` : "Roster power";
+  }
   if (!meRoster || state.normalizedRosters.length === 0) {
     el.powerDashboard.innerHTML = `<p class="muted">Choose your team to generate a power score.</p>`;
     return;
@@ -1307,6 +1653,1343 @@ function renderPowerDashboard() {
       </section>
     </div>
   `;
+}
+
+// ---------------------------------------------------------------------------
+// Season engine glue: model, priors, simulation, and shared helpers
+// ---------------------------------------------------------------------------
+
+function getSeasonModel() {
+  if (!state.league) return null;
+  const key = [
+    state.leagueId,
+    state.seasonWeekRows.size,
+    state.seasonLoaded,
+    state.rosters.length,
+    state.users.length,
+    state.playerMetadataLoaded,
+    state.nflState?.week ?? "na",
+  ].join("|");
+  if (state.seasonModelCache.key === key && state.seasonModelCache.model) return state.seasonModelCache.model;
+  const model = buildSeasonModel({
+    league: state.league,
+    rosters: state.rosters,
+    users: state.users,
+    weekRows: state.seasonWeekRows,
+    nflState: state.nflState,
+    optimalPoints: state.playerMetadataLoaded ? computeOptimalPointsForSide : null,
+  });
+  state.seasonModelCache = { key, model };
+  state.simCache = { key: "", result: null };
+  return model;
+}
+
+function computeOptimalPointsForSide(side) {
+  if (!state.playerMetadataLoaded || !Array.isArray(side?.players) || side.players.length === 0) return null;
+  const values = {};
+  const assets = side.players.map((playerId) => {
+    const raw = state.players?.[playerId] || {};
+    values[`player:${playerId}`] = Number(side.playersPoints?.[playerId]) || 0;
+    return { assetId: `player:${playerId}`, name: String(playerId), assetType: "player", raw };
+  });
+  const lineup = buildOptimalStartingLineup(assets, getStarterRosterSlots(state.league), values);
+  return lineup.starters.reduce((sum, entry) => sum + (entry.asset ? values[entry.asset.assetId] || 0 : 0), 0);
+}
+
+function getSimulation(model) {
+  if (!model) return null;
+  if (!state.seasonLoaded && model.remainingGames.length === 0 && !model.seasonComplete) return null;
+  const key = `${state.seasonModelCache.key}|${Object.keys(state.values).length}|${state.previousRosters.length}|${state.meRosterId}`;
+  if (state.simCache.key === key) return state.simCache.result;
+  let result = null;
+  try {
+    result = simulateSeason(model, { priors: buildSimPriors(model), iterations: SIM_ITERATIONS, seed: 20260911 });
+  } catch (err) {
+    console.warn("Playoff simulation failed", err);
+  }
+  state.simCache = { key, result };
+  return result;
+}
+
+function buildSimPriors(model) {
+  const priors = new Map();
+  const previousRows = (state.previousRosters || [])
+    .map((roster) => {
+      const settings = roster?.settings || {};
+      const games = Number(settings.wins || 0) + Number(settings.losses || 0) + Number(settings.ties || 0);
+      return {
+        ownerId: roster?.owner_id != null ? String(roster.owner_id) : "",
+        rosterId: String(roster?.roster_id),
+        games,
+        pf: Number(settings.fpts || 0) + Number(settings.fpts_decimal || 0) / 100,
+      };
+    })
+    .filter((row) => row.games > 0 && row.pf > 0);
+  const previousLeaguePpg = previousRows.length
+    ? previousRows.reduce((sum, row) => sum + row.pf, 0) / previousRows.reduce((sum, row) => sum + row.games, 0)
+    : 0;
+  const baseline = model.finalRegularWeeks >= 3 && model.leagueAverage > 0
+    ? model.leagueAverage
+    : previousLeaguePpg || model.leagueAverage || 125;
+
+  const strength = state.normalizedRosters.length
+    ? buildLeagueStrengthBaseline({ league: state.league, rosters: state.normalizedRosters, values: state.values })
+    : null;
+  const metricsByKey = new Map();
+  strength?.metricsByRosterId.forEach((metrics, rosterId) => metricsByKey.set(String(rosterId), metrics));
+  const starterValues = [...metricsByKey.values()].map((metrics) => metrics.starterValue);
+
+  model.standings.forEach((team) => {
+    const metrics = metricsByKey.get(String(team.rosterId));
+    const percentile = metrics && starterValues.length > 1 ? percentileFromValues(starterValues, metrics.starterValue) : 0.5;
+    const valueMean = baseline * (0.94 + 0.12 * percentile);
+    const previous = previousRows.find((row) => row.ownerId && row.ownerId === team.ownerId)
+      || previousRows.find((row) => row.rosterId === String(team.rosterId));
+    const previousPpg = previous ? previous.pf / previous.games : null;
+    const shrunkPrev = previousPpg != null ? baseline + (previousPpg - baseline) * 0.35 : null;
+    const mixed = shrunkPrev != null ? valueMean * 0.45 + shrunkPrev * 0.55 : valueMean;
+    const mean = baseline + (mixed - baseline) * 0.7;
+    priors.set(team.rosterId, { mean, std: Math.max(24, baseline * 0.22) });
+  });
+  return priors;
+}
+
+function buildPowerProfiles() {
+  if (!state.league || state.normalizedRosters.length === 0) return [];
+  const context = buildLeaguePowerContext({
+    league: state.league,
+    rosters: state.normalizedRosters,
+    values: state.values,
+  });
+  return state.normalizedRosters
+    .map((roster) => buildTeamPowerProfile({ roster, values: state.values, league: state.league, context }))
+    .sort((a, b) => b.score - a.score || a.rank - b.rank || a.managerName.localeCompare(b.managerName));
+}
+
+function managerForRosterId(rosterId) {
+  const roster = findNormalizedRoster(rosterId);
+  if (roster) return roster.manager;
+  const team = getSeasonModel()?.teams.get(String(rosterId));
+  return team ? { displayName: team.name, avatar: team.avatar, teamName: team.teamName } : { displayName: `Roster ${rosterId}`, avatar: null };
+}
+
+function renderTeamIdentity(rosterId, { size = "sm", showTeamName = true, extra = "" } = {}) {
+  const manager = managerForRosterId(rosterId);
+  const isMe = String(rosterId) === String(state.meRosterId);
+  const teamName = showTeamName ? (manager.teamName || "") : "";
+  const subtitle = [teamName, extra].filter(Boolean).join(" · ");
+  return `
+    <span class="team-identity ${isMe ? "you" : ""}">
+      ${renderAvatar(manager, { size })}
+      <span class="team-identity-copy">
+        <strong><span class="team-name">${escapeHtml(manager.displayName)}</span>${isMe ? `<span class="you-chip">You</span>` : ""}</strong>
+        ${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ""}
+      </span>
+    </span>
+  `;
+}
+
+function playerNameById(playerId) {
+  const player = state.players?.[playerId];
+  if (!player) return state.valueNameMap?.[`player:${playerId}`] || `Player ${playerId}`;
+  return `${(player.first_name || "").trim()} ${(player.last_name || "").trim()}`.trim() || player.full_name || `Player ${playerId}`;
+}
+
+function playerPositionById(playerId) {
+  return playerPositionForRaw(state.players?.[playerId]) || "";
+}
+
+function weekStatusChip(entry) {
+  if (!entry) return "";
+  const cls = entry.status === "live" ? "live" : entry.status === "final" ? "final" : "upcoming";
+  const label = entry.status === "live" ? "Live" : entry.status === "final" ? "Final" : entry.status === "current" ? "This week" : "Upcoming";
+  return `<span class="status-chip ${cls}">${label}</span>`;
+}
+
+function percentLabel(value) {
+  if (!Number.isFinite(value)) return "—";
+  if (value > 0 && value < 1) return "<1%";
+  if (value > 99 && value < 100) return ">99%";
+  return `${Math.round(value)}%`;
+}
+
+function luckClass(luck) {
+  if (!Number.isFinite(luck) || Math.abs(luck) < 0.5) return "";
+  return luck > 0 ? "up" : "down";
+}
+
+function formatLuck(luck) {
+  if (!Number.isFinite(luck)) return "—";
+  return `${luck > 0 ? "+" : ""}${luck.toFixed(1)}`;
+}
+
+function seasonThroughLabel(model) {
+  if (Number.isFinite(model?.finalThroughWeek) && model.finalThroughWeek > 0) {
+    return `${model.season} through Week ${model.finalThroughWeek}`;
+  }
+  if (model?.featuredWeek) return `${model.season} · ${model.featuredWeek.label} still live`;
+  return `${model.season} · waiting on Week 1`;
+}
+
+// ---------------------------------------------------------------------------
+// Command Center
+// ---------------------------------------------------------------------------
+
+function renderHomePage() {
+  if (!el.homeDashboard) return;
+  if (!state.league || state.normalizedRosters.length === 0) {
+    el.homeDashboard.innerHTML = `<p class="muted">Load a league to open the command center.</p>`;
+    return;
+  }
+  const model = getSeasonModel();
+  const sim = getSimulation(model);
+  const profiles = buildPowerProfiles();
+  el.homeDashboard.innerHTML = `
+    ${renderPulseStrip(model, sim, profiles)}
+    ${renderScoreboardPanel(model, sim)}
+    <div class="home-two-col">
+      ${renderStandingsPanel(model, sim)}
+      ${renderPlayoffOddsPanel(model, sim)}
+    </div>
+    ${renderHomePowerBoard(profiles, model)}
+  `;
+}
+
+function renderPulseStrip(model, sim, profiles) {
+  const leader = model.standings[0] || null;
+  const hasGames = model.standings.some((team) => team.gamesPlayed > 0);
+  const favorite = sim?.results?.[0] || null;
+  const champion = model.seasonComplete ? resolveCurrentChampion() : null;
+  const deadline = Number(state.league?.settings?.trade_deadline);
+  const tradeCount = state.transactions.filter((transaction) => transaction?.type === "trade" && transaction?.status === "complete").length;
+  const hotTeam = model.standings
+    .filter((team) => team.streak?.type === "W" && team.streak.length >= 2)
+    .sort((a, b) => b.streak.length - a.streak.length)[0] || null;
+  const topPower = profiles[0] || null;
+  const tiles = [
+    {
+      label: "Week",
+      value: model.seasonComplete ? "Final" : `Week ${model.currentWeek}`,
+      detail: model.seasonComplete
+        ? `${model.season} season complete`
+        : !state.seasonLoaded
+          ? "syncing matchups"
+          : model.currentWeekEntry?.isLive
+            ? "games in progress"
+            : model.currentWeekEntry?.isPlayoff
+              ? "playoff round"
+              : `${model.remainingGames.length} regular-season games left`,
+      tone: model.currentWeekEntry?.isLive ? "live" : "blue",
+    },
+    {
+      label: hasGames ? "Standings leader" : "Preseason favorite",
+      value: hasGames ? leader?.name || "TBD" : favorite?.name || topPower?.managerName || "TBD",
+      detail: hasGames ? `${leader?.recordLabel || ""} · ${formatPoints(leader?.pf || 0)} PF` : favorite ? `${percentLabel(favorite.titlePct)} title odds` : "value model",
+      tone: "gold",
+    },
+    {
+      label: champion ? "Champion" : "Title favorite",
+      value: champion ? champion.managerName : favorite?.name || "TBD",
+      detail: champion ? `${model.season} league winner` : favorite ? `${percentLabel(favorite.titlePct)} title · ${percentLabel(favorite.playoffPct)} playoffs` : "simulation pending",
+      tone: "green",
+    },
+    {
+      label: hotTeam ? "Hot hand" : "Power leader",
+      value: hotTeam ? hotTeam.name : topPower?.managerName || "TBD",
+      detail: hotTeam ? `${hotTeam.streak.length} straight wins` : topPower ? `${topPower.score}/100 power score` : "values syncing",
+      tone: "rose",
+    },
+    {
+      label: "Trade desk",
+      value: state.transactionsLoaded ? `${tradeCount} trade${tradeCount === 1 ? "" : "s"}` : "Syncing",
+      detail: Number.isFinite(deadline) && deadline > 0
+        ? model.currentWeek > deadline && !model.seasonComplete ? `deadline passed (Week ${deadline})` : `deadline Week ${deadline}`
+        : "no trade deadline",
+      tone: "blue",
+    },
+  ];
+  return `
+    <div class="pulse-grid">
+      ${tiles.map((tile) => `
+        <section class="pulse-tile ${tile.tone}">
+          <span>${escapeHtml(tile.label)}</span>
+          <strong>${escapeHtml(tile.value)}</strong>
+          <small>${escapeHtml(tile.detail)}</small>
+        </section>
+      `).join("")}
+    </div>
+  `;
+}
+
+function resolveCurrentChampion() {
+  const entry = state.leagueHistory.find((item) => item.isCurrent);
+  if (!entry) return null;
+  const snapshot = buildSeasonSnapshot(entry);
+  return snapshot?.champion || null;
+}
+
+function resolveHomeWeekEntry(model) {
+  const candidates = model.weeks.filter((entry) => entry.games.length > 0);
+  if (candidates.length === 0) return null;
+  const requested = state.homeWeek != null ? candidates.find((entry) => entry.week === Number(state.homeWeek)) : null;
+  return requested || model.featuredWeek || candidates[0];
+}
+
+function renderScoreboardPanel(model, sim) {
+  const entry = resolveHomeWeekEntry(model);
+  if (!entry) {
+    return `
+      <section class="workspace-panel scoreboard-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="eyebrow">Scoreboard</span>
+            <h2>Matchups</h2>
+          </div>
+          <p class="section-copy">${state.seasonLoaded ? escapeHtml(state.seasonLoadError || "Sleeper has not published a schedule for this league yet.") : "Syncing matchups from Sleeper…"}</p>
+        </div>
+      </section>
+    `;
+  }
+  const weeksWithGames = model.weeks.filter((item) => item.games.length > 0).map((item) => item.week);
+  const index = weeksWithGames.indexOf(entry.week);
+  const previousWeek = index > 0 ? weeksWithGames[index - 1] : null;
+  const nextWeek = index >= 0 && index < weeksWithGames.length - 1 ? weeksWithGames[index + 1] : null;
+  const distributions = sim?.distributions || buildTeamDistributions(model, buildSimPriors(model));
+  const caption = entry.status === "final"
+    ? "Final scores. Win probability shown is what the desk had before kickoff."
+    : entry.status === "live"
+      ? "Live scores from Sleeper. Probabilities are pre-game, from each roster's scoring profile."
+      : "Pre-game win probability from each roster's scoring profile and simulated priors.";
+
+  return `
+    <section class="workspace-panel scoreboard-panel">
+      <div class="panel-heading scoreboard-heading">
+        <div>
+          <span class="eyebrow">Scoreboard</span>
+          <h2>${escapeHtml(entry.label)} ${weekStatusChip(entry)}</h2>
+        </div>
+        <div class="week-nav">
+          <button type="button" class="ghost-btn" data-action="home-week" data-week="${previousWeek ?? ""}" ${previousWeek == null ? "disabled" : ""}>Prev</button>
+          <span>${index + 1} / ${weeksWithGames.length}</span>
+          <button type="button" class="ghost-btn" data-action="home-week" data-week="${nextWeek ?? ""}" ${nextWeek == null ? "disabled" : ""}>Next</button>
+        </div>
+      </div>
+      <p class="muted small scoreboard-caption">${caption}</p>
+      <div class="game-grid">
+        ${entry.games.map((game) => renderGameCard(game, entry, model, distributions)).join("")}
+        ${entry.byes.map((side) => `
+          <article class="game-card bye">
+            ${renderTeamIdentity(side.rosterId, { showTeamName: false })}
+            <span class="muted small">Bye week</span>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderGameCard(game, entry, model, distributions) {
+  const [left, right] = game.sides;
+  const leftTeam = model.teams.get(left.rosterId);
+  const rightTeam = model.teams.get(right.rosterId);
+  const leftDist = distributions.get(left.rosterId);
+  const rightDist = distributions.get(right.rosterId);
+  const leftProb = winProbability(leftDist, rightDist);
+  const rightProb = 1 - leftProb;
+  const showScores = entry.status !== "upcoming" && (game.played || entry.status === "final");
+  const isFinal = entry.status === "final";
+  const leftWon = isFinal && showScores && left.points > right.points;
+  const rightWon = isFinal && showScores && right.points > left.points;
+  const involvesMe = [left.rosterId, right.rosterId].includes(String(state.meRosterId));
+  const renderSide = (side, team, dist, prob, won) => `
+    <div class="game-side ${won ? "winner" : ""} ${String(side.rosterId) === String(state.meRosterId) ? "you" : ""}">
+      ${renderTeamIdentity(side.rosterId, { extra: team?.recordLabel || "" })}
+      <div class="game-side-score">
+        ${showScores
+          ? `<strong>${formatPoints(side.points)}</strong>`
+          : `<strong class="proj">${percentLabel(prob * 100)}</strong>`}
+        <small>${showScores ? `${percentLabel(prob * 100)} pre-game` : `proj ${formatPoints(dist?.mean || 0)}`}</small>
+      </div>
+    </div>
+  `;
+  return `
+    <article class="game-card ${involvesMe ? "featured" : ""} ${entry.status}">
+      ${renderSide(left, leftTeam, leftDist, leftProb, leftWon)}
+      <div class="prob-bar" aria-hidden="true">
+        <span class="prob-left" style="width:${Math.round(leftProb * 100)}%"></span>
+        <span class="prob-right" style="width:${Math.round(rightProb * 100)}%"></span>
+      </div>
+      ${renderSide(right, rightTeam, rightDist, rightProb, rightWon)}
+      <footer class="game-card-footer">
+        <span>${entry.status === "final" ? "Final" : entry.status === "live" ? "Live" : "Kickoff pending"}</span>
+        <span>${showScores && game.margin > 0 ? `Margin ${formatPoints(game.margin)}` : `Matchup ${game.matchupId}`}</span>
+      </footer>
+    </article>
+  `;
+}
+
+function renderStandingsPanel(model, sim) {
+  const hasGames = model.standings.some((team) => team.gamesPlayed > 0 || team.wins + team.losses > 0);
+  const showDivisions = model.divisions.length > 1;
+  const view = showDivisions && state.standingsView === "division" ? "division" : "overall";
+  const rowOpts = { playoffTeams: model.playoffTeams, hasGames };
+  const rowsHtml = view === "division"
+    ? model.divisions.map((division) => `
+        <div class="standings-division">
+          <h4>${escapeHtml(division.name)}</h4>
+          ${division.teams.map((team, index) => renderStandingsRow(team, sim, { ...rowOpts, showLine: false, position: index + 1, divisionLeader: index === 0 })).join("")}
+        </div>
+      `).join("")
+    : model.standings.map((team, index) => renderStandingsRow(team, sim, {
+        ...rowOpts,
+        showLine: hasGames && index === model.playoffTeams - 1 && index < model.standings.length - 1,
+        position: index + 1,
+      })).join("");
+
+  return `
+    <section class="workspace-panel standings-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Standings</span>
+          <h2>${hasGames && model.finalThroughWeek > 0 ? `Through Week ${model.finalThroughWeek}` : "Season outlook"}</h2>
+        </div>
+        ${showDivisions ? `
+          <div class="segmented" role="group" aria-label="Standings view">
+            <button type="button" class="${view === "overall" ? "active" : ""}" data-action="standings-view" data-view="overall">Overall</button>
+            <button type="button" class="${view === "division" ? "active" : ""}" data-action="standings-view" data-view="division">Divisions</button>
+          </div>
+        ` : ""}
+      </div>
+      <div class="standings-legend muted small">
+        <span>All-play: record against every team each week.</span>
+        <span>Luck: real wins minus all-play expected wins.</span>
+        ${model.medianGames ? "<span>Includes weekly median games.</span>" : ""}
+      </div>
+      <div class="standings-table">
+        <div class="standings-head">
+          <span>#</span><span>Team</span><span>W-L</span><span class="col-pf">PF</span><span class="col-pa">PA</span><span class="col-streak">Strk</span><span class="col-allplay">All-play</span><span class="col-luck">Luck</span>
+        </div>
+        ${rowsHtml}
+      </div>
+      ${!hasGames ? `<p class="muted small">No finalized games yet. Projected wins come from ${sim ? sim.iterations.toLocaleString() : "the"} simulated seasons.</p>` : ""}
+    </section>
+  `;
+}
+
+function renderStandingsRow(team, sim, { showLine, position, divisionLeader = false, playoffTeams = 6, hasGames = false }) {
+  const odds = sim?.byRosterId?.get(team.rosterId);
+  const seed = team.seed;
+  const badges = [];
+  if (hasGames && seed && seed <= playoffTeams) badges.push(`<span class="seed-chip">${seed}</span>`);
+  if (divisionLeader) badges.push(`<span class="mini-chip">Div lead</span>`);
+  if (odds?.clinched) badges.push(`<span class="mini-chip green">Clinched</span>`);
+  if (odds?.eliminated) badges.push(`<span class="mini-chip rose">Out</span>`);
+  const streakLabel = team.streak?.length ? team.streak.label : "—";
+  return `
+    <div class="standings-row ${String(team.rosterId) === String(state.meRosterId) ? "you" : ""} ${showLine ? "playoff-line" : ""}" data-action="set-lens-teams" data-roster-id="${team.rosterId}">
+      <span class="rank-number">${position}</span>
+      <div class="standings-team">
+        ${renderTeamIdentity(team.rosterId, { showTeamName: false })}
+        <span class="standings-badges">${badges.join("")}</span>
+      </div>
+      <span class="mono">${escapeHtml(team.recordLabel)}</span>
+      <span class="mono col-pf">${team.gamesPlayed ? formatPoints(team.pf) : odds ? `<em title="Projected wins">${odds.projectedWins.toFixed(1)} proj W</em>` : "—"}</span>
+      <span class="mono col-pa">${team.gamesPlayed ? formatPoints(team.pa) : "—"}</span>
+      <span class="streak col-streak ${team.streak?.type === "W" ? "up" : team.streak?.type === "L" ? "down" : ""}">${streakLabel}</span>
+      <span class="mono col-allplay">${team.allPlayGames ? escapeHtml(team.allPlayRecord) : "—"}</span>
+      <span class="mono luck col-luck ${luckClass(team.luck)}">${team.gamesPlayed ? formatLuck(team.luck) : "—"}</span>
+    </div>
+  `;
+}
+
+function renderPlayoffOddsPanel(model, sim) {
+  if (model.seasonComplete) {
+    const champion = resolveCurrentChampion();
+    const snapshot = state.leagueHistory.find((item) => item.isCurrent) ? buildSeasonSnapshot(state.leagueHistory.find((item) => item.isCurrent)) : null;
+    return `
+      <section class="workspace-panel odds-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="eyebrow">Playoffs</span>
+            <h2>Season complete</h2>
+          </div>
+        </div>
+        <div class="champion-card">
+          ${champion ? renderTeamIdentity(champion.rosterId, { size: "lg", extra: `${model.season} champion` }) : `<p class="muted">Champion not published by Sleeper yet.</p>`}
+          ${snapshot?.runnerUp ? `<p class="muted small">Runner-up: ${escapeHtml(snapshot.runnerUp.managerName)}</p>` : ""}
+        </div>
+      </section>
+    `;
+  }
+  if (!sim) {
+    return `
+      <section class="workspace-panel odds-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="eyebrow">Playoff Odds</span>
+            <h2>Simulation pending</h2>
+          </div>
+          <p class="section-copy">Matchups are still syncing from Sleeper.</p>
+        </div>
+      </section>
+    `;
+  }
+  const rows = sim.results.slice().sort((a, b) => b.playoffPct - a.playoffPct || b.titlePct - a.titlePct);
+  const phase = model.regularSeasonComplete ? "bracket" : "regular";
+  const preseason = !Number.isFinite(model.finalThroughWeek) || model.finalThroughWeek < 1;
+  const heading = phase === "bracket" ? "Title odds" : `${model.playoffTeams} playoff spots`;
+  const copy = preseason
+    ? `${sim.remainingGameCount} games left. ${sim.iterations.toLocaleString()} simulated seasons, shrunk toward the league average so Week 1 is not a 99% lock. Last year's pace and roster value still lean the board; odds will move once scores go final.`
+    : `${sim.remainingGameCount} games left. ${sim.iterations.toLocaleString()} simulated seasons. Each roster scores from a blend of this year's results, last year's pace, and dynasty starter value.`;
+  return `
+    <section class="workspace-panel odds-panel">
+      <div class="panel-heading stack">
+        <div>
+          <span class="eyebrow">Playoff Odds</span>
+          <h2>${heading}</h2>
+        </div>
+        <p class="section-copy">${copy}</p>
+      </div>
+      <div class="odds-table">
+        <div class="odds-head"><span>Team</span><span>Playoffs</span><span>Title</span><span>Proj W</span></div>
+        ${rows.map((row) => renderOddsRow(row, sim)).join("")}
+      </div>
+      <p class="muted small">${model.divisionCount > 1 ? "Division winners take the top seeds (Sleeper default). " : ""}${sim.byeCount > 0 ? `Top ${sim.byeCount} seed${sim.byeCount === 1 ? "" : "s"} get a first-round bye.` : ""}</p>
+    </section>
+  `;
+}
+
+function renderOddsRow(row, sim) {
+  const flags = [];
+  if (row.clinched) flags.push(`<span class="mini-chip green">Clinched</span>`);
+  if (row.eliminated) flags.push(`<span class="mini-chip rose">Eliminated</span>`);
+  if (!row.clinched && !row.eliminated && sim.byeCount > 0 && row.byePct >= 50) flags.push(`<span class="mini-chip">Bye ${percentLabel(row.byePct)}</span>`);
+  return `
+    <div class="odds-row ${String(row.rosterId) === String(state.meRosterId) ? "you" : ""}">
+      <div class="odds-team">
+        ${renderTeamIdentity(row.rosterId, { showTeamName: false })}
+        <span class="standings-badges">${flags.join("")}</span>
+      </div>
+      <div class="odds-meter">
+        <div class="meter-track"><span style="width:${Math.max(1, Math.min(100, row.playoffPct))}%"></span></div>
+        <strong>${percentLabel(row.playoffPct)}</strong>
+      </div>
+      <div class="odds-meter title">
+        <div class="meter-track"><span style="width:${Math.max(1, Math.min(100, row.titlePct))}%"></span></div>
+        <strong>${percentLabel(row.titlePct)}</strong>
+      </div>
+      <span class="mono">${row.projectedWins.toFixed(1)}</span>
+    </div>
+  `;
+}
+
+function renderHomePowerBoard(profiles, model) {
+  if (profiles.length === 0) return "";
+  const maxStarter = Math.max(1, ...profiles.map((profile) => profile.metrics.starterValue));
+  return `
+    <section class="workspace-panel power-board-panel">
+      <div class="panel-heading stack">
+        <div>
+          <span class="eyebrow">Power Rankings</span>
+          <h2>Dynasty value board</h2>
+        </div>
+        <p class="section-copy">Optimal-lineup value, depth, pick capital, and roster age, scored 35-99. Tap a team to open its scout card.</p>
+      </div>
+      <div class="power-board">
+        ${profiles.map((profile, index) => {
+          const team = model?.teams.get(String(profile.rosterId));
+          return `
+            <button type="button" class="power-board-row ${String(profile.rosterId) === String(state.meRosterId) ? "you" : ""}" data-action="set-lens-teams" data-roster-id="${profile.rosterId}">
+              <span class="rank-number">${index + 1}</span>
+              ${renderTeamIdentity(profile.rosterId, { extra: `${profile.laneLabel}${team?.gamesPlayed ? ` · ${team.recordLabel}` : ""}` })}
+              <div class="power-board-meter">
+                <div class="meter-track"><span style="width:${Math.round(profile.metrics.starterValue / maxStarter * 100)}%"></span></div>
+                <small>${formatNumber(profile.metrics.starterValue)} starters · ${formatNumber(profile.assetSummary.pickValue)} picks · ${profile.assetSummary.averageAgeLabel}</small>
+              </div>
+              <span class="power-tier ${profile.tierClass}">${profile.grade}</span>
+              <strong class="power-score">${profile.score}</strong>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Teams explorer
+// ---------------------------------------------------------------------------
+
+function renderTeamsPage() {
+  renderTeamsGrid();
+  renderPowerDashboard();
+  renderRosterSheet();
+}
+
+function renderTeamsGrid() {
+  if (!el.teamsGrid) return;
+  const profiles = buildPowerProfiles();
+  const model = getSeasonModel();
+  const lens = getLensRoster();
+  el.teamsGrid.innerHTML = profiles.map((profile) => {
+    const team = model?.teams.get(String(profile.rosterId));
+    const manager = managerForRosterId(profile.rosterId);
+    const isActive = lens && String(lens.rosterId) === String(profile.rosterId);
+    return `
+      <article class="team-card ${isActive ? "active" : ""} ${String(profile.rosterId) === String(state.meRosterId) ? "you" : ""}">
+        <button type="button" class="team-card-main" data-action="set-lens" data-roster-id="${profile.rosterId}">
+          ${renderAvatar(manager, { size: "lg" })}
+          <span class="team-card-copy">
+            <strong>${escapeHtml(manager.displayName)}</strong>
+            <span>${escapeHtml(manager.teamName || profile.laneLabel)}</span>
+            <small>${team?.gamesPlayed ? `${escapeHtml(team.recordLabel)} · ${formatPoints(team.pf)} PF` : escapeHtml(profile.laneLabel)}</small>
+          </span>
+          <span class="team-card-score">
+            <strong>${profile.score}</strong>
+            <span class="power-tier ${profile.tierClass}">${profile.grade}</span>
+          </span>
+        </button>
+        ${String(profile.rosterId) !== String(state.meRosterId) ? `<button type="button" class="team-card-trade" data-action="calc-with" data-roster-id="${profile.rosterId}">Build a trade</button>` : `<span class="team-card-trade muted">Your roster</span>`}
+      </article>
+    `;
+  }).join("");
+}
+
+function renderRosterSheet() {
+  if (!el.rosterSheet) return;
+  const roster = getLensRoster();
+  if (!roster) {
+    el.rosterSheet.innerHTML = `<p class="muted">Choose a team to open the roster sheet.</p>`;
+    return;
+  }
+  if (el.rosterSheetHeading) el.rosterSheetHeading.textContent = `${roster.manager.displayName}: lineup, bench, and picks`;
+  if (!state.playerMetadataLoaded) {
+    el.rosterSheet.innerHTML = `<div class="power-sync"><strong>Syncing player metadata</strong><p class="muted">Names, positions, and ages arrive in a moment.</p></div>`;
+    return;
+  }
+  const values = state.values;
+  const strength = evaluateRosterStrength(roster, values, state.league);
+  const picks = roster.assets
+    .filter((asset) => asset.assetType === "pick")
+    .sort((a, b) => Number(a.raw?.season) - Number(b.raw?.season) || Number(a.raw?.round) - Number(b.raw?.round) || getAssetValue(b, values) - getAssetValue(a, values));
+  const model = getSeasonModel();
+  const team = model?.teams.get(String(roster.rosterId));
+  const summary = summarizeRosterAssets(roster, values);
+  const renderPlayerRow = (asset, slotLabel) => {
+    const nickname = roster.nicknames?.[asset.assetId.replace("player:", "")];
+    const injury = String(asset.raw?.injury_status || "").trim();
+    return `
+      <div class="sheet-row ${isInjuryFlaggedAsset(asset) ? "flagged" : ""}">
+        <span class="sheet-slot">${escapeHtml(slotLabel)}</span>
+        <div class="sheet-player">
+          <strong>${escapeHtml(asset.name)}${nickname ? ` <em class="nickname">“${escapeHtml(nickname)}”</em>` : ""}</strong>
+          <span>${escapeHtml(formatPlayerPositionLabel(asset))}${asset.raw?.team ? ` · ${escapeHtml(asset.raw.team)}` : ""}${Number.isFinite(playerAgeForAsset(asset)) ? ` · ${playerAgeForAsset(asset)}y` : ""}${injury ? ` · <span class="injury">${escapeHtml(injury)}</span>` : ""}</span>
+        </div>
+        <span class="sheet-value mono">${formatNumber(getAssetValue(asset, values))}</span>
+      </div>
+    `;
+  };
+  const seasonLog = team?.results?.length
+    ? `
+      <div class="season-log">
+        ${team.results.slice().sort((a, b) => a.week - b.week).map((result) => `
+          <span class="log-chip ${result.result === "W" ? "up" : result.result === "L" ? "down" : ""}" title="Week ${result.week} vs ${escapeHtml(result.opponentName)}">
+            <small>W${result.week}</small>
+            <strong>${result.result}</strong>
+            <span>${formatPoints(result.points)}-${formatPoints(result.opponentPoints)}</span>
+          </span>
+        `).join("")}
+      </div>
+    `
+    : `<p class="muted small">No finalized games yet this season.</p>`;
+
+  el.rosterSheet.innerHTML = `
+    <div class="sheet-summary">
+      ${renderPowerStat("Starters", formatNumber(strength.starterValue), `${strength.lineup.filter((entry) => entry.asset).length}/${strength.lineup.length} slots filled`)}
+      ${renderPowerStat("Bench", formatNumber(strength.benchValue), `${strength.benchHighlights.length ? `${summary.playerCount} players rostered` : "no bench"}`)}
+      ${renderPowerStat("Pick vault", formatNumber(summary.pickValue), `${summary.pickCount} picks · ${summary.firstRoundPickCount} firsts`)}
+      ${renderPowerStat("Avg age", summary.averageAgeLabel, `${summary.youthCount} youth · ${summary.veteranCount} vets · ${summary.injuredCount} flagged`)}
+    </div>
+    <div class="sheet-grid">
+      <section class="sheet-column">
+        <h4>Optimal lineup</h4>
+        ${strength.lineup.map((entry) => entry.asset
+          ? renderPlayerRow(entry.asset, formatRosterSlotLabel(entry.slot))
+          : `<div class="sheet-row empty"><span class="sheet-slot">${escapeHtml(formatRosterSlotLabel(entry.slot))}</span><div class="sheet-player"><strong class="muted">Open slot</strong></div><span class="sheet-value mono">0</span></div>`).join("")}
+      </section>
+      <section class="sheet-column">
+        <h4>Bench</h4>
+        ${roster.assets
+          .filter((asset) => asset.assetType === "player" && !strength.lineup.some((entry) => entry.asset?.assetId === asset.assetId))
+          .sort((a, b) => getAssetValue(b, values) - getAssetValue(a, values))
+          .map((asset) => renderPlayerRow(asset, isTradeEligibleAsset(asset) ? "BN" : formatPlayerPositionLabel(asset)))
+          .join("") || `<p class="muted small">No bench players.</p>`}
+        <h4>Pick vault</h4>
+        ${picks.length
+          ? picks.map((asset) => `
+            <div class="sheet-row pick">
+              <span class="sheet-slot">${escapeHtml(String(asset.raw?.season || ""))}</span>
+              <div class="sheet-player"><strong>${escapeHtml(asset.name)}</strong><span>Round ${escapeHtml(String(asset.raw?.round || "?"))}</span></div>
+              <span class="sheet-value mono">${formatNumber(getAssetValue(asset, values))}</span>
+            </div>
+          `).join("")
+          : `<p class="muted small">No draft picks owned.</p>`}
+      </section>
+    </div>
+    <h4>Season log</h4>
+    ${seasonLog}
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Awards
+// ---------------------------------------------------------------------------
+
+function renderAwardsPage() {
+  if (!el.awardsDashboard) return;
+  if (!state.league || state.normalizedRosters.length === 0) {
+    el.awardsDashboard.innerHTML = `<p class="muted">Load a league to open the awards room.</p>`;
+    return;
+  }
+  const model = getSeasonModel();
+  const weeksWithPoints = model.weeks.filter((entry) => entry.hasPoints);
+  const requested = state.awardsWeek != null ? weeksWithPoints.find((entry) => entry.week === Number(state.awardsWeek)) : null;
+  const weekEntry = requested || model.featuredWeek || weeksWithPoints[weeksWithPoints.length - 1] || null;
+  const weekly = weekEntry ? computeWeeklyAwards(model, weekEntry.week, {
+    playerName: playerNameById,
+    playerPosition: playerPositionById,
+    optimalPoints: state.playerMetadataLoaded ? computeOptimalPointsForSide : null,
+  }) : null;
+  const superlatives = computeSeasonSuperlatives(model);
+  const recordBook = buildRecordBook(model);
+  const luckRows = model.standings.filter((team) => team.gamesPlayed > 0).slice().sort((a, b) => b.luck - a.luck);
+
+  el.awardsDashboard.innerHTML = `
+    <section class="workspace-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Weekly Honors</span>
+          <h2>${weekEntry ? `${escapeHtml(weekEntry.label)} ${weekStatusChip(weekEntry)}` : "Weekly honors"}</h2>
+        </div>
+        <p class="section-copy">${weekly?.provisional ? "Games are still in progress, so these are provisional." : "Final-week honors from Sleeper box scores."}</p>
+      </div>
+      ${weeksWithPoints.length > 0 ? `
+        <div class="week-chips">
+          ${weeksWithPoints.map((entry) => `<button type="button" class="${weekEntry && entry.week === weekEntry.week ? "active" : ""}" data-action="awards-week" data-week="${entry.week}">Wk ${entry.week}</button>`).join("")}
+        </div>
+      ` : ""}
+      ${weekly?.awards?.length
+        ? `<div class="award-grid">${weekly.awards.map(renderAwardCard).join("")}</div>`
+        : `<p class="muted analytics-empty">${state.seasonLoaded ? "No scores posted yet this season. Honors appear once Week 1 kicks off." : "Syncing matchups from Sleeper…"}</p>`}
+    </section>
+
+    <section class="workspace-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Season Superlatives</span>
+          <h2>${seasonThroughLabel(model)}</h2>
+        </div>
+        <p class="section-copy">Cumulative honors from every finalized regular-season week.</p>
+      </div>
+      ${superlatives.length
+        ? `<div class="award-grid">${superlatives.map(renderAwardCard).join("")}</div>`
+        : `<p class="muted analytics-empty">Superlatives unlock after the first finalized week.</p>`}
+    </section>
+
+    <div class="home-two-col">
+      <section class="workspace-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="eyebrow">Luck Index</span>
+            <h2>Who the schedule loves</h2>
+          </div>
+          <p class="section-copy">Expected wins come from the all-play record: how often each team would have won against every opponent each week.</p>
+        </div>
+        ${luckRows.length ? `
+          <div class="luck-table">
+            ${luckRows.map((team) => `
+              <div class="luck-row ${String(team.rosterId) === String(state.meRosterId) ? "you" : ""}">
+                ${renderTeamIdentity(team.rosterId, { extra: `${team.recordLabel} · all-play ${team.allPlayRecord}` })}
+                <div class="luck-meter">
+                  <div class="luck-track"><span class="${luckClass(team.luck) || "flat"}" style="width:${Math.min(50, Math.abs(team.luck) / 4 * 50)}%; ${team.luck >= 0 ? "left:50%" : `right:50%`}"></span></div>
+                  <small>${team.expectedWins.toFixed(1)} expected wins</small>
+                </div>
+                <strong class="luck ${luckClass(team.luck)}">${formatLuck(team.luck)}</strong>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<p class="muted analytics-empty">Luck needs at least one finalized week.</p>`}
+      </section>
+
+      <section class="workspace-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="eyebrow">Record Book</span>
+            <h2>All-time marks</h2>
+          </div>
+          <p class="section-copy">${recordBook.gameCount ? `${recordBook.gameCount.toLocaleString()} games across ${recordBook.seasonCount} season${recordBook.seasonCount === 1 ? "" : "s"} of archive.` : "Archive matchups are syncing."}</p>
+        </div>
+        ${recordBook.records.length
+          ? `<div class="record-list">${recordBook.records.map((record) => `
+              <div class="record-row ${record.tone}">
+                <div>
+                  <span class="analytics-kicker">${escapeHtml(record.title)}</span>
+                  <strong>${escapeHtml(record.holder)}</strong>
+                  <p>${escapeHtml(record.detail)}</p>
+                </div>
+                <strong class="record-value">${escapeHtml(record.valueLabel)}</strong>
+              </div>
+            `).join("")}</div>`
+          : `<p class="muted analytics-empty">Records populate as archive matchups load.</p>`}
+      </section>
+    </div>
+  `;
+}
+
+function renderAwardCard(award) {
+  const manager = award.rosterId ? managerForRosterId(award.rosterId) : { displayName: award.teamName, avatar: award.avatar };
+  return `
+    <article class="award-card ${award.tone || ""}">
+      <span class="analytics-kicker">${escapeHtml(award.title)}</span>
+      <div class="award-body">
+        ${renderAvatar(manager, { size: "md" })}
+        <div>
+          <strong>${escapeHtml(award.teamName)}</strong>
+          <span class="award-value">${escapeHtml(award.valueLabel)}</span>
+        </div>
+      </div>
+      <p>${escapeHtml(award.detail)}</p>
+    </article>
+  `;
+}
+
+function buildRecordBook(model) {
+  const currentLeagueId = String(state.leagueId);
+  const archiveGames = state.historyMatchups
+    .filter((matchup) => String(matchup.leagueId) !== currentLeagueId)
+    .map((matchup) => ({
+      season: matchup.season,
+      week: matchup.week,
+      isPlayoff: matchup.isPlayoff,
+      a: { managerKey: matchup.left.managerKey, managerName: matchup.left.managerName, rosterId: matchup.left.rosterId, points: matchup.left.points, avatar: avatarForManagerKey(matchup.left.managerKey) },
+      b: { managerKey: matchup.right.managerKey, managerName: matchup.right.managerName, rosterId: matchup.right.rosterId, points: matchup.right.points, avatar: avatarForManagerKey(matchup.right.managerKey) },
+    }));
+  const currentGames = model.weeks
+    .filter((entry) => entry.isFinal)
+    .flatMap((entry) => entry.games.map((game) => {
+      const [left, right] = game.sides;
+      const leftTeam = model.teams.get(left.rosterId);
+      const rightTeam = model.teams.get(right.rosterId);
+      return {
+        season: model.season,
+        week: entry.week,
+        isPlayoff: entry.isPlayoff,
+        a: { managerKey: buildManagerKey(leftTeam?.ownerId, state.leagueId, left.rosterId), managerName: left.name, rosterId: left.rosterId, points: left.points, avatar: leftTeam?.avatar || null },
+        b: { managerKey: buildManagerKey(rightTeam?.ownerId, state.leagueId, right.rosterId), managerName: right.name, rosterId: right.rosterId, points: right.points, avatar: rightTeam?.avatar || null },
+      };
+    }));
+  const seasonRows = state.leagueHistory.flatMap((entry) => {
+    const complete = entry.isCurrent ? model.regularSeasonComplete : true;
+    const userById = new Map((entry.users || []).map((user) => [String(user.user_id), user]));
+    return buildSeasonStandings(entry).map((row) => ({
+      season: entry.season,
+      managerName: row.managerName,
+      rosterId: row.rosterId,
+      avatar: userById.get(String(row.userId))?.avatar || null,
+      wins: row.wins,
+      losses: row.losses,
+      points: row.points,
+      complete,
+    }));
+  });
+  return computeRecordBook({ games: [...archiveGames, ...currentGames], seasonRows });
+}
+
+function avatarForManagerKey(managerKey) {
+  const userId = String(managerKey || "").startsWith("user:") ? String(managerKey).slice(5) : "";
+  if (!userId) return null;
+  const user = state.users.find((entry) => String(entry.user_id) === userId)
+    || state.leagueHistory.flatMap((entry) => entry.users || []).find((entry) => String(entry.user_id) === userId);
+  return user?.avatar || null;
+}
+
+// ---------------------------------------------------------------------------
+// Recap
+// ---------------------------------------------------------------------------
+
+function renderRecapPage() {
+  if (!el.recapDashboard) return;
+  if (!state.league || state.normalizedRosters.length === 0) {
+    el.recapDashboard.innerHTML = `<p class="muted">Load a league to write the recap.</p>`;
+    return;
+  }
+  const model = getSeasonModel();
+  const weeksWithPoints = model.weeks.filter((entry) => entry.hasPoints);
+  const requested = state.recapWeek != null ? weeksWithPoints.find((entry) => entry.week === Number(state.recapWeek)) : null;
+  const weekEntry = requested || model.featuredWeek || weeksWithPoints[weeksWithPoints.length - 1] || null;
+  const tone = RECAP_TONES.some((item) => item.id === state.recapTone) ? state.recapTone : "desk";
+  let text = "";
+  if (weekEntry) {
+    const weekly = computeWeeklyAwards(model, weekEntry.week, {
+      playerName: playerNameById,
+      playerPosition: playerPositionById,
+      optimalPoints: state.playerMetadataLoaded ? computeOptimalPointsForSide : null,
+    });
+    text = buildRecap({
+      leagueName: state.leagueName,
+      model,
+      week: weekEntry.week,
+      awards: weekly.awards,
+      games: weekly.games,
+      provisional: weekly.provisional,
+      sim: getSimulation(model),
+      trades: buildRecapTradeLines(weekEntry.week),
+      tone,
+    });
+  }
+  el.recapDashboard.innerHTML = `
+    <section class="workspace-panel recap-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Weekly Recap</span>
+          <h2>Group-chat ready</h2>
+        </div>
+        <p class="section-copy">Scores, honors, standings, playoff odds, and the trade desk in one paste. Pick a week and a voice.</p>
+      </div>
+      <div class="recap-controls">
+        <label class="recap-control">
+          <span>Week</span>
+          <select data-change="recap-week" ${weeksWithPoints.length === 0 ? "disabled" : ""}>
+            ${weeksWithPoints.length === 0 ? `<option>No scores yet</option>` : weeksWithPoints.map((entry) => `<option value="${entry.week}" ${weekEntry && entry.week === weekEntry.week ? "selected" : ""}>${escapeHtml(entry.label)}${entry.isFinal ? "" : " (live)"}</option>`).join("")}
+          </select>
+        </label>
+        <div class="recap-control">
+          <span>Voice</span>
+          <div class="segmented">
+            ${RECAP_TONES.map((item) => `<button type="button" class="${item.id === tone ? "active" : ""}" data-action="recap-tone" data-tone="${item.id}" title="${escapeHtml(item.description)}">${escapeHtml(item.label)}</button>`).join("")}
+          </div>
+        </div>
+        <button type="button" class="recap-copy" data-action="copy-recap" ${text ? "" : "disabled"}>Copy recap</button>
+        <span id="recap-copy-feedback" class="feedback-chip hidden">Copied</span>
+      </div>
+      ${text
+        ? `<textarea id="recap-text" class="recap-text" readonly rows="${Math.min(40, text.split("\n").length + 1)}">${escapeHtml(text)}</textarea>`
+        : `<p class="muted analytics-empty">${state.seasonLoaded ? "No scores yet this season. The recap writes itself once games are posted." : "Syncing matchups from Sleeper…"}</p>`}
+    </section>
+  `;
+}
+
+function buildRecapTradeLines(week) {
+  return state.transactions
+    .filter((transaction) => transaction?.type === "trade" && transaction?.status === "complete" && Number(transaction.leg ?? transaction.week) === Number(week))
+    .map((transaction) => {
+      const summary = buildRecentTradeSummary(transaction);
+      return `${summary.title}: ${summary.preview}`;
+    });
+}
+
+async function copyRecapText() {
+  const textarea = document.querySelector("#recap-text");
+  const feedback = document.querySelector("#recap-copy-feedback");
+  if (!textarea) return;
+  const copied = await copyTextToClipboard(textarea.value);
+  if (!feedback) return;
+  feedback.textContent = copied ? "Copied" : "Copy failed";
+  feedback.classList.remove("hidden");
+  setTimeout(() => feedback.classList.add("hidden"), 1600);
+}
+
+// ---------------------------------------------------------------------------
+// Trade calculator
+// ---------------------------------------------------------------------------
+
+function resetCalculatorState({ keepPartner = true } = {}) {
+  state.calc.myAssetIds = new Set();
+  state.calc.theirAssetIds = new Set();
+  state.calc.myQuery = "";
+  state.calc.theirQuery = "";
+  if (!keepPartner) state.calc.partnerRosterId = null;
+}
+
+function getCalcPartnerRoster() {
+  const me = getMyRoster();
+  const others = state.normalizedRosters.filter((roster) => !me || roster.rosterId !== me.rosterId);
+  const existing = others.find((roster) => String(roster.rosterId) === String(state.calc.partnerRosterId));
+  if (existing) return existing;
+  const fallback = others.slice().sort((a, b) => a.manager.displayName.localeCompare(b.manager.displayName))[0] || null;
+  state.calc.partnerRosterId = fallback ? fallback.rosterId : null;
+  return fallback;
+}
+
+function calcAssetsFor(roster, side) {
+  const ids = side === "my" ? state.calc.myAssetIds : state.calc.theirAssetIds;
+  return roster ? roster.assets.filter((asset) => ids.has(asset.assetId)) : [];
+}
+
+function renderCalculator() {
+  if (!el.calculatorShell) return;
+  const me = getMyRoster();
+  if (!me) {
+    el.calculatorShell.innerHTML = `<p class="muted">Choose your team in the rail to open the calculator.</p>`;
+    return;
+  }
+  const partner = getCalcPartnerRoster();
+  if (!partner) {
+    el.calculatorShell.innerHTML = `<p class="muted">The calculator needs at least one other roster in the league.</p>`;
+    return;
+  }
+  const others = state.normalizedRosters
+    .filter((roster) => roster.rosterId !== me.rosterId)
+    .sort((a, b) => a.manager.displayName.localeCompare(b.manager.displayName));
+  el.calculatorShell.innerHTML = `
+    <div class="panel-heading calc-heading">
+      <div>
+        <span class="eyebrow">Trade Calculator</span>
+        <h2>You and ${escapeHtml(partner.manager.displayName)}</h2>
+      </div>
+      <label class="calc-partner">
+        <span>Trade partner</span>
+        <select data-change="calc-partner">
+          ${others.map((roster) => `<option value="${roster.rosterId}" ${roster.rosterId === partner.rosterId ? "selected" : ""}>${escapeHtml(roster.manager.displayName)}${roster.manager.teamName ? ` · ${escapeHtml(roster.manager.teamName)}` : ""}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+    <div class="calc-grid">
+      ${renderCalcPane(me, "my")}
+      ${renderCalcPane(partner, "their")}
+    </div>
+    <div id="calc-verdict" class="calc-verdict">${renderCalculatorVerdict(me, partner)}</div>
+  `;
+}
+
+function renderCalcPane(roster, side) {
+  const selected = calcAssetsFor(roster, side);
+  const total = selected.reduce((sum, asset) => sum + getAssetValue(asset, state.values), 0);
+  const query = side === "my" ? state.calc.myQuery : state.calc.theirQuery;
+  return `
+    <section class="calc-pane ${side === "my" ? "team-a" : "team-b"}">
+      <header class="calc-pane-head">
+        ${renderTeamIdentity(roster.rosterId, { showTeamName: false, extra: side === "my" ? "sends" : "sends" })}
+        <div class="calc-pane-total">
+          <strong>${formatNumber(Math.round(total))}</strong>
+          <small>${selected.length} asset${selected.length === 1 ? "" : "s"}</small>
+        </div>
+      </header>
+      <div class="calc-selected">
+        ${selected.length
+          ? selected.sort((a, b) => getAssetValue(b, state.values) - getAssetValue(a, state.values)).map((asset) => `
+            <button type="button" class="selected-token" data-action="calc-toggle" data-side="${side}" data-asset-id="${escapeHtml(asset.assetId)}" title="Remove">
+              <span class="selected-token-label">${escapeHtml(asset.name)}</span>
+              <span class="selected-token-remove" aria-hidden="true">×</span>
+            </button>
+          `).join("")
+          : `<span class="muted small">Tap assets below to add them to this side.</span>`}
+      </div>
+      <input type="search" class="calc-search" placeholder="Filter ${side === "my" ? "your" : "their"} players and picks" value="${escapeHtml(query)}" data-input="calc-search" data-side="${side}" />
+      <div class="calc-list" id="calc-list-${side}">${renderCalcList(roster, side)}</div>
+    </section>
+  `;
+}
+
+function renderCalcList(roster, side) {
+  const ids = side === "my" ? state.calc.myAssetIds : state.calc.theirAssetIds;
+  const query = (side === "my" ? state.calc.myQuery : state.calc.theirQuery).trim().toLowerCase();
+  const assets = roster.assets
+    .filter((asset) => isTradeEligibleAsset(asset) || asset.assetType === "pick")
+    .filter((asset) => !query || assetMatchesQuery(asset, query))
+    .sort((a, b) => sortAssetsByValueDesc(a, b, state.values))
+    .slice(0, 80);
+  if (assets.length === 0) return `<div class="player-item muted">No matching assets.</div>`;
+  return assets.map((asset) => `
+    <div class="player-item calc-item ${ids.has(asset.assetId) ? "selected" : ""}" data-action="calc-toggle" data-side="${side}" data-asset-id="${escapeHtml(asset.assetId)}" role="button" tabindex="0">
+      ${buildAssetPickerMarkup(asset, { values: state.values })}
+    </div>
+  `).join("");
+}
+
+function buildCalculatorIdea(me, partner, myAssets, theirAssets) {
+  const values = state.values;
+  const myValues = myAssets.map((asset) => getAssetValue(asset, values));
+  const theirValues = theirAssets.map((asset) => getAssetValue(asset, values));
+  const globalMaxValue = Math.max(state.globalMaxPlayerValue || KTC_GLOBAL_MAX_FALLBACK, ...myValues, ...theirValues, 1);
+  const packageResult = calculatePackageAdjustment({ myValues, theirValues, globalMaxValue });
+  const pctDiff = calculatePctDiff(packageResult.myAdjustedValue, packageResult.theirAdjustedValue);
+  const baseline = buildLeagueStrengthBaseline({ league: state.league, rosters: state.normalizedRosters, values });
+  return enrichTradeIdea({
+    idea: {
+      myAssets,
+      theirAssets,
+      ...packageResult,
+      pctDiff: Number(pctDiff.toFixed(1)),
+      counterpartyName: partner.manager.displayName,
+      tags: [],
+      summary: "",
+      pitch: "",
+    },
+    myRoster: me,
+    theirRoster: partner,
+    values,
+    leagueStrengthBaseline: baseline,
+  });
+}
+
+function renderCalculatorVerdict(me, partner) {
+  const myAssets = calcAssetsFor(me, "my");
+  const theirAssets = calcAssetsFor(partner, "their");
+  if (myAssets.length === 0 && theirAssets.length === 0) {
+    return `<p class="muted calc-hint">Add at least one asset to each side and the desk grades the deal: value balance, the piece that evens it up, power-score swing, and lineup impact for both rosters.</p>`;
+  }
+  if (Object.keys(state.values).length === 0) {
+    return `<p class="muted calc-hint">Valuation data is still loading…</p>`;
+  }
+  const idea = buildCalculatorIdea(me, partner, myAssets, theirAssets);
+  const gap = idea.theirAdjustedValue - idea.myAdjustedValue;
+  const oneSided = myAssets.length === 0 || theirAssets.length === 0;
+  const pct = idea.pctDiff;
+  let verdictLabel;
+  let verdictClass;
+  if (oneSided) {
+    verdictLabel = "Add the other side";
+    verdictClass = "";
+  } else if (pct <= 5) {
+    verdictLabel = "Dead even";
+    verdictClass = "good";
+  } else if (pct <= 12) {
+    verdictLabel = gap > 0 ? "Fair, leans your way" : `Fair, leans ${partner.manager.displayName}`;
+    verdictClass = "good";
+  } else if (pct <= 22) {
+    verdictLabel = gap > 0 ? "Favors you" : `Favors ${partner.manager.displayName}`;
+    verdictClass = gap > 0 ? "good" : "bad";
+  } else {
+    verdictLabel = gap > 0 ? "Lopsided in your favor" : `Lopsided for ${partner.manager.displayName}`;
+    verdictClass = gap > 0 ? "good" : "bad";
+  }
+  const evenUp = !oneSided && Math.abs(gap) >= 150 ? findClosestValuationPick(Math.abs(gap), state.values, state.valueNameMap) : null;
+  const evenSide = gap > 0 ? "You" : partner.manager.displayName;
+  const maxSide = Math.max(idea.myAdjustedValue, idea.theirAdjustedValue, 1);
+  const offerText = buildOfferText(me, partner, myAssets, theirAssets, idea, verdictLabel);
+  return `
+    <section class="calc-summary ${verdictClass}">
+      <div class="calc-summary-main">
+        <span class="analytics-kicker">Desk verdict</span>
+        <h3>${escapeHtml(verdictLabel)}</h3>
+        <p>${oneSided
+          ? "One side is empty, so this is a gift, not a trade."
+          : `Adjusted value: you send ${formatNumber(idea.myAdjustedValue)}, you receive ${formatNumber(idea.theirAdjustedValue)} (${pct}% apart). Consolidation premium ${idea.packageAdjustment ? `${formatNumber(idea.packageAdjustment)} on ${idea.packageAdjustmentSide === "my" ? "your" : "their"} side` : "not needed"}.`}</p>
+        ${evenUp ? `<p class="calc-even"><strong>Even it up:</strong> ${escapeHtml(evenSide)} add${evenSide === "You" ? "" : "s"} roughly ${formatNumber(Math.round(Math.abs(gap)))} in value, about a ${escapeHtml(evenUp.name)} (${formatNumber(evenUp.value)}).</p>` : ""}
+      </div>
+      <div class="calc-bars">
+        <div class="calc-bar team-a">
+          <span>You send</span>
+          <div class="meter-track"><span style="width:${Math.round(idea.myAdjustedValue / maxSide * 100)}%"></span></div>
+          <strong>${formatNumber(idea.myAdjustedValue)}</strong>
+        </div>
+        <div class="calc-bar team-b">
+          <span>You receive</span>
+          <div class="meter-track"><span style="width:${Math.round(idea.theirAdjustedValue / maxSide * 100)}%"></span></div>
+          <strong>${formatNumber(idea.theirAdjustedValue)}</strong>
+        </div>
+      </div>
+      <div class="calc-actions">
+        <button type="button" class="ghost-btn" data-action="calc-copy" data-offer="${escapeHtml(offerText)}">Copy offer text</button>
+        <button type="button" class="ghost-btn" data-action="calc-clear">Clear both sides</button>
+        <span id="calc-copy-feedback" class="feedback-chip hidden">Copied</span>
+      </div>
+    </section>
+    ${!oneSided && idea.powerUpgrade ? renderGameImpact(idea.powerUpgrade, idea) : ""}
+    ${!oneSided && idea.impactAnalysis ? renderImpactAnalysis(idea.impactAnalysis, state.values) : ""}
+  `;
+}
+
+function buildOfferText(me, partner, myAssets, theirAssets, idea, verdictLabel) {
+  const list = (assets) => assets.map((asset) => `${asset.name} (${formatNumber(getAssetValue(asset, state.values))})`).join(", ") || "nothing";
+  return `Trade proposal: ${me.manager.displayName} sends ${list(myAssets)} to ${partner.manager.displayName} for ${list(theirAssets)}. Adjusted value ${formatNumber(idea.myAdjustedValue)} vs ${formatNumber(idea.theirAdjustedValue)} (${idea.pctDiff}% apart). Desk verdict: ${verdictLabel}.`;
+}
+
+function refreshCalculatorLists() {
+  const me = getMyRoster();
+  const partner = getCalcPartnerRoster();
+  if (!me || !partner) return;
+  const myList = document.querySelector("#calc-list-my");
+  const theirList = document.querySelector("#calc-list-their");
+  if (myList) myList.innerHTML = renderCalcList(me, "my");
+  if (theirList) theirList.innerHTML = renderCalcList(partner, "their");
+}
+
+function openCalculatorWith(rosterId) {
+  state.calc.partnerRosterId = Number(rosterId);
+  resetCalculatorState({ keepPartner: true });
+  if (el.tradeModeSelect) el.tradeModeSelect.value = "calculator";
+  invalidateResults();
+  setActivePage("trader");
+  syncTradeModeUi();
+  el.calculatorSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ---------------------------------------------------------------------------
+// Ticker
+// ---------------------------------------------------------------------------
+
+function renderTicker() {
+  if (!el.ticker || !el.tickerTrack) return;
+  if (!state.leagueId || !state.league) {
+    el.ticker.classList.add("hidden");
+    return;
+  }
+  const model = getSeasonModel();
+  const items = [];
+  const entry = model?.featuredWeek;
+  if (entry?.games?.length) {
+    entry.games.forEach((game) => {
+      const [left, right] = game.sides;
+      if (entry.status === "upcoming" || (!game.played && entry.status !== "final")) {
+        items.push(`<span class="ticker-tag">Wk ${entry.week}</span>${escapeHtml(left.name)} vs ${escapeHtml(right.name)}`);
+      } else {
+        const leader = left.points >= right.points ? left : right;
+        const trailer = leader === left ? right : left;
+        items.push(`<span class="ticker-tag ${entry.status === "live" ? "live" : ""}">${entry.status === "live" ? "Live" : "Final"}</span>${escapeHtml(leader.name)} ${formatPoints(leader.points)} · ${escapeHtml(trailer.name)} ${formatPoints(trailer.points)}`);
+      }
+    });
+  }
+  state.transactions
+    .filter((transaction) => transaction?.type === "trade" && transaction?.status === "complete")
+    .slice(0, 4)
+    .forEach((transaction) => {
+      const summary = buildRecentTradeSummary(transaction);
+      items.push(`<span class="ticker-tag gold">Trade</span>${escapeHtml(summary.preview)}`);
+    });
+  const sim = model && !model.seasonComplete ? getSimulation(model) : null;
+  if (sim?.results?.length) {
+    const top = sim.results.slice(0, 3).map((row) => `${escapeHtml(row.name)} ${percentLabel(row.titlePct)}`).join(" · ");
+    items.push(`<span class="ticker-tag green">Title odds</span>${top}`);
+  }
+  if (items.length === 0) {
+    el.ticker.classList.add("hidden");
+    return;
+  }
+  const markup = items.map((item) => `<span class="ticker-item">${item}</span>`).join("");
+  el.tickerTrack.innerHTML = `${markup}${markup}`;
+  el.tickerTrack.style.setProperty("--ticker-duration", `${Math.max(30, items.length * 6)}s`);
+  el.ticker.classList.remove("hidden");
+}
+
+// ---------------------------------------------------------------------------
+// Workspace event delegation
+// ---------------------------------------------------------------------------
+
+function handleWorkspaceClick(event) {
+  const target = event.target.closest("[data-action]");
+  if (!target || !el.workspace?.contains(target)) return;
+  const action = target.dataset.action;
+  switch (action) {
+    case "home-week": {
+      if (target.disabled || target.dataset.week === "") return;
+      state.homeWeek = Number(target.dataset.week);
+      renderHomePage();
+      break;
+    }
+    case "standings-view": {
+      state.standingsView = target.dataset.view === "division" ? "division" : "overall";
+      renderHomePage();
+      break;
+    }
+    case "set-lens": {
+      state.lensRosterId = Number(target.dataset.rosterId);
+      renderTeamsPage();
+      break;
+    }
+    case "set-lens-teams": {
+      state.lensRosterId = Number(target.dataset.rosterId);
+      setActivePage("teams");
+      el.powerSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+      break;
+    }
+    case "calc-with": {
+      openCalculatorWith(target.dataset.rosterId);
+      break;
+    }
+    case "awards-week": {
+      state.awardsWeek = Number(target.dataset.week);
+      renderAwardsPage();
+      break;
+    }
+    case "recap-tone": {
+      state.recapTone = target.dataset.tone || "desk";
+      renderRecapPage();
+      break;
+    }
+    case "copy-recap": {
+      copyRecapText();
+      break;
+    }
+    case "calc-toggle": {
+      const side = target.dataset.side === "their" ? "their" : "my";
+      const ids = side === "my" ? state.calc.myAssetIds : state.calc.theirAssetIds;
+      const assetId = target.dataset.assetId;
+      if (!assetId) return;
+      if (ids.has(assetId)) ids.delete(assetId);
+      else ids.add(assetId);
+      const activeSearch = document.activeElement?.dataset?.input === "calc-search" ? document.activeElement : null;
+      const focusSide = activeSearch?.dataset?.side || null;
+      const cursor = activeSearch ? activeSearch.selectionStart : null;
+      renderCalculator();
+      if (focusSide) {
+        const input = document.querySelector(`[data-input="calc-search"][data-side="${focusSide}"]`);
+        if (input) {
+          input.focus();
+          if (cursor != null) input.setSelectionRange(cursor, cursor);
+        }
+      }
+      break;
+    }
+    case "calc-clear": {
+      resetCalculatorState({ keepPartner: true });
+      renderCalculator();
+      break;
+    }
+    case "calc-copy": {
+      copyTextToClipboard(target.dataset.offer || "").then((copied) => {
+        const feedback = document.querySelector("#calc-copy-feedback");
+        if (!feedback) return;
+        feedback.textContent = copied ? "Copied" : "Copy failed";
+        feedback.classList.remove("hidden");
+        setTimeout(() => feedback.classList.add("hidden"), 1600);
+      });
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function handleWorkspaceChange(event) {
+  const target = event.target.closest("[data-change]");
+  if (!target) return;
+  switch (target.dataset.change) {
+    case "calc-partner": {
+      state.calc.partnerRosterId = Number(target.value);
+      resetCalculatorState({ keepPartner: true });
+      renderCalculator();
+      break;
+    }
+    case "recap-week": {
+      state.recapWeek = Number(target.value);
+      renderRecapPage();
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function handleWorkspaceInput(event) {
+  const target = event.target.closest("[data-input]");
+  if (!target) return;
+  if (target.dataset.input === "calc-search") {
+    if (target.dataset.side === "their") state.calc.theirQuery = target.value;
+    else state.calc.myQuery = target.value;
+    refreshCalculatorLists();
+  }
 }
 
 function renderLeagueAnalyticsDashboard() {
@@ -10130,15 +11813,46 @@ function normalizeRosters(league, rosters, users, players, previousContext = { l
       };
     });
 
+    const nicknames = {};
+    Object.entries(roster?.metadata || {}).forEach(([key, value]) => {
+      if (key.startsWith("p_nick_") && typeof value === "string" && value.trim()) {
+        nicknames[key.slice("p_nick_".length)] = value.trim();
+      }
+    });
+
     return {
       rosterId: roster.roster_id,
       manager: {
         userId: roster.owner_id || "unknown",
         displayName: displayNameForUser(owner, `Roster ${roster.roster_id}`),
+        teamName: String(owner?.metadata?.team_name || "").trim(),
+        avatar: owner?.avatar || null,
       },
+      division: Number(roster?.settings?.division) || 0,
+      nicknames,
       assets: [...playerAssets, ...pickAssets],
     };
   });
+}
+
+function avatarUrl(avatarId) {
+  return avatarId ? `${SLEEPER_AVATAR_BASE}${avatarId}` : "";
+}
+
+function renderAvatar(manager, { size = "md", className = "" } = {}) {
+  const name = String(manager?.displayName || manager?.name || "?");
+  const initial = name.trim().charAt(0).toUpperCase() || "?";
+  const avatar = manager?.avatar;
+  const hue = hashHue(name);
+  return avatar
+    ? `<span class="avatar avatar-${size} ${className}" style="--hue:${hue}"><img src="${avatarUrl(avatar)}" alt="" loading="lazy" /></span>`
+    : `<span class="avatar avatar-${size} ${className}" style="--hue:${hue}"><span>${escapeHtml(initial)}</span></span>`;
+}
+
+function hashHue(text) {
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  return hash % 360;
 }
 
 function displayNameForUser(user, fallback) {
@@ -10418,8 +12132,8 @@ function applyValuationBundle(bundle, { rerender = true } = {}) {
 
   if (rerender) {
     renderPlayerSearch();
-    renderPowerDashboard();
-    renderLeagueAnalyticsDashboard();
+    renderActivePage();
+    renderSessionSnapshot();
   }
 
   return {

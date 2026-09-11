@@ -1,20 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Fantasy Dynasty Analyzer</title>
-    <link rel="icon" href="data:," />
+    <title>Dynasty Desk — Fantasy League Command Center</title>
+    <meta name="description" content="Live scoreboard, playoff odds, awards, record book, roster explorer, and a dynasty trade lab for your Sleeper league." />
+    <meta name="theme-color" content="#070a12" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2338bdf8'/%3E%3Cstop offset='1' stop-color='%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ctext x='32' y='43' font-family='Arial,sans-serif' font-size='34' font-weight='800' text-anchor='middle' fill='%23070a12'%3ED%3C/text%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="app-frame">
-      <aside class="control-rail" aria-label="Analyzer controls">
+      <aside class="control-rail" aria-label="League controls">
         <div class="brand-panel">
           <span class="brand-mark" aria-hidden="true">D</span>
           <div>
             <span class="eyebrow">Dynasty Desk</span>
-            <strong>Fantasy Analyzer</strong>
+            <strong>League Command Center</strong>
           </div>
         </div>
 
@@ -28,7 +33,7 @@
           </div>
 
           <label for="league-id">League ID</label>
-          <input id="league-id" placeholder="Example: 1111111111111111111" />
+          <input id="league-id" placeholder="Paste a Sleeper league ID" inputmode="numeric" autocomplete="off" />
           <button id="load-league-btn" type="button">Load League</button>
 
           <p class="muted small helper-row">
@@ -48,7 +53,7 @@
             <span class="step-badge">02</span>
             <div>
               <span class="eyebrow">Manager</span>
-              <h2>Your roster</h2>
+              <h2>You are</h2>
             </div>
           </div>
           <label for="me-select">Team</label>
@@ -56,17 +61,48 @@
         </section>
 
         <nav class="rail-tabs hidden" id="page-tabs" aria-label="Workspace views">
-          <button id="analytics-tab" class="page-tab active" type="button" data-page="analytics">Analytics</button>
-          <button id="trader-tab" class="page-tab" type="button" data-page="trader">Trade Lab</button>
+          <button id="home-tab" class="page-tab active" type="button" data-page="home">
+            <span class="tab-icon" aria-hidden="true">01</span>
+            <span class="tab-copy"><strong>Command Center</strong><small>Scores, standings, odds</small></span>
+          </button>
+          <button id="teams-tab" class="page-tab" type="button" data-page="teams">
+            <span class="tab-icon" aria-hidden="true">02</span>
+            <span class="tab-copy"><strong>Teams</strong><small>Roster explorer</small></span>
+          </button>
+          <button id="awards-tab" class="page-tab" type="button" data-page="awards">
+            <span class="tab-icon" aria-hidden="true">03</span>
+            <span class="tab-copy"><strong>Awards</strong><small>Weekly honors, record book</small></span>
+          </button>
+          <button id="analytics-tab" class="page-tab" type="button" data-page="analytics">
+            <span class="tab-icon" aria-hidden="true">04</span>
+            <span class="tab-copy"><strong>History</strong><small>Dynasty archive</small></span>
+          </button>
+          <button id="trader-tab" class="page-tab" type="button" data-page="trader">
+            <span class="tab-icon" aria-hidden="true">05</span>
+            <span class="tab-copy"><strong>Trade Lab</strong><small>Finder and calculator</small></span>
+          </button>
+          <button id="recap-tab" class="page-tab" type="button" data-page="recap">
+            <span class="tab-icon" aria-hidden="true">06</span>
+            <span class="tab-copy"><strong>Recap</strong><small>Group-chat ready</small></span>
+          </button>
         </nav>
+
+        <div class="rail-footer">
+          <button id="share-link-btn" type="button" class="ghost-btn hidden" title="Copy a link that opens this league and team">Copy league link</button>
+          <button id="theme-toggle-btn" type="button" class="ghost-btn" aria-pressed="false" title="Toggle light and dark theme">Light mode</button>
+          <span id="share-link-feedback" class="feedback-chip hidden">Link copied</span>
+        </div>
       </aside>
 
       <main class="workspace">
-        <header class="workspace-header">
-          <div>
-            <span class="eyebrow">Roster intelligence</span>
-            <h1>Dynasty command board</h1>
-            <p class="workspace-lede">Score the roster, read the league market, and generate trade ideas without leaving the same view.</p>
+        <header class="workspace-header" id="workspace-header">
+          <div class="league-hero">
+            <div class="league-avatar" id="league-avatar" aria-hidden="true"><span>D</span></div>
+            <div class="league-hero-copy">
+              <span class="eyebrow" id="hero-eyebrow">Sleeper league intelligence</span>
+              <h1 id="hero-title">Your league, on a broadcast desk.</h1>
+              <p class="workspace-lede" id="hero-lede">Live scoreboard and win probability, playoff odds from thousands of simulated seasons, weekly awards, an all-time record book, a roster explorer, and a dynasty trade lab. One link for the whole league.</p>
+            </div>
           </div>
           <dl class="state-grid" aria-label="Current session">
             <div>
@@ -78,19 +114,85 @@
               <dd id="chrome-manager-label">Select team</dd>
             </div>
             <div>
-              <dt>Mode</dt>
-              <dd id="chrome-mode-label">Analytics</dd>
+              <dt>Week</dt>
+              <dd id="chrome-mode-label">—</dd>
             </div>
           </dl>
         </header>
 
-        <section class="empty-workspace">
-          <div>
-            <span class="step-badge accent">Start</span>
-            <h2>Load a Sleeper league to open the board.</h2>
-            <p class="muted">The analyzer will hydrate managers, rosters, traded picks, market activity, and valuation fallbacks.</p>
+        <div id="ticker" class="ticker hidden" aria-label="League ticker">
+          <span class="ticker-label">Live</span>
+          <div class="ticker-viewport">
+            <div class="ticker-track" id="ticker-track"></div>
+          </div>
+        </div>
+
+        <section class="empty-workspace" id="landing">
+          <div class="landing-grid">
+            <div class="landing-copy">
+              <span class="step-badge accent">Start</span>
+              <h2>Load a Sleeper league to open the desk.</h2>
+              <p class="muted">Paste your league ID in the rail, or open the demo league to see everything running on real data. Nothing to install, nothing to sign in to. Managers, rosters, matchups, traded picks, trades, and the full league archive hydrate straight from Sleeper.</p>
+              <div class="landing-actions">
+                <button id="landing-demo-btn" type="button">Open demo league</button>
+                <button id="landing-focus-btn" type="button" class="ghost-btn">I have a league ID</button>
+              </div>
+            </div>
+            <ul class="landing-features">
+              <li><strong>Command Center</strong><span>Live scores with pre-game win probability, standings with luck and all-play, power rankings, playoff and title odds from Monte Carlo season sims.</span></li>
+              <li><strong>Teams</strong><span>Open any roster: optimal lineup, bench, pick vault, age curve, position edges, and the nicknames managers gave their guys.</span></li>
+              <li><strong>Awards</strong><span>Weekly honors, season superlatives, the luck index, and an all-time record book across every archived season.</span></li>
+              <li><strong>History</strong><span>Champions, finish matrix, rivalry ledger, season and manager comparisons, head-to-head, trade roads.</span></li>
+              <li><strong>Trade Lab</strong><span>Shop an asset, target a player, or let the engine build a multi-team blockbuster. Then check any deal by hand in the calculator.</span></li>
+              <li><strong>Recap</strong><span>A weekly write-up with scores, awards, standings, and odds, ready to paste into the group chat. Hype or roast.</span></li>
+            </ul>
           </div>
         </section>
+
+        <div id="home-page" class="workspace-page app-page hidden">
+          <div id="home-dashboard" class="home-dashboard"></div>
+        </div>
+
+        <div id="teams-page" class="workspace-page app-page hidden">
+          <section class="workspace-panel" id="teams-section">
+            <div class="panel-heading">
+              <div>
+                <span class="eyebrow">Roster Explorer</span>
+                <h2>Pick a team</h2>
+              </div>
+              <p class="section-copy">Every roster in the league, one click away. The scout card and roster sheet below follow whichever team you select.</p>
+            </div>
+            <div id="teams-grid" class="teams-grid"></div>
+          </section>
+
+          <section class="workspace-panel" id="power-section">
+            <div class="panel-heading">
+              <div>
+                <span class="eyebrow">Scout Card</span>
+                <h2 id="power-heading">Roster power</h2>
+              </div>
+              <p class="section-copy">Power score, lineup rank, position map, and Sleeper intel for the selected roster.</p>
+            </div>
+            <div id="power-dashboard" class="power-dashboard">
+              <p class="muted">Load values to score this roster.</p>
+            </div>
+          </section>
+
+          <section class="workspace-panel" id="roster-sheet-section">
+            <div class="panel-heading">
+              <div>
+                <span class="eyebrow">Roster Sheet</span>
+                <h2 id="roster-sheet-heading">Lineup, bench, and picks</h2>
+              </div>
+              <p class="section-copy">Optimal starting lineup by dynasty value, bench depth, and the full pick vault.</p>
+            </div>
+            <div id="roster-sheet" class="roster-sheet"></div>
+          </section>
+        </div>
+
+        <div id="awards-page" class="workspace-page app-page hidden">
+          <div id="awards-dashboard" class="awards-dashboard"></div>
+        </div>
 
         <div id="analytics-page" class="workspace-page app-page hidden">
           <section class="workspace-panel hidden" id="analytics-section">
@@ -103,19 +205,6 @@
             </div>
             <div id="analytics-dashboard" class="analytics-dashboard">
               <p class="muted">Load a league and choose a team to generate analytics.</p>
-            </div>
-          </section>
-
-          <section class="workspace-panel hidden" id="power-section">
-            <div class="panel-heading">
-              <div>
-                <span class="eyebrow">Manager Lens</span>
-                <h2>Selected roster scout card</h2>
-              </div>
-              <p class="section-copy">A focused read on the selected manager after the league-wide archive.</p>
-            </div>
-            <div id="power-dashboard" class="power-dashboard">
-              <p class="muted">Load values to score this roster.</p>
             </div>
           </section>
         </div>
@@ -135,6 +224,7 @@
               <option value="shop">Shop a player or pick I own</option>
               <option value="acquire">Target someone on another team</option>
               <option value="surprise">Surprise multi-team blockbuster</option>
+              <option value="calculator">Build a trade by hand</option>
             </select>
 
             <div class="mode-card-grid" role="group" aria-label="Trade path">
@@ -153,6 +243,11 @@
                 <strong>Open the board</strong>
                 <small>Let the engine assemble a multi-team concept from league-wide needs.</small>
               </button>
+              <button class="mode-card" type="button" data-trade-mode="calculator" aria-pressed="false">
+                <span>Calculator</span>
+                <strong>Build it by hand</strong>
+                <small>Pick both sides yourself and get a verdict, lineup impact, and the piece that evens it up.</small>
+              </button>
             </div>
 
             <p id="trade-mode-help" class="muted small mode-note">Pick one of your players or picks and the app will search the league for returns.</p>
@@ -165,6 +260,10 @@
               <input id="player-search" placeholder="Search player or pick" />
             </div>
             <div id="player-results" class="list"></div>
+          </section>
+
+          <section class="workspace-panel hidden" id="calculator-section">
+            <div id="calculator-shell" class="calculator-shell"></div>
           </section>
 
           <section class="action-panel hidden" id="settings-section">
@@ -187,6 +286,14 @@
             <div id="results-list"></div>
           </section>
         </div>
+
+        <div id="recap-page" class="workspace-page app-page hidden">
+          <div id="recap-dashboard" class="recap-dashboard"></div>
+        </div>
+
+        <footer class="workspace-footer">
+          <span>Dynasty Desk reads public Sleeper league data in your browser. Values blend KeepTradeCut-style market numbers with a lightweight fallback for unranked assets.</span>
+        </footer>
       </main>
     </div>
 
