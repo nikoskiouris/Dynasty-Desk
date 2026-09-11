@@ -192,4 +192,108 @@ export function buildTradeRecapLine(summary) {
   return summary;
 }
 
+const RECAP_TRADE_WINDOW_DAYS = 7;
+const WEEK_START_TIME_ZONE = "America/New_York";
+
+export function resolveSeasonStartDate(league, nflState) {
+  const leagueSeason = String(league?.season || "");
+  const nflSeason = String(nflState?.season || nflState?.league_season || "");
+  if (leagueSeason && nflSeason === leagueSeason && nflState?.season_start_date) {
+    return String(nflState.season_start_date);
+  }
+  if (/^\d{4}$/.test(leagueSeason)) return inferNflKickoffDate(Number(leagueSeason));
+  if (nflState?.season_start_date) return String(nflState.season_start_date);
+  return "";
+}
+
+export function inferNflKickoffDate(year) {
+  const weekday = new Date(Date.UTC(year, 8, 1)).getUTCDay();
+  const firstMonday = weekday === 1 ? 1 : ((8 - weekday) % 7) + 1;
+  const kickoffDay = firstMonday + 3;
+  return `${year}-09-${String(kickoffDay).padStart(2, "0")}`;
+}
+
+export function buildRecapTradeWindow({ week, seasonStartDate }) {
+  const recapWeek = Number(week);
+  if (!Number.isFinite(recapWeek) || recapWeek < 1) return null;
+  const startMs = getNflWeekStartMs(seasonStartDate, recapWeek);
+  const endMs = getNflWeekStartMs(seasonStartDate, recapWeek + 1);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
+  return { startMs, endMs };
+}
+
+export function isTradeInRecapWindow(transaction, window) {
+  if (!window) return false;
+  const timestamp = transactionTimeMs(transaction);
+  if (timestamp == null) return false;
+  return timestamp >= window.startMs && timestamp < window.endMs;
+}
+
+export function selectRecapTrades(transactions, { week, seasonStartDate }) {
+  const window = buildRecapTradeWindow({ week, seasonStartDate });
+  if (!window) return [];
+  return (Array.isArray(transactions) ? transactions : []).filter(
+    (transaction) => transaction?.type === "trade" && transaction?.status === "complete" && isTradeInRecapWindow(transaction, window)
+  );
+}
+
+function transactionTimeMs(transaction) {
+  let timestamp = Number(transaction?.status_updated || transaction?.created || 0);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
+  if (timestamp < 1e12) timestamp *= 1000;
+  return timestamp;
+}
+
+function getNflWeekStartMs(seasonStartDate, weekNumber) {
+  const parsed = parseIsoDate(seasonStartDate);
+  if (!parsed) return null;
+  const shifted = addUtcDays(parsed.year, parsed.month, parsed.day, (Number(weekNumber) - 1) * RECAP_TRADE_WINDOW_DAYS);
+  return zonedLocalToUtcMs(shifted.year, shifted.month, shifted.day, 0, 0, WEEK_START_TIME_ZONE);
+}
+
+function parseIsoDate(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+}
+
+function addUtcDays(year, month, day, delta) {
+  const date = new Date(Date.UTC(year, month - 1, day + delta));
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
+}
+
+function zonedLocalToUtcMs(year, month, day, hour, minute, timeZone) {
+  const asUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const offset = getTimeZoneOffsetMs(new Date(asUtc), timeZone);
+  const adjusted = asUtc - offset;
+  const offset2 = getTimeZoneOffsetMs(new Date(adjusted), timeZone);
+  return offset2 === offset ? adjusted : asUtc - offset2;
+}
+
+function getTimeZoneOffsetMs(date, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const map = {};
+  parts.forEach((part) => {
+    if (part.type !== "literal") map[part.type] = part.value;
+  });
+  const asUtc = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second)
+  );
+  return asUtc - date.getTime();
+}
+
 export { formatRecord, ordinal };

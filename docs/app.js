@@ -8,7 +8,7 @@ import {
   buildTeamDistributions,
   formatPoints,
 } from "./modules/season.js";
-import { buildRecap, RECAP_TONES } from "./modules/recap.js";
+import { buildRecap, RECAP_TONES, resolveSeasonStartDate, selectRecapTrades } from "./modules/recap.js";
 
 const API_BASE = "https://api.sleeper.app/v1";
 const SLEEPER_AVATAR_BASE = "https://sleepercdn.com/avatars/thumbs/";
@@ -2761,12 +2761,13 @@ function renderRecapPage() {
 }
 
 function buildRecapTradeLines(week) {
-  return state.transactions
-    .filter((transaction) => transaction?.type === "trade" && transaction?.status === "complete" && Number(transaction.leg ?? transaction.week) === Number(week))
-    .map((transaction) => {
-      const summary = buildRecentTradeSummary(transaction);
-      return `${summary.title}: ${summary.preview}`;
-    });
+  return selectRecapTrades(state.transactions, {
+    week,
+    seasonStartDate: resolveSeasonStartDate(state.league, state.nflState),
+  }).map((transaction) => {
+    const summary = buildRecentTradeSummary(transaction);
+    return `${summary.title}: ${summary.preview}`;
+  });
 }
 
 async function copyRecapText() {
