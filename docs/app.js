@@ -607,11 +607,12 @@ function renderSessionSnapshot() {
 function describeSeasonWeek() {
   const model = state.leagueId ? getSeasonModel() : null;
   if (!model) return "—";
-  if (model.seasonComplete) return `${model.season} complete`;
+  if (model.seasonComplete) return `${model.season} done`;
   const entry = model.currentWeekEntry;
   if (!entry) return `Week ${model.currentWeek}`;
-  if (entry.isPlayoff) return `Playoffs · Wk ${entry.week}${entry.isLive ? " live" : ""}`;
-  return `Week ${entry.week}${entry.isLive ? " · live" : entry.hasPoints ? "" : " · upcoming"}`;
+  if (entry.isPlayoff) return `Playoffs Wk ${entry.week}${entry.isLive ? " live" : ""}`;
+  if (entry.isLive) return `Week ${entry.week} live`;
+  return `Week ${entry.week}`;
 }
 
 function renderLeagueHero() {
