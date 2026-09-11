@@ -265,6 +265,15 @@ const el = {
 el.leagueLoadForm?.addEventListener("submit", requestLoadLeague);
 el.loadLeagueBtn?.addEventListener("pointerdown", handleLoadLeaguePointerDown);
 el.loadLeagueBtn?.addEventListener("click", requestLoadLeague);
+el.leagueId?.addEventListener("focus", (event) => {
+  if (!event.currentTarget.value) return;
+  event.currentTarget.select();
+});
+el.leagueId?.addEventListener("mouseup", (event) => {
+  if (!event.currentTarget.value) return;
+  event.preventDefault();
+  event.currentTarget.select();
+});
 el.leagueId?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
