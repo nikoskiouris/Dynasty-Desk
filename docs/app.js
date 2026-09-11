@@ -632,11 +632,13 @@ function renderLeagueHero() {
   el.heroTitle.textContent = state.leagueName;
   const status = model?.seasonComplete
     ? "Season complete. The archive, awards, and record book are final."
-    : model?.currentWeekEntry?.isLive
-      ? `Week ${model.currentWeek} is live. Scores, win probability, and playoff odds update as Sleeper posts points.`
-      : model
-        ? `Week ${model.currentWeek} is next. ${model.remainingGames.length} regular-season games left before the playoffs start in Week ${model.playoffStart}.`
-        : "Matchups are syncing.";
+    : !state.seasonLoaded
+      ? "Matchups are syncing from Sleeper."
+      : model?.currentWeekEntry?.isLive
+        ? `Week ${model.currentWeek} is live. Scores, win probability, and playoff odds update as Sleeper posts points.`
+        : model
+          ? `Week ${model.currentWeek} is next. ${model.remainingGames.length} regular-season games left before the playoffs start in Week ${model.playoffStart}.`
+          : "Matchups are syncing.";
   el.heroLede.textContent = `${format}. ${status}${trophy ? ` Reigning champion banner: "${trophy}".` : ""}`;
   if (el.leagueAvatar) {
     el.leagueAvatar.innerHTML = league.avatar
@@ -1288,25 +1290,40 @@ async function loadLeagueHistoryMatchups(historyEntries = []) {
       if (state.leagueId !== activeLeagueId) return;
       const weeks = buildTransactionWeeks(entry.league);
       const playoffStart = Number(entry.league?.settings?.playoff_week_start);
-      const settled = await Promise.allSettled(
-        weeks.map((week) =>
-          apiGetWithRetry(`/league/${entry.leagueId}/matchups/${week}`, { timeoutMs: 10000, retries: 1 })
-            .then((weekMatchups) => ({
-              week,
-              matchups: Array.isArray(weekMatchups) ? weekMatchups : [],
-            }))
-        )
-      );
-
+      const currentWeek = Number(state.nflState?.week) || 1;
+      const orderedWeeks = entry.isCurrent
+        ? [...weeks].sort((a, b) => Math.abs(a - currentWeek) - Math.abs(b - currentWeek) || a - b)
+        : weeks;
       let loadedWeeks = 0;
-      settled.forEach((result) => {
-        if (result.status !== "fulfilled") return;
-        loadedWeeks += 1;
-        matchups.push(...buildWeekMatchupRecords(entry, result.value.week, result.value.matchups, playoffStart));
-        if (entry.isCurrent) {
-          state.seasonWeekRows.set(Number(result.value.week), result.value.matchups);
+      const chunkSize = 4;
+      for (let i = 0; i < orderedWeeks.length; i += chunkSize) {
+        if (state.leagueId !== activeLeagueId) return;
+        const chunk = orderedWeeks.slice(i, i + chunkSize);
+        const settled = await Promise.allSettled(
+          chunk.map((week) =>
+            apiGetWithRetry(`/league/${entry.leagueId}/matchups/${week}`, { timeoutMs: 15000, retries: 1 })
+              .then((weekMatchups) => ({
+                week,
+                matchups: Array.isArray(weekMatchups) ? weekMatchups : [],
+              }))
+          )
+        );
+        settled.forEach((result) => {
+          if (result.status !== "fulfilled") return;
+          loadedWeeks += 1;
+          matchups.push(...buildWeekMatchupRecords(entry, result.value.week, result.value.matchups, playoffStart));
+          if (entry.isCurrent) {
+            state.seasonWeekRows.set(Number(result.value.week), result.value.matchups);
+          }
+        });
+        if (entry.isCurrent && loadedWeeks > 0) {
+          state.seasonLoaded = true;
+          state.seasonLoadError = "";
+          invalidateSeasonCaches();
+          renderSessionSnapshot();
+          renderActivePage();
         }
-      });
+      }
       if (loadedWeeks > 0) loadedLeagues += 1;
       if (entry.isCurrent) {
         state.seasonLoaded = loadedWeeks > 0;
@@ -1854,11 +1871,13 @@ function renderPulseStrip(model, sim, profiles) {
       value: model.seasonComplete ? "Final" : `Week ${model.currentWeek}`,
       detail: model.seasonComplete
         ? `${model.season} season complete`
-        : model.currentWeekEntry?.isLive
-          ? "games in progress"
-          : model.currentWeekEntry?.isPlayoff
-            ? "playoff round"
-            : `${model.remainingGames.length} regular-season games left`,
+        : !state.seasonLoaded
+          ? "syncing matchups"
+          : model.currentWeekEntry?.isLive
+            ? "games in progress"
+            : model.currentWeekEntry?.isPlayoff
+              ? "playoff round"
+              : `${model.remainingGames.length} regular-season games left`,
       tone: model.currentWeekEntry?.isLive ? "live" : "blue",
     },
     {
