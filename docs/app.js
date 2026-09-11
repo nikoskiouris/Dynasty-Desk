@@ -1048,6 +1048,7 @@ function buildWeekMatchupRecords(entry, week, weekMatchups, playoffStart) {
     if (!leftInfo || !rightInfo || leftInfo.managerKey === rightInfo.managerKey) return;
     const leftPoints = Number(rows[0]?.points || 0);
     const rightPoints = Number(rows[1]?.points || 0);
+    if (!(leftPoints > 0 || rightPoints > 0)) return;
     records.push({
       season: String(entry.season || ""),
       leagueId: String(entry.leagueId || ""),
