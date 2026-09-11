@@ -311,6 +311,17 @@ h5 {
   padding: 0.9rem;
 }
 
+.league-load-form {
+  display: grid;
+  gap: 0.7rem;
+}
+
+#load-league-btn,
+#landing-demo-btn,
+#rail-demo-btn {
+  touch-action: manipulation;
+}
+
 .module-heading {
   display: flex;
   align-items: flex-start;
