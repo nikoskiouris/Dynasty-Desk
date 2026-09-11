@@ -80,6 +80,9 @@ const ANALYTICS_POWER_RANK_LIMIT = 12;
 const ANALYTICS_ASSET_LEADER_LIMIT = 8;
 const MAX_HISTORY_SEASONS = 6;
 const HISTORY_TRANSACTION_SEASON_LIMIT = 4;
+const HISTORY_MATCHUP_SEASON_LIMIT = 6;
+const HISTORY_COMPARE_H2H_LIMIT = 6;
+const HISTORY_COMPARE_ROSTER_LIMIT = 8;
 
 const state = {
   leagueId: "",
@@ -131,6 +134,18 @@ const state = {
   historyTransactionsFailed: false,
   historyTransactionLeaguesLoaded: 0,
   historyTransactionLoadError: "",
+  historyMatchups: [],
+  historyMatchupsLoaded: false,
+  historyMatchupsFailed: false,
+  historyMatchupLeaguesLoaded: 0,
+  historyMatchupLoadError: "",
+  historyCompare: {
+    mode: "seasons",
+    leftSeason: "",
+    rightSeason: "",
+    leftManagerKey: "",
+    rightManagerKey: "",
+  },
 };
 
 const el = {
@@ -213,6 +228,8 @@ el.meSelect.addEventListener("change", () => {
   renderSessionSnapshot();
 });
 el.generateBtn.addEventListener("click", generateTradeIdeas);
+el.analyticsDashboard?.addEventListener("click", handleHistoryCompareClick);
+el.analyticsDashboard?.addEventListener("change", handleHistoryCompareChange);
 
 renderSessionSnapshot();
 syncTradeModeUi();
@@ -452,6 +469,7 @@ async function loadLeague() {
   state.historyTransactionsFailed = false;
   state.historyTransactionLeaguesLoaded = 0;
   state.historyTransactionLoadError = "";
+  resetHistoryCompareState();
   if (el.playerSearch) el.playerSearch.value = "";
   renderSessionSnapshot();
   renderPowerDashboard();
@@ -507,6 +525,7 @@ async function loadLeague() {
     loadTrendingPlayers();
     loadLeagueTransactions(leagueId, league);
     loadLeagueHistoryTransactions(leagueHistory);
+    loadLeagueHistoryMatchups(leagueHistory);
 
     loadPlayersWithCache()
       .then((players) => {
@@ -935,6 +954,141 @@ async function loadLeagueHistoryTransactions(historyEntries = []) {
   }
 }
 
+function resetHistoryCompareState() {
+  state.historyMatchups = [];
+  state.historyMatchupsLoaded = false;
+  state.historyMatchupsFailed = false;
+  state.historyMatchupLeaguesLoaded = 0;
+  state.historyMatchupLoadError = "";
+  state.historyCompare = {
+    mode: "seasons",
+    leftSeason: "",
+    rightSeason: "",
+    leftManagerKey: "",
+    rightManagerKey: "",
+  };
+}
+
+async function loadLeagueHistoryMatchups(historyEntries = []) {
+  const activeLeagueId = state.leagueId;
+  const entries = historyEntries
+    .filter((entry) => entry?.leagueId)
+    .slice(0, HISTORY_MATCHUP_SEASON_LIMIT);
+
+  state.historyMatchups = [];
+  state.historyMatchupsLoaded = entries.length === 0;
+  state.historyMatchupsFailed = false;
+  state.historyMatchupLeaguesLoaded = 0;
+  state.historyMatchupLoadError = "";
+  renderLeagueAnalyticsDashboard();
+
+  if (entries.length === 0) return;
+
+  const matchups = [];
+  let loadedLeagues = 0;
+  try {
+    for (const entry of entries) {
+      if (state.leagueId !== activeLeagueId) return;
+      const weeks = buildTransactionWeeks(entry.league);
+      const playoffStart = Number(entry.league?.settings?.playoff_week_start);
+      const settled = await Promise.allSettled(
+        weeks.map((week) =>
+          apiGetWithRetry(`/league/${entry.leagueId}/matchups/${week}`, { timeoutMs: 10000, retries: 1 })
+            .then((weekMatchups) => ({
+              week,
+              matchups: Array.isArray(weekMatchups) ? weekMatchups : [],
+            }))
+        )
+      );
+
+      let loadedWeeks = 0;
+      settled.forEach((result) => {
+        if (result.status !== "fulfilled") return;
+        loadedWeeks += 1;
+        matchups.push(...buildWeekMatchupRecords(entry, result.value.week, result.value.matchups, playoffStart));
+      });
+      if (loadedWeeks > 0) loadedLeagues += 1;
+    }
+
+    if (state.leagueId !== activeLeagueId) return;
+    state.historyMatchups = matchups;
+    state.historyMatchupsLoaded = true;
+    state.historyMatchupsFailed = loadedLeagues === 0;
+    state.historyMatchupLeaguesLoaded = loadedLeagues;
+    state.historyMatchupLoadError = loadedLeagues === 0
+      ? "Sleeper did not return archived matchup weeks for this league."
+      : "";
+  } catch (err) {
+    if (state.leagueId !== activeLeagueId) return;
+    state.historyMatchups = [];
+    state.historyMatchupsLoaded = true;
+    state.historyMatchupsFailed = true;
+    state.historyMatchupLoadError = err.message || "Could not load archived Sleeper matchups.";
+  } finally {
+    if (state.leagueId === activeLeagueId) {
+      renderLeagueAnalyticsDashboard();
+    }
+  }
+}
+
+function buildWeekMatchupRecords(entry, week, weekMatchups, playoffStart) {
+  const grouped = new Map();
+  weekMatchups.forEach((row) => {
+    const matchupId = Number(row?.matchup_id);
+    if (!Number.isFinite(matchupId) || matchupId <= 0) return;
+    if (!grouped.has(matchupId)) grouped.set(matchupId, []);
+    grouped.get(matchupId).push(row);
+  });
+
+  const records = [];
+  grouped.forEach((rows, matchupId) => {
+    if (rows.length !== 2) return;
+    const leftInfo = getHistoryRosterInfo(entry.leagueId, rows[0]?.roster_id);
+    const rightInfo = getHistoryRosterInfo(entry.leagueId, rows[1]?.roster_id);
+    if (!leftInfo || !rightInfo || leftInfo.managerKey === rightInfo.managerKey) return;
+    const leftPoints = Number(rows[0]?.points || 0);
+    const rightPoints = Number(rows[1]?.points || 0);
+    records.push({
+      season: String(entry.season || ""),
+      leagueId: String(entry.leagueId || ""),
+      week: Number(week),
+      matchupId,
+      isPlayoff: Number.isFinite(playoffStart) && Number(week) >= playoffStart,
+      left: {
+        rosterId: leftInfo.rosterId,
+        managerKey: leftInfo.managerKey,
+        managerName: leftInfo.managerName,
+        points: leftPoints,
+      },
+      right: {
+        rosterId: rightInfo.rosterId,
+        managerKey: rightInfo.managerKey,
+        managerName: rightInfo.managerName,
+        points: rightPoints,
+      },
+    });
+  });
+  return records;
+}
+
+function handleHistoryCompareClick(event) {
+  const button = event.target.closest("[data-history-compare-mode]");
+  if (!button) return;
+  const mode = button.dataset.historyCompareMode === "managers" ? "managers" : "seasons";
+  if (state.historyCompare.mode === mode) return;
+  state.historyCompare.mode = mode;
+  renderLeagueAnalyticsDashboard();
+}
+
+function handleHistoryCompareChange(event) {
+  const select = event.target.closest("[data-history-compare-field]");
+  if (!select) return;
+  const field = select.dataset.historyCompareField;
+  if (!["leftSeason", "rightSeason", "leftManagerKey", "rightManagerKey"].includes(field)) return;
+  state.historyCompare[field] = select.value;
+  renderLeagueAnalyticsDashboard();
+}
+
 function buildTransactionWeeks(league) {
   const playoffStart = Number(league?.settings?.playoff_week_start);
   const tradeDeadline = Number(league?.settings?.trade_deadline);
@@ -1234,8 +1388,7 @@ function buildLeagueHistoryArchive({ meRoster, meProfile, profiles, market, leag
     .map((snapshot) => snapshot.parityScore)
     .filter((value) => Number.isFinite(value) && value > 0);
   const currentPowerLeader = profiles[0] || null;
-
-  return {
+  const archive = {
     seasonSnapshots,
     dynastyRows,
     managerLens,
@@ -1250,6 +1403,8 @@ function buildLeagueHistoryArchive({ meRoster, meProfile, profiles, market, leag
     finishMatrixRows: dynastyRows.slice(0, Math.min(12, dynastyRows.length)),
     syncLabel: buildArchiveSyncLabel(),
   };
+  archive.comparison = buildHistoryComparison(archive);
+  return archive;
 }
 
 function getArchiveTradeTransactions() {
@@ -1735,6 +1890,8 @@ function renderAnalyticsDashboard(model) {
       ${renderAnalyticsMetric("Viewing", history.managerLens.managerName, history.managerLens.shortStatus, "gold")}
     </div>
 
+    ${renderHistoryComparisonPanel(history)}
+
     ${renderSeasonArchivePanel(history)}
 
     <div class="analytics-two-col">
@@ -1754,6 +1911,609 @@ function renderAnalyticsDashboard(model) {
     <div class="analytics-two-col">
       ${renderArchiveRecentTradesPanel(history)}
       ${renderAssetMarketPanel(market)}
+    </div>
+  `;
+}
+
+function ensureHistoryCompareDefaults(history) {
+  const compare = state.historyCompare;
+  const seasons = (history.seasonSnapshots || []).map((snapshot) => String(snapshot.season));
+  if (!seasons.includes(String(compare.leftSeason))) {
+    compare.leftSeason = seasons[1] || seasons[0] || "";
+  }
+  if (!seasons.includes(String(compare.rightSeason))) {
+    compare.rightSeason = seasons[0] || "";
+  }
+
+  const managerKeys = (history.dynastyRows || []).map((row) => row.managerKey);
+  const meKey = history.managerLens?.managerKey || "";
+  if (!managerKeys.includes(compare.leftManagerKey)) {
+    compare.leftManagerKey = (meKey && managerKeys.includes(meKey) ? meKey : managerKeys[0]) || "";
+  }
+  if (!managerKeys.includes(compare.rightManagerKey)) {
+    compare.rightManagerKey = managerKeys.find((key) => key !== compare.leftManagerKey) || "";
+  }
+  if (compare.mode !== "managers") compare.mode = "seasons";
+  return compare;
+}
+
+function buildHistoryComparison(history) {
+  const compare = ensureHistoryCompareDefaults(history);
+  const leftSnapshot = findSeasonSnapshot(history.seasonSnapshots, compare.leftSeason);
+  const rightSnapshot = findSeasonSnapshot(history.seasonSnapshots, compare.rightSeason);
+  const leftManager = findDynastyRow(history.dynastyRows, compare.leftManagerKey);
+  const rightManager = findDynastyRow(history.dynastyRows, compare.rightManagerKey);
+
+  return {
+    mode: compare.mode,
+    leftSeason: compare.leftSeason,
+    rightSeason: compare.rightSeason,
+    leftManagerKey: compare.leftManagerKey,
+    rightManagerKey: compare.rightManagerKey,
+    seasonOptions: (history.seasonSnapshots || []).map((snapshot) => ({
+      value: snapshot.season,
+      label: `${snapshot.season}${snapshot.isCurrent ? " (current)" : ""}`,
+    })),
+    managerOptions: (history.dynastyRows || []).map((row) => ({
+      value: row.managerKey,
+      label: row.managerName,
+    })),
+    seasonCompare: buildSeasonComparison(leftSnapshot, rightSnapshot, history.dynastyRows, history.managerLens),
+    managerCompare: buildManagerComparison(leftManager, rightManager, history.seasonSnapshots, history.archiveTrades),
+    matchupSyncLabel: buildMatchupSyncLabel(),
+  };
+}
+
+function findSeasonSnapshot(snapshots = [], season) {
+  return snapshots.find((snapshot) => String(snapshot.season) === String(season)) || null;
+}
+
+function findDynastyRow(rows = [], managerKey) {
+  return rows.find((row) => row.managerKey === managerKey) || null;
+}
+
+function buildSeasonComparison(leftSnapshot, rightSnapshot, dynastyRows, managerLens) {
+  if (!leftSnapshot || !rightSnapshot) {
+    return { available: false, sameSeason: false, rows: [], movers: [], rosterDelta: null };
+  }
+
+  const sameSeason = String(leftSnapshot.season) === String(rightSnapshot.season);
+  const standingRows = (dynastyRows || [])
+    .map((row) => {
+      const leftRecord = row.records.find((record) => String(record.season) === String(leftSnapshot.season));
+      const rightRecord = row.records.find((record) => String(record.season) === String(rightSnapshot.season));
+      if (!leftRecord && !rightRecord) return null;
+      const leftRank = getComparableRank(leftRecord);
+      const rightRank = getComparableRank(rightRecord);
+      const rankDelta = Number.isFinite(leftRank) && Number.isFinite(rightRank) ? leftRank - rightRank : null;
+      const pointsDelta = Number.isFinite(leftRecord?.points) && Number.isFinite(rightRecord?.points)
+        ? rightRecord.points - leftRecord.points
+        : null;
+      return {
+        managerKey: row.managerKey,
+        managerName: row.managerName,
+        selected: row.managerKey === managerLens?.managerKey,
+        leftRank,
+        rightRank,
+        rankDelta,
+        leftPoints: leftRecord?.points ?? null,
+        rightPoints: rightRecord?.points ?? null,
+        pointsDelta,
+        leftRecord: formatSeasonRecord(leftRecord),
+        rightRecord: formatSeasonRecord(rightRecord),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (a.rightRank || 99) - (b.rightRank || 99) || (a.leftRank || 99) - (b.leftRank || 99) || a.managerName.localeCompare(b.managerName));
+
+  const movers = standingRows
+    .filter((row) => Number.isFinite(row.rankDelta) && row.rankDelta !== 0)
+    .slice()
+    .sort((a, b) => Math.abs(b.rankDelta) - Math.abs(a.rankDelta) || a.managerName.localeCompare(b.managerName));
+
+  return {
+    available: true,
+    sameSeason,
+    left: summarizeSeasonForCompare(leftSnapshot),
+    right: summarizeSeasonForCompare(rightSnapshot),
+    metrics: [
+      {
+        label: "Champion / leader",
+        left: leftSnapshot.isCurrent ? leftSnapshot.regularLeader?.managerName || "TBD" : leftSnapshot.champion?.managerName || "TBD",
+        right: rightSnapshot.isCurrent ? rightSnapshot.regularLeader?.managerName || "TBD" : rightSnapshot.champion?.managerName || "TBD",
+      },
+      {
+        label: "Points king",
+        left: `${leftSnapshot.pointsLeader?.managerName || "TBD"} (${formatNumber(leftSnapshot.pointsLeader?.points || 0)} PF)`,
+        right: `${rightSnapshot.pointsLeader?.managerName || "TBD"} (${formatNumber(rightSnapshot.pointsLeader?.points || 0)} PF)`,
+      },
+      {
+        label: "Scoring average",
+        left: formatNumber(leftSnapshot.scoringAverage),
+        right: formatNumber(rightSnapshot.scoringAverage),
+        delta: rightSnapshot.scoringAverage - leftSnapshot.scoringAverage,
+      },
+      {
+        label: "Scoring gap",
+        left: formatNumber(leftSnapshot.scoringSpread),
+        right: formatNumber(rightSnapshot.scoringSpread),
+        delta: rightSnapshot.scoringSpread - leftSnapshot.scoringSpread,
+      },
+      {
+        label: "Trades",
+        left: formatNumber(leftSnapshot.tradeCount),
+        right: formatNumber(rightSnapshot.tradeCount),
+        delta: rightSnapshot.tradeCount - leftSnapshot.tradeCount,
+      },
+      {
+        label: "Parity",
+        left: leftSnapshot.parityScore ? `${leftSnapshot.parityScore}/100` : "N/A",
+        right: rightSnapshot.parityScore ? `${rightSnapshot.parityScore}/100` : "N/A",
+        delta: (rightSnapshot.parityScore || 0) - (leftSnapshot.parityScore || 0),
+      },
+    ],
+    rows: standingRows,
+    movers: movers.slice(0, 6),
+    rosterDelta: sameSeason ? null : buildManagerRosterDelta(managerLens?.managerKey, leftSnapshot, rightSnapshot),
+  };
+}
+
+function summarizeSeasonForCompare(snapshot) {
+  return {
+    season: snapshot.season,
+    statusLabel: snapshot.statusLabel,
+    isCurrent: snapshot.isCurrent,
+    championLabel: snapshot.isCurrent
+      ? snapshot.regularLeader?.managerName || "TBD"
+      : snapshot.champion?.managerName || "TBD",
+    championDetail: snapshot.isCurrent ? "current leader" : "champion",
+  };
+}
+
+function getComparableRank(record) {
+  if (!record) return null;
+  if (record.isCurrent && Number.isFinite(record.powerRank)) return record.powerRank;
+  if (Number.isFinite(record.finishRank)) return record.finishRank;
+  if (Number.isFinite(record.regularRank)) return record.regularRank;
+  return null;
+}
+
+function formatSeasonRecord(record) {
+  if (!record) return "—";
+  const ties = record.ties ? `-${record.ties}` : "";
+  return `${record.wins}-${record.losses}${ties}`;
+}
+
+function buildManagerRosterDelta(managerKey, leftSnapshot, rightSnapshot) {
+  if (!managerKey || !leftSnapshot || !rightSnapshot) return null;
+  const leftStanding = leftSnapshot.standings.find((row) => row.managerKey === managerKey);
+  const rightStanding = rightSnapshot.standings.find((row) => row.managerKey === managerKey);
+  if (!leftStanding && !rightStanding) return null;
+
+  const leftIds = new Set((leftStanding?.roster?.players || []).map((playerId) => String(playerId)));
+  const rightIds = new Set((rightStanding?.roster?.players || []).map((playerId) => String(playerId)));
+  const kept = [...rightIds].filter((playerId) => leftIds.has(playerId)).map(buildComparePlayerChip);
+  const added = [...rightIds].filter((playerId) => !leftIds.has(playerId)).map(buildComparePlayerChip);
+  const lost = [...leftIds].filter((playerId) => !rightIds.has(playerId)).map(buildComparePlayerChip);
+  const sortChips = (chips) => chips.sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+
+  return {
+    managerName: rightStanding?.managerName || leftStanding?.managerName || "Selected manager",
+    leftSeason: leftSnapshot.season,
+    rightSeason: rightSnapshot.season,
+    kept: sortChips(kept).slice(0, HISTORY_COMPARE_ROSTER_LIMIT),
+    added: sortChips(added).slice(0, HISTORY_COMPARE_ROSTER_LIMIT),
+    lost: sortChips(lost).slice(0, HISTORY_COMPARE_ROSTER_LIMIT),
+    keptCount: kept.length,
+    addedCount: added.length,
+    lostCount: lost.length,
+  };
+}
+
+function buildComparePlayerChip(playerId) {
+  const player = state.players?.[playerId] || {};
+  const name = `${(player.first_name || "").trim()} ${(player.last_name || "").trim()}`.trim()
+    || player.full_name
+    || `Player ${playerId}`;
+  const assetId = `player:${playerId}`;
+  const value = Number(state.values?.[assetId]);
+  return {
+    playerId,
+    name,
+    value: Number.isFinite(value) ? value : 0,
+    valueLabel: Number.isFinite(value) ? formatNumber(value) : "—",
+  };
+}
+
+function buildManagerComparison(leftManager, rightManager, seasonSnapshots, archiveTrades) {
+  if (!leftManager || !rightManager) {
+    return { available: false, sameManager: false };
+  }
+
+  const sameManager = leftManager.managerKey === rightManager.managerKey;
+  const seasons = (seasonSnapshots || []).map((snapshot) => String(snapshot.season));
+  const h2h = sameManager ? null : buildHeadToHeadComparison(leftManager, rightManager);
+  const tradePair = sameManager
+    ? null
+    : (archiveTrades?.pairLeaders || []).find((pair) => {
+        const keys = new Set(pair.managerKeys || []);
+        return keys.has(leftManager.managerKey) && keys.has(rightManager.managerKey);
+      }) || null;
+
+  return {
+    available: true,
+    sameManager,
+    left: summarizeManagerForCompare(leftManager),
+    right: summarizeManagerForCompare(rightManager),
+    seasons,
+    yearRows: seasons.map((season) => ({
+      season,
+      left: buildManagerSeasonChip(leftManager, season),
+      right: buildManagerSeasonChip(rightManager, season),
+    })),
+    h2h,
+    tradePair,
+  };
+}
+
+function summarizeManagerForCompare(row) {
+  return {
+    managerKey: row.managerKey,
+    managerName: row.managerName,
+    titles: row.titles,
+    runnerUps: row.runnerUps,
+    podiums: row.podiums,
+    recordLabel: formatManagerRecord(row),
+    avgFinishLabel: row.avgFinish ? row.avgFinish.toFixed(1) : "—",
+    bestFinishLabel: row.bestFinish ? ordinal(Math.round(row.bestFinish)) : "—",
+    dynastyScore: row.dynastyScore,
+    currentScore: row.currentScore,
+    currentPowerRank: row.currentPowerRank,
+    currentLaneLabel: row.currentLaneLabel || "no current roster",
+    selected: row.currentRosterId === state.meRosterId,
+  };
+}
+
+function buildManagerSeasonChip(row, season) {
+  const record = (row.records || []).find((item) => String(item.season) === String(season));
+  if (!record) return { label: "—", rank: null, recordLabel: "absent" };
+  const rank = getComparableRank(record);
+  return {
+    label: rank ? ordinal(rank) : "—",
+    rank,
+    recordLabel: formatSeasonRecord(record),
+    isCurrent: Boolean(record.isCurrent),
+  };
+}
+
+function buildHeadToHeadComparison(leftManager, rightManager) {
+  const games = state.historyMatchups
+    .map((matchup) => normalizeMatchupSides(matchup, leftManager.managerKey, rightManager.managerKey))
+    .filter(Boolean)
+    .sort((a, b) => Number(b.season) - Number(a.season) || b.week - a.week);
+
+  const wins = games.filter((game) => game.leftPoints > game.rightPoints).length;
+  const losses = games.filter((game) => game.leftPoints < game.rightPoints).length;
+  const ties = games.filter((game) => game.leftPoints === game.rightPoints).length;
+  const playoffGames = games.filter((game) => game.isPlayoff);
+  const leftPoints = games.reduce((sum, game) => sum + game.leftPoints, 0);
+  const rightPoints = games.reduce((sum, game) => sum + game.rightPoints, 0);
+  const latest = games[0] || null;
+
+  return {
+    loaded: state.historyMatchupsLoaded,
+    failed: state.historyMatchupsFailed,
+    gameCount: games.length,
+    wins,
+    losses,
+    ties,
+    recordLabel: ties ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`,
+    playoffCount: playoffGames.length,
+    playoffRecordLabel: playoffGames.length
+      ? `${playoffGames.filter((game) => game.leftPoints > game.rightPoints).length}-${playoffGames.filter((game) => game.leftPoints < game.rightPoints).length}`
+      : "none",
+    leftPoints: Math.round(leftPoints),
+    rightPoints: Math.round(rightPoints),
+    latest: latest
+      ? {
+          label: `${latest.season} Wk ${latest.week}${latest.isPlayoff ? " playoff" : ""}`,
+          score: `${formatNumber(latest.leftPoints)}-${formatNumber(latest.rightPoints)}`,
+          winner: latest.leftPoints === latest.rightPoints
+            ? "Tie"
+            : latest.leftPoints > latest.rightPoints
+              ? leftManager.managerName
+              : rightManager.managerName,
+        }
+      : null,
+    recent: games.slice(0, HISTORY_COMPARE_H2H_LIMIT),
+  };
+}
+
+function normalizeMatchupSides(matchup, leftManagerKey, rightManagerKey) {
+  const participants = [matchup.left, matchup.right];
+  const left = participants.find((side) => side.managerKey === leftManagerKey);
+  const right = participants.find((side) => side.managerKey === rightManagerKey);
+  if (!left || !right) return null;
+  return {
+    season: matchup.season,
+    week: matchup.week,
+    isPlayoff: Boolean(matchup.isPlayoff),
+    leftPoints: Number(left.points || 0),
+    rightPoints: Number(right.points || 0),
+  };
+}
+
+function buildMatchupSyncLabel() {
+  const archiveSeasonCount = Math.max(1, state.leagueHistory.length);
+  if (!state.historyMatchupsLoaded) {
+    return `matchups syncing ${state.historyMatchupLeaguesLoaded}/${Math.min(archiveSeasonCount, HISTORY_MATCHUP_SEASON_LIMIT)}`;
+  }
+  if (state.historyMatchupsFailed) return state.historyMatchupLoadError || "matchups unavailable";
+  return `${state.historyMatchupLeaguesLoaded} season${state.historyMatchupLeaguesLoaded === 1 ? "" : "s"} of matchups`;
+}
+
+function renderHistoryComparisonPanel(history) {
+  const comparison = history.comparison;
+  if (!comparison) return "";
+  const isManagers = comparison.mode === "managers";
+  return `
+    <section class="analytics-panel analytics-panel-wide history-compare-panel">
+      <div class="analytics-panel-heading">
+        <h3>History Comparisons</h3>
+        <span>${escapeHtml(comparison.matchupSyncLabel)}</span>
+      </div>
+      <div class="history-compare-toolbar">
+        <div class="history-compare-mode-tabs" role="tablist" aria-label="Comparison mode">
+          <button type="button" data-history-compare-mode="seasons" class="${isManagers ? "" : "active"}" aria-pressed="${isManagers ? "false" : "true"}">Seasons</button>
+          <button type="button" data-history-compare-mode="managers" class="${isManagers ? "active" : ""}" aria-pressed="${isManagers ? "true" : "false"}">Managers</button>
+        </div>
+        <div class="history-compare-selects">
+          ${isManagers
+            ? renderHistoryCompareSelect("leftManagerKey", "Left manager", comparison.managerOptions, comparison.leftManagerKey)
+              + `<span class="history-compare-vs">vs</span>`
+              + renderHistoryCompareSelect("rightManagerKey", "Right manager", comparison.managerOptions, comparison.rightManagerKey)
+            : renderHistoryCompareSelect("leftSeason", "Left season", comparison.seasonOptions, comparison.leftSeason)
+              + `<span class="history-compare-vs">vs</span>`
+              + renderHistoryCompareSelect("rightSeason", "Right season", comparison.seasonOptions, comparison.rightSeason)}
+        </div>
+      </div>
+      ${isManagers ? renderManagerComparisonBody(comparison.managerCompare) : renderSeasonComparisonBody(comparison.seasonCompare)}
+    </section>
+  `;
+}
+
+function renderHistoryCompareSelect(field, label, options, selected) {
+  return `
+    <label class="history-compare-select">
+      <span>${escapeHtml(label)}</span>
+      <select data-history-compare-field="${escapeHtml(field)}">
+        ${options.map((option) => `
+          <option value="${escapeHtml(option.value)}" ${option.value === selected ? "selected" : ""}>${escapeHtml(option.label)}</option>
+        `).join("")}
+      </select>
+    </label>
+  `;
+}
+
+function renderSeasonComparisonBody(seasonCompare) {
+  if (!seasonCompare?.available) {
+    return `<p class="muted small analytics-empty">Need at least one archived or current season to compare.</p>`;
+  }
+  if (seasonCompare.sameSeason) {
+    return `<p class="muted small analytics-empty">Pick two different seasons to see finish, scoring, and roster movement.</p>`;
+  }
+
+  return `
+    <div class="compare-side-grid">
+      ${renderCompareSeasonCard(seasonCompare.left, "left")}
+      ${renderCompareSeasonCard(seasonCompare.right, "right")}
+    </div>
+    <div class="compare-metric-list">
+      ${seasonCompare.metrics.map(renderCompareMetricRow).join("")}
+    </div>
+    ${seasonCompare.movers.length ? `
+      <div class="compare-mover-row">
+        ${seasonCompare.movers.map(renderCompareMoverChip).join("")}
+      </div>
+    ` : ""}
+    <div class="finish-matrix-shell">
+      <div class="compare-standings">
+        <div class="compare-standings-head">Manager</div>
+        <div class="compare-standings-head">${escapeHtml(seasonCompare.left.season)}</div>
+        <div class="compare-standings-head">Delta</div>
+        <div class="compare-standings-head">${escapeHtml(seasonCompare.right.season)}</div>
+        ${seasonCompare.rows.map(renderSeasonCompareRow).join("")}
+      </div>
+    </div>
+    ${seasonCompare.rosterDelta ? renderRosterDeltaPanel(seasonCompare.rosterDelta) : ""}
+  `;
+}
+
+function renderCompareSeasonCard(side, tone) {
+  return `
+    <section class="compare-season-card ${tone}">
+      <span>${escapeHtml(side.statusLabel)}</span>
+      <strong>${escapeHtml(side.season)}</strong>
+      <small>${escapeHtml(side.championLabel)} · ${escapeHtml(side.championDetail)}</small>
+    </section>
+  `;
+}
+
+function renderCompareMetricRow(metric) {
+  const deltaLabel = Number.isFinite(metric.delta) ? formatSignedNumber(Math.round(metric.delta)) : "—";
+  const tone = Number.isFinite(metric.delta) ? (metric.delta > 0 ? "up" : metric.delta < 0 ? "down" : "flat") : "flat";
+  return `
+    <div class="compare-metric-row">
+      <span>${escapeHtml(metric.label)}</span>
+      <strong>${escapeHtml(String(metric.left))}</strong>
+      <em class="compare-delta ${tone}">${escapeHtml(deltaLabel)}</em>
+      <strong>${escapeHtml(String(metric.right))}</strong>
+    </div>
+  `;
+}
+
+function renderCompareMoverChip(row) {
+  const climbed = row.rankDelta > 0;
+  return `
+    <div class="compare-mover-chip ${climbed ? "up" : "down"}">
+      <strong>${escapeHtml(row.managerName)}</strong>
+      <span>${climbed ? "climbed" : "dropped"} ${Math.abs(row.rankDelta)} ${Math.abs(row.rankDelta) === 1 ? "spot" : "spots"}</span>
+    </div>
+  `;
+}
+
+function renderSeasonCompareRow(row) {
+  return `
+    <div class="compare-standings-name ${row.selected ? "selected" : ""}">
+      <strong>${escapeHtml(row.managerName)}</strong>
+      <span>${escapeHtml(row.leftRecord)} → ${escapeHtml(row.rightRecord)}</span>
+    </div>
+    <div class="finish-cell ${compareRankClass(row.leftRank, false)}">${escapeHtml(row.leftRank ? String(row.leftRank) : "—")}</div>
+    <div class="finish-cell ${compareDeltaClass(row.rankDelta)}">${escapeHtml(formatRankDelta(row.rankDelta))}</div>
+    <div class="finish-cell ${compareRankClass(row.rightRank, true)}">${escapeHtml(row.rightRank ? String(row.rightRank) : "—")}</div>
+  `;
+}
+
+function compareRankClass(rank, isCurrentSide) {
+  if (!Number.isFinite(rank)) return "empty";
+  if (rank === 1) return "title";
+  if (rank <= 3) return "podium";
+  if (rank >= 9) return "bottom";
+  return isCurrentSide ? "current" : "middle";
+}
+
+function compareDeltaClass(delta) {
+  if (!Number.isFinite(delta) || delta === 0) return "middle";
+  return delta > 0 ? "podium" : "bottom";
+}
+
+function formatRankDelta(delta) {
+  if (!Number.isFinite(delta)) return "—";
+  if (delta === 0) return "same";
+  return delta > 0 ? `↑ ${delta}` : `↓ ${Math.abs(delta)}`;
+}
+
+function renderRosterDeltaPanel(delta) {
+  return `
+    <section class="roster-delta-panel">
+      <div class="analytics-panel-heading">
+        <h3>${escapeHtml(delta.managerName)} roster shift</h3>
+        <span>${escapeHtml(delta.leftSeason)} → ${escapeHtml(delta.rightSeason)}</span>
+      </div>
+      <div class="roster-delta-grid">
+        ${renderRosterDeltaColumn("Kept", delta.keptCount, delta.kept, "kept")}
+        ${renderRosterDeltaColumn("Added", delta.addedCount, delta.added, "added")}
+        ${renderRosterDeltaColumn("Lost", delta.lostCount, delta.lost, "lost")}
+      </div>
+    </section>
+  `;
+}
+
+function renderRosterDeltaColumn(label, count, chips, tone) {
+  return `
+    <div class="roster-delta-col ${tone}">
+      <div>
+        <span>${escapeHtml(label)}</span>
+        <strong>${count}</strong>
+      </div>
+      ${chips.length
+        ? chips.map((chip) => `
+            <div class="roster-delta-chip">
+              <strong>${escapeHtml(chip.name)}</strong>
+              <span>${escapeHtml(chip.valueLabel)}</span>
+            </div>
+          `).join("")
+        : `<p class="muted small analytics-empty">None</p>`}
+    </div>
+  `;
+}
+
+function renderManagerComparisonBody(managerCompare) {
+  if (!managerCompare?.available) {
+    return `<p class="muted small analytics-empty">Need two managers in the archive to compare.</p>`;
+  }
+  if (managerCompare.sameManager) {
+    return `<p class="muted small analytics-empty">Pick two different managers to compare titles, finishes, and head-to-head.</p>`;
+  }
+
+  const { left, right, h2h, tradePair } = managerCompare;
+  return `
+    <div class="compare-side-grid">
+      ${renderCompareManagerCard(left, "left")}
+      ${renderCompareManagerCard(right, "right")}
+    </div>
+    <div class="compare-metric-list">
+      ${renderCompareMetricRow({ label: "Titles", left: String(left.titles), right: String(right.titles), delta: right.titles - left.titles })}
+      ${renderCompareMetricRow({ label: "Podiums", left: String(left.podiums), right: String(right.podiums), delta: right.podiums - left.podiums })}
+      ${renderCompareMetricRow({ label: "Archive record", left: left.recordLabel, right: right.recordLabel })}
+      ${renderCompareMetricRow({ label: "Avg finish", left: left.avgFinishLabel, right: right.avgFinishLabel })}
+      ${renderCompareMetricRow({ label: "Best finish", left: left.bestFinishLabel, right: right.bestFinishLabel })}
+      ${renderCompareMetricRow({ label: "Dynasty score", left: formatNumber(left.dynastyScore), right: formatNumber(right.dynastyScore), delta: right.dynastyScore - left.dynastyScore })}
+    </div>
+    ${h2h ? renderHeadToHeadPanel(left, right, h2h, tradePair) : ""}
+    <div class="finish-matrix-shell">
+      <div class="compare-standings manager-year-grid" style="--season-count:${managerCompare.seasons.length}">
+        <div class="compare-standings-head">Season</div>
+        <div class="compare-standings-head">${escapeHtml(left.managerName)}</div>
+        <div class="compare-standings-head">${escapeHtml(right.managerName)}</div>
+        ${managerCompare.yearRows.map((row) => `
+          <div class="compare-standings-name">
+            <strong>${escapeHtml(row.season)}</strong>
+          </div>
+          <div class="finish-cell ${compareRankClass(row.left.rank, row.left.isCurrent)}" title="${escapeHtml(row.left.recordLabel)}">${escapeHtml(row.left.label)}</div>
+          <div class="finish-cell ${compareRankClass(row.right.rank, row.right.isCurrent)}" title="${escapeHtml(row.right.recordLabel)}">${escapeHtml(row.right.label)}</div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderCompareManagerCard(side, tone) {
+  const powerLabel = side.currentPowerRank
+    ? `${ordinal(side.currentPowerRank)} power · ${side.currentScore}/100`
+    : "no current power score";
+  return `
+    <section class="compare-season-card ${tone} ${side.selected ? "selected" : ""}">
+      <span>${escapeHtml(side.currentLaneLabel)}</span>
+      <strong>${escapeHtml(side.managerName)}</strong>
+      <small>${escapeHtml(powerLabel)}</small>
+    </section>
+  `;
+}
+
+function renderHeadToHeadPanel(left, right, h2h, tradePair) {
+  if (!h2h.loaded) {
+    return `<p class="muted small analytics-empty">Head-to-head still syncing from Sleeper matchups.</p>`;
+  }
+  if (h2h.failed && h2h.gameCount === 0) {
+    return `<p class="muted small analytics-empty">Could not load matchup history for these two managers.</p>`;
+  }
+  if (h2h.gameCount === 0) {
+    return `<p class="muted small analytics-empty">No completed head-to-head games in the loaded matchup archive yet.</p>`;
+  }
+
+  return `
+    <div class="h2h-board">
+      <div class="h2h-score">
+        <span>${escapeHtml(left.managerName)}</span>
+        <strong>${escapeHtml(h2h.recordLabel)}</strong>
+        <span>${escapeHtml(right.managerName)}</span>
+      </div>
+      <div class="h2h-meta">
+        <span>${h2h.gameCount} game${h2h.gameCount === 1 ? "" : "s"}</span>
+        <span>${formatNumber(h2h.leftPoints)}-${formatNumber(h2h.rightPoints)} combined PF</span>
+        <span>Playoffs ${escapeHtml(h2h.playoffRecordLabel)}</span>
+        ${h2h.latest ? `<span>Last: ${escapeHtml(h2h.latest.label)} ${escapeHtml(h2h.latest.score)} (${escapeHtml(h2h.latest.winner)})</span>` : ""}
+        ${tradePair ? `<span>${tradePair.count} archive trade${tradePair.count === 1 ? "" : "s"}</span>` : ""}
+      </div>
+      <div class="h2h-recent">
+        ${h2h.recent.map((game) => `
+          <div class="mini-season-chip ${game.leftPoints > game.rightPoints ? "current" : ""}">
+            <strong>${escapeHtml(`${game.season} Wk ${game.week}${game.isPlayoff ? " P" : ""}`)}</strong>
+            <span>${escapeHtml(`${formatNumber(game.leftPoints)}-${formatNumber(game.rightPoints)}`)}</span>
+          </div>
+        `).join("")}
+      </div>
     </div>
   `;
 }

@@ -1168,6 +1168,293 @@ button.loading {
   color: var(--line-strong);
 }
 
+.history-compare-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+  justify-content: space-between;
+  margin-bottom: 0.9rem;
+}
+
+.history-compare-mode-tabs,
+.history-compare-selects,
+.h2h-meta,
+.h2h-recent,
+.compare-mover-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.history-compare-mode-tabs button {
+  width: auto;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.history-compare-mode-tabs button.active {
+  border-color: var(--team-a-border);
+  background: var(--team-a-soft);
+  color: var(--blue);
+}
+
+.history-compare-selects {
+  align-items: end;
+}
+
+.history-compare-select {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 9.5rem;
+}
+
+.history-compare-select span,
+.history-compare-vs {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.history-compare-vs {
+  padding-bottom: 0.7rem;
+}
+
+.compare-side-grid,
+.roster-delta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 0.85rem;
+}
+
+.roster-delta-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.compare-season-card,
+.roster-delta-col,
+.h2h-board {
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+}
+
+.compare-season-card.left,
+.roster-delta-col.kept {
+  border-color: var(--team-a-border);
+  background: var(--team-a-soft);
+}
+
+.compare-season-card.right,
+.roster-delta-col.added {
+  border-color: var(--team-b-border);
+  background: var(--team-b-soft);
+}
+
+.compare-season-card.selected {
+  box-shadow: inset 0 0 0 1px var(--blue);
+}
+
+.compare-season-card span,
+.compare-season-card small,
+.roster-delta-col span,
+.roster-delta-chip span,
+.h2h-score span,
+.h2h-meta span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 760;
+}
+
+.compare-season-card strong {
+  display: block;
+  margin: 0.2rem 0 0.15rem;
+  overflow-wrap: anywhere;
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.compare-metric-list,
+.compare-standings {
+  display: grid;
+  gap: 0.42rem;
+  margin-bottom: 0.85rem;
+}
+
+.compare-metric-row,
+.compare-standings {
+  grid-template-columns: minmax(120px, 1.1fr) minmax(0, 1fr) 4.2rem minmax(0, 1fr);
+}
+
+.compare-metric-row,
+.compare-standings-name {
+  display: grid;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.compare-metric-row {
+  grid-template-columns: minmax(110px, 0.9fr) minmax(0, 1fr) 4.2rem minmax(0, 1fr);
+}
+
+.compare-metric-row span,
+.compare-standings-name span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 720;
+}
+
+.compare-metric-row strong,
+.compare-standings-name strong {
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+}
+
+.compare-delta {
+  text-align: center;
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 840;
+  color: var(--muted);
+}
+
+.compare-delta.up,
+.compare-mover-chip.up {
+  color: var(--green);
+}
+
+.compare-delta.down,
+.compare-mover-chip.down {
+  color: var(--red);
+}
+
+.compare-standings {
+  grid-template-columns: minmax(150px, 1.3fr) repeat(3, minmax(64px, 0.7fr));
+  min-width: max-content;
+}
+
+.compare-standings.manager-year-grid {
+  grid-template-columns: minmax(90px, 0.7fr) repeat(2, minmax(120px, 1fr));
+}
+
+.compare-standings-head {
+  display: grid;
+  place-items: center;
+  min-height: 2.2rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 840;
+  text-transform: uppercase;
+}
+
+.compare-standings-name {
+  align-content: center;
+  background: var(--panel-soft);
+}
+
+.compare-standings-name.selected {
+  border-color: var(--team-a-border);
+  background: var(--team-a-soft);
+}
+
+.compare-mover-chip {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.compare-mover-chip span {
+  font-size: 0.72rem;
+  font-weight: 740;
+}
+
+.roster-delta-panel {
+  margin-top: 0.2rem;
+}
+
+.roster-delta-col > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.roster-delta-col.lost {
+  border-color: #f0b8c5;
+  background: var(--red-soft);
+}
+
+.roster-delta-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+  padding: 0.42rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.roster-delta-chip strong {
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}
+
+.h2h-board {
+  margin-bottom: 0.85rem;
+}
+
+.h2h-score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: center;
+  margin-bottom: 0.55rem;
+}
+
+.h2h-score span:first-child {
+  text-align: left;
+}
+
+.h2h-score span:last-child {
+  text-align: right;
+}
+
+.h2h-score strong {
+  font-size: 1.8rem;
+  line-height: 1;
+  color: var(--blue);
+}
+
+.h2h-meta {
+  margin-bottom: 0.55rem;
+}
+
+.h2h-recent {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
 .storyline-card {
   display: grid;
   gap: 0.22rem;
@@ -2102,7 +2389,11 @@ button.loading {
   .dna-grid,
   .economy-grid,
   .market-split-grid,
-  .season-card {
+  .season-card,
+  .compare-side-grid,
+  .roster-delta-grid,
+  .compare-metric-row,
+  .h2h-score {
     grid-template-columns: 1fr;
   }
 
@@ -2175,8 +2466,15 @@ button.loading {
     grid-template-columns: 1fr;
   }
 
-  .row-meter {
-    width: 100%;
+  .history-compare-toolbar,
+  .history-compare-selects {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .history-compare-vs {
+    padding: 0;
+    text-align: center;
   }
 
   .power-score-ring {
