@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Dynasty Desk — Fantasy League Command Center</title>
     <meta name="description" content="Live scoreboard, playoff odds, awards, record book, roster explorer, and a dynasty trade lab for your Sleeper league." />
     <meta name="theme-color" content="#070a12" />
@@ -14,13 +14,44 @@
   </head>
   <body>
     <div class="app-frame">
-      <aside class="control-rail" aria-label="League controls">
+      <header class="mobile-chrome" id="mobile-chrome">
+        <button
+          type="button"
+          id="mobile-rail-toggle"
+          class="mobile-icon-btn"
+          aria-expanded="false"
+          aria-controls="control-rail"
+          title="League controls"
+        >
+          <span class="menu-bars" aria-hidden="true"></span>
+          <span class="sr-only">League controls</span>
+        </button>
+        <div class="mobile-chrome-copy">
+          <span class="eyebrow">Dynasty Desk</span>
+          <strong id="mobile-chrome-title">League Command Center</strong>
+        </div>
+        <button
+          type="button"
+          id="mobile-theme-btn"
+          class="mobile-icon-btn"
+          aria-pressed="false"
+          title="Toggle light and dark theme"
+        >
+          <span id="mobile-theme-icon" aria-hidden="true">Aa</span>
+          <span class="sr-only" id="mobile-theme-label">Light mode</span>
+        </button>
+      </header>
+      <div class="rail-backdrop" id="rail-backdrop" hidden></div>
+      <aside class="control-rail" id="control-rail" aria-label="League controls">
         <div class="brand-panel">
           <span class="brand-mark" aria-hidden="true">D</span>
           <div>
             <span class="eyebrow">Dynasty Desk</span>
             <strong>League Command Center</strong>
           </div>
+          <button type="button" id="mobile-rail-close" class="mobile-rail-close" aria-label="Close league controls">
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
 
         <section class="rail-module league-module">
