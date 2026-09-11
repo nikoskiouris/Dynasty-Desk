@@ -270,6 +270,7 @@ el.copyLeagueIdBtn?.addEventListener("click", copyHelperLeagueId);
 el.pageTabButtons?.forEach((button) => {
   button.addEventListener("click", () => setActivePage(button.dataset.page));
 });
+el.pageTabs?.addEventListener("keydown", handlePageTabKeydown);
 el.themeToggleBtn?.addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
 el.shareLinkBtn?.addEventListener("click", copyShareLink);
 el.landingDemoBtn?.addEventListener("click", () => {
@@ -344,7 +345,11 @@ function hideAppPages() {
   el.pageTabs?.classList.add("hidden");
   el.shareLinkBtn?.classList.add("hidden");
   el.ticker?.classList.add("hidden");
-  PAGE_IDS.forEach((page) => el.pages[page]?.classList.add("hidden"));
+  PAGE_IDS.forEach((page) => {
+    const pageEl = el.pages[page];
+    pageEl?.classList.add("hidden");
+    if (pageEl) pageEl.hidden = true;
+  });
 }
 
 function setActivePage(page) {
@@ -352,16 +357,36 @@ function setActivePage(page) {
   state.activePage = nextPage;
 
   PAGE_IDS.forEach((pageId) => {
-    el.pages[pageId]?.classList.toggle("hidden", pageId !== nextPage);
+    const pageEl = el.pages[pageId];
+    const isActive = pageId === nextPage;
+    pageEl?.classList.toggle("hidden", !isActive);
+    if (pageEl) pageEl.hidden = !isActive;
   });
   el.pageTabButtons?.forEach((button) => {
     const isActive = button.dataset.page === nextPage;
     button.classList.toggle("active", isActive);
     button.setAttribute("aria-selected", String(isActive));
+    button.tabIndex = isActive ? 0 : -1;
   });
   renderSessionSnapshot();
   renderActivePage();
   updateUrlState();
+}
+
+function handlePageTabKeydown(event) {
+  const tabs = [...(el.pageTabButtons || [])];
+  if (tabs.length === 0) return;
+  const currentIndex = Math.max(0, tabs.findIndex((button) => button.classList.contains("active")));
+  let nextIndex = currentIndex;
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (currentIndex + 1) % tabs.length;
+  else if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  else if (event.key === "Home") nextIndex = 0;
+  else if (event.key === "End") nextIndex = tabs.length - 1;
+  else return;
+  event.preventDefault();
+  const nextTab = tabs[nextIndex];
+  nextTab.focus();
+  setActivePage(nextTab.dataset.page);
 }
 
 function renderActivePage() {
@@ -2868,7 +2893,7 @@ function renderTicker() {
     return;
   }
   const markup = items.map((item) => `<span class="ticker-item">${item}</span>`).join("");
-  el.tickerTrack.innerHTML = `${markup}${markup}`;
+  el.tickerTrack.innerHTML = `<span class="ticker-group">${markup}</span><span class="ticker-group" aria-hidden="true">${markup}</span>`;
   el.tickerTrack.style.setProperty("--ticker-duration", `${Math.max(30, items.length * 6)}s`);
   el.ticker.classList.remove("hidden");
 }
@@ -12179,7 +12204,12 @@ async function apiGet(path, { timeoutMs = 25000 } = {}) {
   const abortTimeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await withTimeout(fetch(`${API_BASE}${path}`, { signal: controller.signal, cache: "no-store" }), timeoutMs + 1500, `Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+    const response = await withTimeout(fetch(`${API_BASE}${path}`, {
+      signal: controller.signal,
+      cache: "no-store",
+      credentials: "omit",
+      mode: "cors",
+    }), timeoutMs + 1500, `Request timed out after ${Math.round(timeoutMs / 1000)}s`);
     if (!response.ok) {
       throw new Error(`Sleeper API returned ${response.status}`);
     }

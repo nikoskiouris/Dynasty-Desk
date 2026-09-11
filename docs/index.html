@@ -60,33 +60,6 @@
           <select id="me-select"></select>
         </section>
 
-        <nav class="rail-tabs hidden" id="page-tabs" aria-label="Workspace views">
-          <button id="home-tab" class="page-tab active" type="button" data-page="home">
-            <span class="tab-icon" aria-hidden="true">01</span>
-            <span class="tab-copy"><strong>Command Center</strong><small>Scores, standings, odds</small></span>
-          </button>
-          <button id="teams-tab" class="page-tab" type="button" data-page="teams">
-            <span class="tab-icon" aria-hidden="true">02</span>
-            <span class="tab-copy"><strong>Teams</strong><small>Roster explorer</small></span>
-          </button>
-          <button id="awards-tab" class="page-tab" type="button" data-page="awards">
-            <span class="tab-icon" aria-hidden="true">03</span>
-            <span class="tab-copy"><strong>Awards</strong><small>Weekly honors, record book</small></span>
-          </button>
-          <button id="analytics-tab" class="page-tab" type="button" data-page="analytics">
-            <span class="tab-icon" aria-hidden="true">04</span>
-            <span class="tab-copy"><strong>History</strong><small>Dynasty archive</small></span>
-          </button>
-          <button id="trader-tab" class="page-tab" type="button" data-page="trader">
-            <span class="tab-icon" aria-hidden="true">05</span>
-            <span class="tab-copy"><strong>Trade Lab</strong><small>Finder and calculator</small></span>
-          </button>
-          <button id="recap-tab" class="page-tab" type="button" data-page="recap">
-            <span class="tab-icon" aria-hidden="true">06</span>
-            <span class="tab-copy"><strong>Recap</strong><small>Group-chat ready</small></span>
-          </button>
-        </nav>
-
         <div class="rail-footer">
           <button id="share-link-btn" type="button" class="ghost-btn hidden" title="Copy a link that opens this league and team">Copy league link</button>
           <button id="theme-toggle-btn" type="button" class="ghost-btn" aria-pressed="false" title="Toggle light and dark theme">Light mode</button>
@@ -120,6 +93,33 @@
           </dl>
         </header>
 
+        <nav class="workspace-tabs hidden" id="page-tabs" role="tablist" aria-label="Workspace pages">
+          <button id="home-tab" class="page-tab active" type="button" role="tab" aria-selected="true" aria-controls="home-page" tabindex="0" data-page="home">
+            <span class="tab-icon" aria-hidden="true">01</span>
+            <span class="tab-copy"><strong>Command Center</strong><small>Scores, standings, odds</small></span>
+          </button>
+          <button id="teams-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="teams-page" tabindex="-1" data-page="teams">
+            <span class="tab-icon" aria-hidden="true">02</span>
+            <span class="tab-copy"><strong>Teams</strong><small>Roster explorer</small></span>
+          </button>
+          <button id="awards-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="awards-page" tabindex="-1" data-page="awards">
+            <span class="tab-icon" aria-hidden="true">03</span>
+            <span class="tab-copy"><strong>Awards</strong><small>Weekly honors, record book</small></span>
+          </button>
+          <button id="analytics-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="analytics-page" tabindex="-1" data-page="analytics">
+            <span class="tab-icon" aria-hidden="true">04</span>
+            <span class="tab-copy"><strong>History</strong><small>Dynasty archive</small></span>
+          </button>
+          <button id="trader-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="trader-page" tabindex="-1" data-page="trader">
+            <span class="tab-icon" aria-hidden="true">05</span>
+            <span class="tab-copy"><strong>Trade Lab</strong><small>Finder and calculator</small></span>
+          </button>
+          <button id="recap-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="recap-page" tabindex="-1" data-page="recap">
+            <span class="tab-icon" aria-hidden="true">06</span>
+            <span class="tab-copy"><strong>Recap</strong><small>Group-chat ready</small></span>
+          </button>
+        </nav>
+
         <div id="ticker" class="ticker hidden" aria-label="League ticker">
           <span class="ticker-label">Live</span>
           <div class="ticker-viewport">
@@ -149,11 +149,11 @@
           </div>
         </section>
 
-        <div id="home-page" class="workspace-page app-page hidden">
+        <div id="home-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="home-tab">
           <div id="home-dashboard" class="home-dashboard"></div>
         </div>
 
-        <div id="teams-page" class="workspace-page app-page hidden">
+        <div id="teams-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="teams-tab">
           <section class="workspace-panel" id="teams-section">
             <div class="panel-heading">
               <div>
@@ -190,11 +190,11 @@
           </section>
         </div>
 
-        <div id="awards-page" class="workspace-page app-page hidden">
+        <div id="awards-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="awards-tab">
           <div id="awards-dashboard" class="awards-dashboard"></div>
         </div>
 
-        <div id="analytics-page" class="workspace-page app-page hidden">
+        <div id="analytics-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="analytics-tab">
           <section class="workspace-panel hidden" id="analytics-section">
             <div class="panel-heading">
               <div>
@@ -209,7 +209,7 @@
           </section>
         </div>
 
-        <div id="trader-page" class="workspace-page app-page hidden">
+        <div id="trader-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="trader-tab">
           <section class="workspace-panel hidden" id="player-section">
             <div class="panel-heading">
               <div>
@@ -287,7 +287,7 @@
           </section>
         </div>
 
-        <div id="recap-page" class="workspace-page app-page hidden">
+        <div id="recap-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="recap-tab">
           <div id="recap-dashboard" class="recap-dashboard"></div>
         </div>
 
