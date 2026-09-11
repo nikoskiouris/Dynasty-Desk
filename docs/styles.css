@@ -553,7 +553,7 @@ button.ghost-btn:hover {
   top: 0;
   z-index: 8;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.4rem;
   padding: 0.4rem;
   border: 1px solid var(--line);
@@ -563,6 +563,16 @@ button.ghost-btn:hover {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow: var(--shadow-soft);
+}
+
+@media (min-width: 1500px) {
+  .workspace-tabs {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .workspace-tabs .tab-copy small {
+    display: none;
+  }
 }
 
 .page-tab {
@@ -623,7 +633,7 @@ button.ghost-btn:hover {
 .tab-copy strong {
   overflow: hidden;
   font-family: var(--font-display);
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -790,7 +800,7 @@ button.ghost-btn:hover {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  padding-left: 0.7rem;
+  padding-left: 0.9rem;
 }
 
 .ticker-viewport::after {
@@ -4499,8 +4509,14 @@ button.ghost-btn:hover {
   }
 
   .page-tab {
+    justify-content: center;
     gap: 0.4rem;
+    min-height: 2.45rem;
     padding: 0.4rem 0.5rem;
+  }
+
+  .tab-icon {
+    display: none;
   }
 
   .state-grid,
