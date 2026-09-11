@@ -95,8 +95,9 @@ const CUSTOM_MULTI_TEAM_SECONDARY_ANCHOR_MIN_SHARE = 0.16;
 const CUSTOM_MULTI_TEAM_SECONDARY_ANCHOR_MAX_SHARE = 0.78;
 const CUSTOM_MULTI_TEAM_ORDER_LIMIT = 12;
 const CUSTOM_MULTI_TEAM_PLAN_LIMIT = 18;
+const DEMO_LEAGUE_ID = "1315165104303513600";
 const AUTOSELECT_MANAGER_BY_LEAGUE = {
-  "1315165104303513600": "NikoSkiouris",
+  [DEMO_LEAGUE_ID]: "NikoSkiouris",
 };
 const TRANSACTION_WEEK_START = 1;
 const TRANSACTION_WEEK_FALLBACK_END = 18;
@@ -197,7 +198,9 @@ const state = {
 
 const el = {
   leagueId: document.querySelector("#league-id"),
+  leagueLoadForm: document.querySelector("#league-load-form"),
   loadLeagueBtn: document.querySelector("#load-league-btn"),
+  railDemoBtn: document.querySelector("#rail-demo-btn"),
   copyLeagueIdBtn: document.querySelector("#copy-league-id-btn"),
   copyLeagueIdFeedback: document.querySelector("#copy-league-id-feedback"),
   leagueStatus: document.querySelector("#league-status"),
@@ -259,13 +262,16 @@ const el = {
   leagueAvatar: document.querySelector("#league-avatar"),
 };
 
-el.loadLeagueBtn.addEventListener("click", loadLeague);
+el.leagueLoadForm?.addEventListener("submit", requestLoadLeague);
+el.loadLeagueBtn?.addEventListener("pointerdown", handleLoadLeaguePointerDown);
+el.loadLeagueBtn?.addEventListener("click", requestLoadLeague);
 el.leagueId?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
-    loadLeague();
+    requestLoadLeague(event);
   }
 });
+el.railDemoBtn?.addEventListener("click", loadDemoLeague);
 el.copyLeagueIdBtn?.addEventListener("click", copyHelperLeagueId);
 el.pageTabButtons?.forEach((button) => {
   button.addEventListener("click", () => setActivePage(button.dataset.page));
@@ -273,10 +279,7 @@ el.pageTabButtons?.forEach((button) => {
 el.pageTabs?.addEventListener("keydown", handlePageTabKeydown);
 el.themeToggleBtn?.addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
 el.shareLinkBtn?.addEventListener("click", copyShareLink);
-el.landingDemoBtn?.addEventListener("click", () => {
-  el.leagueId.value = el.copyLeagueIdBtn?.textContent?.trim() || "";
-  loadLeague();
-});
+el.landingDemoBtn?.addEventListener("click", loadDemoLeague);
 el.landingFocusBtn?.addEventListener("click", () => {
   el.leagueId?.focus();
   el.leagueId?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -452,7 +455,8 @@ function bootFromUrl() {
   if (PAGE_IDS.includes(tabParam)) state.pendingTab = tabParam;
 
   if (leagueParam) {
-    el.leagueId.value = leagueParam;
+    const parsedLeagueId = parseLeagueId(leagueParam);
+    el.leagueId.value = parsedLeagueId || leagueParam;
     loadLeague();
     return;
   }
@@ -736,12 +740,51 @@ function syncTradeModeUi() {
   renderSessionSnapshot();
 }
 
+function parseLeagueId(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return "";
+
+  const leaguePathMatch = value.match(/leagues\/(\d+)/i);
+  if (leaguePathMatch) return leaguePathMatch[1];
+
+  if (/^\d+$/.test(value)) return value;
+
+  const embeddedId = value.match(/(\d{8,})/);
+  if (embeddedId) return embeddedId[1];
+
+  return "";
+}
+
+function getDemoLeagueId() {
+  return el.copyLeagueIdBtn?.textContent?.trim() || DEMO_LEAGUE_ID;
+}
+
+function loadDemoLeague() {
+  if (el.leagueId) el.leagueId.value = getDemoLeagueId();
+  void loadLeague();
+}
+
+function requestLoadLeague(event) {
+  event?.preventDefault?.();
+  void loadLeague();
+}
+
+function handleLoadLeaguePointerDown(event) {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  event.preventDefault();
+  void loadLeague();
+}
+
 async function loadLeague() {
-  const leagueId = el.leagueId.value.trim();
+  if (el.loadLeagueBtn?.disabled) return;
+
+  const leagueId = parseLeagueId(el.leagueId?.value);
   if (!leagueId) {
-    setStatus("Please enter a league ID.");
+    setStatus("Paste a Sleeper league ID or league URL, then press Load League.");
+    el.leagueId?.focus();
     return;
   }
+  if (el.leagueId) el.leagueId.value = leagueId;
 
   startLeagueLoadingUi();
   state.targetAsset = null;
@@ -962,6 +1005,10 @@ async function loadLeagueCoreData(leagueId) {
   });
 
   if (failures.length > 0) {
+    const missingLeague = failures.every((failure) => /returned 404/.test(failure));
+    if (missingLeague) {
+      throw new Error(`No Sleeper league found for ${leagueId}. Check the ID, or paste the league URL.`);
+    }
     throw new Error(`Failed to load: ${failures.join("; ")}`);
   }
 

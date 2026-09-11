@@ -32,12 +32,23 @@
             </div>
           </div>
 
-          <label for="league-id">League ID</label>
-          <input id="league-id" placeholder="Paste a Sleeper league ID" inputmode="numeric" autocomplete="off" />
-          <button id="load-league-btn" type="button">Load League</button>
+          <form id="league-load-form" class="league-load-form">
+            <label for="league-id">League ID</label>
+            <input
+              id="league-id"
+              name="league-id"
+              placeholder="League ID or Sleeper URL"
+              autocomplete="off"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              enterkeyhint="go"
+            />
+            <button id="load-league-btn" type="submit">Load League</button>
+          </form>
 
           <p class="muted small helper-row">
-            Demo league
+            <button id="rail-demo-btn" type="button" class="linklike">Use demo league</button>
             <button id="copy-league-id-btn" type="button" class="linklike" title="Copy league ID to clipboard">1315165104303513600</button>
             <span id="copy-league-id-feedback" class="feedback-chip hidden">Copied!</span>
           </p>
@@ -132,7 +143,7 @@
             <div class="landing-copy">
               <span class="step-badge accent">Start</span>
               <h2>Load a Sleeper league to open the desk.</h2>
-              <p class="muted">Paste your league ID in the rail, or open the demo league to see everything running on real data. Nothing to install, nothing to sign in to. Managers, rosters, matchups, traded picks, trades, and the full league archive hydrate straight from Sleeper.</p>
+              <p class="muted">Paste a Sleeper league ID or league URL in the rail, or open the demo league to see everything running on real data. Nothing to install, nothing to sign in to. Managers, rosters, matchups, traded picks, trades, and the full league archive hydrate straight from Sleeper.</p>
               <div class="landing-actions">
                 <button id="landing-demo-btn" type="button">Open demo league</button>
                 <button id="landing-focus-btn" type="button" class="ghost-btn">I have a league ID</button>
