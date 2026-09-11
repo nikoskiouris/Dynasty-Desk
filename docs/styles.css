@@ -764,15 +764,15 @@ button.ghost-btn:hover {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  padding-left: 0.35rem;
-  mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 20px), transparent);
+  padding-left: 0.7rem;
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent);
 }
 
 .ticker-track {
   --ticker-duration: 40s;
   display: inline-flex;
   gap: 2.2rem;
-  padding: 0.55rem 2.4rem 0.55rem 1.1rem;
+  padding: 0.55rem 2.4rem 0.55rem 0.15rem;
   white-space: nowrap;
   animation: ticker var(--ticker-duration) linear infinite;
   will-change: transform;
@@ -984,6 +984,19 @@ button.ghost-btn:hover {
 .home-two-col .col-streak,
 .home-two-col .col-allplay {
   display: none;
+}
+
+.home-two-col .odds-head,
+.home-two-col .odds-row {
+  grid-template-columns: minmax(8.5rem, 1.6fr) minmax(0, 1fr) 3.2rem 3rem;
+}
+
+.home-two-col .odds-meter .meter-track {
+  display: none;
+}
+
+.home-two-col .odds-meter {
+  grid-template-columns: 1fr;
 }
 
 .odds-panel .panel-heading > div {
