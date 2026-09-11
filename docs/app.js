@@ -471,9 +471,6 @@ function applyTheme(theme, { persist = true } = {}) {
     el.mobileThemeBtn.setAttribute("aria-pressed", String(nextTheme === "light"));
     el.mobileThemeBtn.title = nextTheme === "dark" ? "Light mode" : "Dark mode";
   }
-  if (el.mobileThemeIcon) {
-    el.mobileThemeIcon.textContent = nextTheme === "dark" ? "☀" : "☾";
-  }
   if (el.mobileThemeLabel) {
     el.mobileThemeLabel.textContent = nextTheme === "dark" ? "Light mode" : "Dark mode";
   }
