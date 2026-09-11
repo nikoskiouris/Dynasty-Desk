@@ -109,6 +109,7 @@ const HISTORY_TRANSACTION_SEASON_LIMIT = 4;
 const HISTORY_MATCHUP_SEASON_LIMIT = 6;
 const HISTORY_COMPARE_H2H_LIMIT = 6;
 const HISTORY_COMPARE_ROSTER_LIMIT = 8;
+const PHONE_LAYOUT_QUERY = "(max-width: 700px), (max-height: 500px) and (orientation: landscape) and (hover: none) and (pointer: coarse)";
 
 const state = {
   leagueId: "",
@@ -256,6 +257,14 @@ const el = {
   shareLinkFeedback: document.querySelector("#share-link-feedback"),
   landingDemoBtn: document.querySelector("#landing-demo-btn"),
   landingFocusBtn: document.querySelector("#landing-focus-btn"),
+  mobileChromeTitle: document.querySelector("#mobile-chrome-title"),
+  mobileRailToggle: document.querySelector("#mobile-rail-toggle"),
+  mobileRailClose: document.querySelector("#mobile-rail-close"),
+  mobileThemeBtn: document.querySelector("#mobile-theme-btn"),
+  mobileThemeIcon: document.querySelector("#mobile-theme-icon"),
+  mobileThemeLabel: document.querySelector("#mobile-theme-label"),
+  railBackdrop: document.querySelector("#rail-backdrop"),
+  controlRail: document.querySelector("#control-rail"),
   heroTitle: document.querySelector("#hero-title"),
   heroLede: document.querySelector("#hero-lede"),
   heroEyebrow: document.querySelector("#hero-eyebrow"),
@@ -294,10 +303,32 @@ el.pageTabButtons?.forEach((button) => {
 });
 el.pageTabs?.addEventListener("keydown", handlePageTabKeydown);
 el.themeToggleBtn?.addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
+el.mobileThemeBtn?.addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
+el.mobileRailToggle?.addEventListener("click", () => {
+  const nextOpen = !document.body.classList.contains("rail-open");
+  setMobileRailOpen(nextOpen);
+  if (nextOpen) {
+    requestAnimationFrame(() => el.mobileRailClose?.focus());
+  }
+});
+el.mobileRailClose?.addEventListener("click", () => setMobileRailOpen(false));
+el.railBackdrop?.addEventListener("click", () => setMobileRailOpen(false));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && document.body.classList.contains("rail-open")) {
+    setMobileRailOpen(false);
+    el.mobileRailToggle?.focus();
+  }
+});
+window.matchMedia(PHONE_LAYOUT_QUERY).addEventListener("change", () => {
+  setMobileRailOpen(false);
+});
 el.shareLinkBtn?.addEventListener("click", copyShareLink);
 el.landingDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
 el.landingDemoBtn?.addEventListener("click", loadDemoLeague);
 el.landingFocusBtn?.addEventListener("click", () => {
+  if (isPhoneLayout()) {
+    setMobileRailOpen(true);
+  }
   el.leagueId?.focus();
   el.leagueId?.scrollIntoView({ behavior: "smooth", block: "center" });
 });
@@ -342,6 +373,7 @@ applyTheme(readStoredTheme(), { persist: false });
 renderSessionSnapshot();
 syncTradeModeUi();
 bootFromUrl();
+if (isPhoneLayout()) setMobileRailOpen(false);
 
 function invalidateResults() {
   el.resultsSection.classList.add("hidden");
@@ -383,6 +415,7 @@ function setActivePage(page) {
     button.setAttribute("aria-selected", String(isActive));
     button.tabIndex = isActive ? 0 : -1;
   });
+  scrollActiveTabIntoView();
   renderSessionSnapshot();
   renderActivePage();
   updateUrlState();
@@ -448,6 +481,13 @@ function applyTheme(theme, { persist = true } = {}) {
   if (el.themeToggleBtn) {
     el.themeToggleBtn.textContent = nextTheme === "dark" ? "Light mode" : "Dark mode";
     el.themeToggleBtn.setAttribute("aria-pressed", String(nextTheme === "light"));
+  }
+  if (el.mobileThemeBtn) {
+    el.mobileThemeBtn.setAttribute("aria-pressed", String(nextTheme === "light"));
+    el.mobileThemeBtn.title = nextTheme === "dark" ? "Light mode" : "Dark mode";
+  }
+  if (el.mobileThemeLabel) {
+    el.mobileThemeLabel.textContent = nextTheme === "dark" ? "Light mode" : "Dark mode";
   }
   if (persist) {
     try {
@@ -631,8 +671,44 @@ function syncGenerateState() {
   }
 }
 
+function isPhoneLayout() {
+  return window.matchMedia(PHONE_LAYOUT_QUERY).matches;
+}
+
+function setMobileRailOpen(open) {
+  const shouldOpen = Boolean(open) && isPhoneLayout();
+  document.body.classList.toggle("rail-open", shouldOpen);
+  el.controlRail?.classList.toggle("is-open", shouldOpen);
+  el.mobileRailToggle?.setAttribute("aria-expanded", String(shouldOpen));
+  if (el.railBackdrop) {
+    el.railBackdrop.hidden = !shouldOpen;
+    el.railBackdrop.classList.toggle("open", shouldOpen);
+  }
+  if (!el.controlRail) return;
+  if (isPhoneLayout() && !shouldOpen) {
+    el.controlRail.setAttribute("aria-hidden", "true");
+    el.controlRail.setAttribute("inert", "");
+  } else {
+    el.controlRail.removeAttribute("aria-hidden");
+    el.controlRail.removeAttribute("inert");
+  }
+}
+
+function scrollActiveTabIntoView() {
+  const active = [...(el.pageTabButtons || [])].find((button) => button.classList.contains("active"));
+  if (!active || !el.pageTabs) return;
+  const parentRect = el.pageTabs.getBoundingClientRect();
+  const activeRect = active.getBoundingClientRect();
+  if (activeRect.left < parentRect.left + 8 || activeRect.right > parentRect.right - 8) {
+    active.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }
+}
+
 function renderSessionSnapshot() {
   document.body.classList.toggle("league-loaded", Boolean(state.leagueId));
+  if (el.mobileChromeTitle) {
+    el.mobileChromeTitle.textContent = state.leagueName || "League Command Center";
+  }
   if (el.chromeLeagueLabel) {
     el.chromeLeagueLabel.textContent = state.leagueName || "Not loaded";
   }
@@ -901,6 +977,7 @@ async function runLeagueLoad(leagueId) {
     el.settingsSection?.classList.remove("hidden");
     showAppPages();
     scrollLoadedWorkspaceIntoView();
+    setMobileRailOpen(false);
     setStatus(`Loaded ${state.leagueName}. Player names are still syncing...`, { loading: true });
     primeValuationData();
     loadTrendingPlayers();

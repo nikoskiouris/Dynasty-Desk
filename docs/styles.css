@@ -245,6 +245,12 @@ h5 {
   min-height: 100vh;
 }
 
+.mobile-chrome,
+.rail-backdrop,
+.mobile-rail-close {
+  display: none;
+}
+
 .control-rail {
   position: sticky;
   top: 0;
@@ -656,6 +662,10 @@ button.ghost-btn:hover {
   font-size: 0.68rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tab-label-short {
+  display: none;
 }
 
 .page-tab.active .tab-copy small {
@@ -4590,6 +4600,448 @@ button.ghost-btn:hover {
 
   .landing-grid {
     padding: 1.2rem;
+  }
+}
+
+/* Phone only. iPad Mini portrait is 744px, so this never restyles tablets or desktops. */
+@media (max-width: 700px), (max-height: 500px) and (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  html,
+  body {
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body.rail-open {
+    overflow: hidden;
+  }
+
+  .app-frame {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 100dvh;
+  }
+
+  .mobile-chrome {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.65rem;
+    align-items: center;
+    min-height: 3.35rem;
+    margin: 0;
+    padding: 0.45rem max(0.75rem, env(safe-area-inset-right)) 0.45rem max(0.75rem, env(safe-area-inset-left));
+    padding-top: max(0.45rem, env(safe-area-inset-top));
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .mobile-chrome-copy {
+    min-width: 0;
+  }
+
+  .mobile-chrome-copy .eyebrow {
+    margin-bottom: 0;
+  }
+
+  .mobile-chrome-copy strong {
+    display: block;
+    overflow: hidden;
+    font-family: var(--font-display);
+    font-size: 0.92rem;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-icon-btn {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel-soft);
+    color: var(--text);
+    box-shadow: none;
+  }
+
+  .mobile-icon-btn:hover {
+    transform: none;
+    filter: none;
+    border-color: var(--line-strong);
+    background: var(--panel-tint);
+  }
+
+  .menu-bars {
+    position: relative;
+    display: block;
+    width: 1.05rem;
+    height: 2px;
+    background: currentColor;
+    border-radius: 999px;
+  }
+
+  .menu-bars::before,
+  .menu-bars::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    width: 1.05rem;
+    height: 2px;
+    background: currentColor;
+    border-radius: 999px;
+  }
+
+  .menu-bars::before {
+    top: -5px;
+  }
+
+  .menu-bars::after {
+    top: 5px;
+  }
+
+  .theme-glyph {
+    width: 1.05rem;
+    height: 1.05rem;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: none;
+  }
+
+  html[data-theme="light"] .theme-glyph {
+    background: transparent;
+    box-shadow: inset 0.28rem -0.18rem 0 0 currentColor;
+  }
+
+  .rail-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(5, 8, 14, 0.62);
+  }
+
+  .rail-backdrop.open {
+    display: block !important;
+  }
+
+  .control-rail {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+    width: min(21rem, calc(100vw - 2.5rem));
+    min-height: 100dvh;
+    max-height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.85rem;
+    padding-top: max(0.85rem, env(safe-area-inset-top));
+    padding-bottom: max(0.85rem, env(safe-area-inset-bottom));
+    border-right: 1px solid var(--rail-line);
+    border-bottom: 0;
+    box-shadow: var(--shadow);
+    transform: translateX(-110%);
+    transition: transform 180ms ease;
+    overscroll-behavior: contain;
+  }
+
+  .control-rail.is-open,
+  body.rail-open .control-rail {
+    transform: translateX(0);
+  }
+
+  .mobile-rail-close {
+    display: grid;
+    place-items: center;
+    width: 2.35rem;
+    min-width: 2.35rem;
+    min-height: 2.35rem;
+    margin-left: auto;
+    padding: 0;
+    border: 1px solid var(--rail-line);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--rail-text);
+    font-size: 1.35rem;
+    line-height: 1;
+    box-shadow: none;
+  }
+
+  .mobile-rail-close:hover {
+    transform: none;
+    filter: none;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .brand-panel {
+    padding-top: 0.35rem;
+  }
+
+  input,
+  select,
+  textarea,
+  .target-search-shell input,
+  .calc-search {
+    font-size: 16px;
+  }
+
+  button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:hover {
+    transform: none;
+  }
+
+  .workspace {
+    padding: 0.75rem max(0.75rem, env(safe-area-inset-right)) calc(1.1rem + env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+  }
+
+  .league-loaded .workspace {
+    padding-bottom: calc(4.6rem + env(safe-area-inset-bottom));
+  }
+
+  .workspace-header {
+    gap: 0.7rem;
+  }
+
+  .league-loaded .workspace-lede,
+  .league-loaded .league-hero {
+    display: none;
+  }
+
+  .state-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .state-grid div {
+    padding: 0.5rem 0.45rem;
+  }
+
+  .state-grid dd {
+    font-size: 0.78rem;
+  }
+
+  .workspace-tabs {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    display: flex;
+    gap: 0.2rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin: 0;
+    padding: 0.3rem 0.35rem calc(0.3rem + env(safe-area-inset-bottom));
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.18);
+  }
+
+  .workspace-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .page-tab {
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.12rem;
+    min-width: 0;
+    min-height: 3.15rem;
+    padding: 0.28rem 0.15rem;
+    border-radius: 10px;
+  }
+
+  .tab-icon {
+    display: none;
+  }
+
+  .tab-copy {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .tab-copy small {
+    display: none;
+  }
+
+  .tab-copy strong {
+    overflow: hidden;
+    max-width: 100%;
+    font-size: 0.68rem;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
+  .tab-label-full {
+    display: none;
+  }
+
+  .tab-label-short {
+    display: inline;
+  }
+
+  .ticker-label {
+    padding: 0.4rem 0.65rem;
+  }
+
+  .pulse-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pulse-tile:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .pulse-tile {
+    padding: 0.7rem 0.75rem;
+  }
+
+  .pulse-tile strong {
+    font-size: 1.02rem;
+    white-space: normal;
+  }
+
+  .game-card {
+    padding: 0.75rem;
+  }
+
+  .game-side-score strong {
+    font-size: 1.2rem;
+  }
+
+  .standings-table,
+  .odds-table,
+  .luck-table,
+  .power-board,
+  .finish-matrix-shell,
+  .compare-standings {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .home-two-col .standings-head,
+  .home-two-col .standings-row,
+  .standings-head,
+  .standings-row {
+    grid-template-columns: 1.7rem minmax(0, 1fr) 3.4rem 2.8rem;
+    gap: 0.4rem;
+  }
+
+  .power-stat-grid,
+  .analytics-metric-grid,
+  .sheet-summary,
+  .mode-card-grid,
+  .landing-features {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mode-card {
+    min-height: 0;
+    padding: 0.75rem;
+  }
+
+  .landing-grid {
+    gap: 1.1rem;
+    padding: 1rem;
+  }
+
+  .landing-copy h2 {
+    margin: 0.65rem 0 0.45rem;
+    font-size: 1.45rem;
+  }
+
+  .landing-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .landing-actions button {
+    width: 100%;
+  }
+
+  .panel-heading,
+  .analytics-panel-heading {
+    margin-bottom: 0.7rem;
+  }
+
+  .workspace-panel,
+  .analytics-panel,
+  .action-panel,
+  .trade-card-body {
+    padding: 0.8rem;
+  }
+
+  .week-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-left: -0.15rem;
+    margin-right: -0.15rem;
+    padding: 0.1rem 0.15rem 0.35rem;
+  }
+
+  .week-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .week-chips button {
+    flex: 0 0 auto;
+    min-height: 2.35rem;
+  }
+
+  .recap-text {
+    min-height: 14rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .recap-copy,
+  .action-panel button {
+    width: 100%;
+  }
+
+  .trade-card-summary {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.55rem;
+  }
+
+  .trade-card-toggle {
+    justify-self: start;
+  }
+
+  .calc-summary,
+  .calc-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .history-compare-select,
+  .recap-control,
+  .calc-partner {
+    min-width: 0;
+    width: 100%;
   }
 }
 

@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Dynasty Desk — Fantasy League Command Center</title>
     <meta name="description" content="Live scoreboard, playoff odds, awards, record book, roster explorer, and a dynasty trade lab for your Sleeper league." />
     <meta name="theme-color" content="#070a12" />
@@ -14,13 +14,44 @@
   </head>
   <body>
     <div class="app-frame">
-      <aside class="control-rail" aria-label="League controls">
+      <header class="mobile-chrome" id="mobile-chrome">
+        <button
+          type="button"
+          id="mobile-rail-toggle"
+          class="mobile-icon-btn"
+          aria-expanded="false"
+          aria-controls="control-rail"
+          title="League controls"
+        >
+          <span class="menu-bars" aria-hidden="true"></span>
+          <span class="sr-only">League controls</span>
+        </button>
+        <div class="mobile-chrome-copy">
+          <span class="eyebrow">Dynasty Desk</span>
+          <strong id="mobile-chrome-title">League Command Center</strong>
+        </div>
+        <button
+          type="button"
+          id="mobile-theme-btn"
+          class="mobile-icon-btn"
+          aria-pressed="false"
+          title="Toggle light and dark theme"
+        >
+          <span id="mobile-theme-icon" class="theme-glyph" aria-hidden="true"></span>
+          <span class="sr-only" id="mobile-theme-label">Light mode</span>
+        </button>
+      </header>
+      <div class="rail-backdrop" id="rail-backdrop" hidden></div>
+      <aside class="control-rail" id="control-rail" aria-label="League controls">
         <div class="brand-panel">
           <span class="brand-mark" aria-hidden="true">D</span>
           <div>
             <span class="eyebrow">Dynasty Desk</span>
             <strong>League Command Center</strong>
           </div>
+          <button type="button" id="mobile-rail-close" class="mobile-rail-close" aria-label="Close league controls">
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
 
         <section class="rail-module league-module">
@@ -107,7 +138,7 @@
         <nav class="workspace-tabs hidden" id="page-tabs" role="tablist" aria-label="Workspace pages">
           <button id="home-tab" class="page-tab active" type="button" role="tab" aria-selected="true" aria-controls="home-page" tabindex="0" data-page="home">
             <span class="tab-icon" aria-hidden="true">01</span>
-            <span class="tab-copy"><strong>Command Center</strong><small>Scores, standings, odds</small></span>
+            <span class="tab-copy"><strong><span class="tab-label-full">Command Center</span><span class="tab-label-short">Home</span></strong><small>Scores, standings, odds</small></span>
           </button>
           <button id="teams-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="teams-page" tabindex="-1" data-page="teams">
             <span class="tab-icon" aria-hidden="true">02</span>
@@ -123,7 +154,7 @@
           </button>
           <button id="trader-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="trader-page" tabindex="-1" data-page="trader">
             <span class="tab-icon" aria-hidden="true">05</span>
-            <span class="tab-copy"><strong>Trade Lab</strong><small>Finder and calculator</small></span>
+            <span class="tab-copy"><strong><span class="tab-label-full">Trade Lab</span><span class="tab-label-short">Trade</span></strong><small>Finder and calculator</small></span>
           </button>
           <button id="recap-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="recap-page" tabindex="-1" data-page="recap">
             <span class="tab-icon" aria-hidden="true">06</span>
