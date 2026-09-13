@@ -2397,7 +2397,9 @@ button.ghost-btn:hover {
 }
 
 .recap-card-preview {
-  margin: 0 0 1rem;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 1rem;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
