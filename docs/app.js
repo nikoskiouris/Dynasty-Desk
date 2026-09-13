@@ -71,12 +71,11 @@ import {
   playerPositionForAsset,
   playerAgeForAsset,
   isInactivePlayerAsset,
-  getGlobalMaxPlayerValue,
   leagueHasSuperflex,
 } from "./modules/values.js";
 import { createLivePoller, shouldPollLive, shouldRefreshSim, weekRowsFingerprint } from "./modules/live.js";
 import { buildRecapCardModel, drawRecapCard, renderRecapCardBlob, recapCardFilename } from "./modules/recap-card.js";
-import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber } from "./modules/html.js";
+import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber, clamp } from "./modules/html.js";
 import { renderLeaguePickerMarkup } from "./modules/league-search.js";
 
 const OUTGOING_POOL_LIMIT = 18;
@@ -11399,10 +11398,6 @@ function isWinNowTarget(asset) {
   if (position === "RB") return age <= 27;
   if (position === "TE") return age <= 29;
   return age <= 30;
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
 }
 
 function formatPackageAdjustment(idea) {
