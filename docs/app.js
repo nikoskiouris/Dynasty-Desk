@@ -7,28 +7,78 @@ import {
   winProbability,
   buildTeamDistributions,
   formatPoints,
+  blendSimPrior,
 } from "./modules/season.js";
 import { buildRecap, RECAP_TONES, resolveSeasonStartDate, selectRecapTrades } from "./modules/recap.js";
+import {
+  SLEEPER_AVATAR_BASE,
+  PLAYERS_CACHE_TTL_MS,
+  SIM_ITERATIONS,
+  PAGE_IDS,
+  PAGE_LABELS,
+  DEFAULT_FAIRNESS_PCT,
+  DEFAULT_MAX_RESULTS,
+  DEMO_LEAGUE_ID,
+  AUTOSELECT_MANAGER_BY_LEAGUE,
+  TRANSACTION_WEEK_START,
+  TRANSACTION_WEEK_FALLBACK_END,
+  ANALYTICS_RECENT_TRADE_LIMIT,
+  ANALYTICS_POWER_RANK_LIMIT,
+  ANALYTICS_ASSET_LEADER_LIMIT,
+  MAX_HISTORY_SEASONS,
+  HISTORY_TRANSACTION_SEASON_LIMIT,
+  HISTORY_MATCHUP_SEASON_LIMIT,
+  HISTORY_COMPARE_H2H_LIMIT,
+  HISTORY_COMPARE_ROSTER_LIMIT,
+  PHONE_LAYOUT_QUERY,
+  LIVE_POLL_INTERVAL_MS,
+  LIVE_SIM_REFRESH_MS,
+  MATCHUP_FETCH_CHUNK,
+} from "./modules/constants.js";
+import { state, sleeper, LAST_LEAGUE_STORAGE_KEY, LAST_USERNAME_STORAGE_KEY, THEME_STORAGE_KEY, PLAYERS_CACHE_KEY } from "./modules/state.js";
+import { apiGet, apiGetWithRetry, fetchUserLeagues, mapInChunks } from "./modules/sleeper.js";
+import {
+  classifyLeagueInput,
+  parseLeagueId,
+  parseShareParams,
+  buildShareUrl as buildShareUrlFromParts,
+  uniqueSeasons,
+  sortUserLeagues,
+} from "./modules/parse.js";
+import {
+  pickValueBundle,
+  selectValueFormat,
+  fetchValuationBundles,
+  coerceValueMap,
+  getAssetValue as marketAssetValue,
+  isEstimatedAsset as marketIsEstimated,
+  estimatedValue,
+  applyElitePlayerValuePremium,
+  buildPickValuationCatalog,
+  resolvePickAssetValue,
+  parsePickAssetId,
+  parsePickDescriptor,
+  normalizePickBucket,
+  getPickBucketAliases,
+  formatPickBucketLabel,
+  formatGenericPickAssetLabel,
+  resolvePickNameForCatalog,
+  getAssetPickBucket,
+  buildPickLookupMeta,
+  buildPickValueLookupIds,
+  findPickCatalogValue,
+  playerPositionForRaw,
+  playerPositionForAsset,
+  playerAgeForAsset,
+  isInactivePlayerAsset,
+  getGlobalMaxPlayerValue,
+  leagueHasSuperflex,
+} from "./modules/values.js";
+import { createLivePoller, shouldPollLive, shouldRefreshSim, weekRowsFingerprint } from "./modules/live.js";
+import { buildRecapCardModel, drawRecapCard, renderRecapCardBlob, recapCardFilename } from "./modules/recap-card.js";
+import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber } from "./modules/html.js";
+import { renderLeaguePickerMarkup } from "./modules/league-search.js";
 
-const API_BASE = "https://api.sleeper.app/v1";
-const SLEEPER_AVATAR_BASE = "https://sleepercdn.com/avatars/thumbs/";
-const SAMPLE_VALUES_PATH = "./data/ktc_values_sample.csv";
-const PLAYERS_CACHE_KEY = "fda_players_nfl_cache_v1";
-const THEME_STORAGE_KEY = "dynasty_desk_theme";
-const LAST_LEAGUE_STORAGE_KEY = "dynasty_desk_last_league";
-const SIM_ITERATIONS = 4000;
-const PAGE_IDS = ["home", "teams", "awards", "analytics", "trader", "recap"];
-const PAGE_LABELS = {
-  home: "Command Center",
-  teams: "Teams",
-  awards: "Awards",
-  analytics: "History",
-  trader: "Trade Lab",
-  recap: "Recap",
-};
-const PLAYERS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
-const DEFAULT_FAIRNESS_PCT = 20;
-const DEFAULT_MAX_RESULTS = 3;
 const OUTGOING_POOL_LIMIT = 18;
 const DEFAULT_MAX_OUTGOING_PACKAGE_SIZE = 5;
 const ELITE_MAX_OUTGOING_PACKAGE_SIZE = 6;
@@ -95,109 +145,12 @@ const CUSTOM_MULTI_TEAM_SECONDARY_ANCHOR_MIN_SHARE = 0.16;
 const CUSTOM_MULTI_TEAM_SECONDARY_ANCHOR_MAX_SHARE = 0.78;
 const CUSTOM_MULTI_TEAM_ORDER_LIMIT = 12;
 const CUSTOM_MULTI_TEAM_PLAN_LIMIT = 18;
-const DEMO_LEAGUE_ID = "1315165104303513600";
-const AUTOSELECT_MANAGER_BY_LEAGUE = {
-  [DEMO_LEAGUE_ID]: "NikoSkiouris",
-};
-const TRANSACTION_WEEK_START = 1;
-const TRANSACTION_WEEK_FALLBACK_END = 18;
-const ANALYTICS_RECENT_TRADE_LIMIT = 6;
-const ANALYTICS_POWER_RANK_LIMIT = 12;
-const ANALYTICS_ASSET_LEADER_LIMIT = 8;
-const MAX_HISTORY_SEASONS = 6;
-const HISTORY_TRANSACTION_SEASON_LIMIT = 4;
-const HISTORY_MATCHUP_SEASON_LIMIT = 6;
-const HISTORY_COMPARE_H2H_LIMIT = 6;
-const HISTORY_COMPARE_ROSTER_LIMIT = 8;
-const PHONE_LAYOUT_QUERY = "(max-width: 700px), (max-height: 500px) and (orientation: landscape) and (hover: none) and (pointer: coarse)";
-
-const state = {
-  leagueId: "",
-  leagueName: "",
-  league: null,
-  users: [],
-  rosters: [],
-  players: {},
-  previousLeague: null,
-  previousUsers: [],
-  previousRosters: [],
-  leagueHistory: [],
-  normalizedRosters: [],
-  meRosterId: null,
-  targetAsset: null,
-  shopAsset: null,
-  valuationsPromise: null,
-  values: {},
-  valueNameMap: {},
-  playerPositionRankByAssetId: {},
-  pickValueCatalog: [],
-  globalMaxPlayerValue: KTC_GLOBAL_MAX_FALLBACK,
-  tradedPicks: [],
-  currentDraftContext: null,
-  targetFilters: {
-    players: true,
-    picks: false,
-  },
-  outgoingFilters: {
-    players: true,
-    picks: true,
-  },
-  selectedOutgoingAssetIds: new Set(),
-  excludedOutgoingAssetIds: new Set(),
-  customParticipantRosterIds: [],
-  trendingAdds: [],
-  trendingDrops: [],
-  trendingLoaded: false,
-  playerMetadataLoaded: false,
-  playerMetadataFailed: false,
-  activePage: "home",
-  transactions: [],
-  transactionsLoaded: false,
-  transactionsFailed: false,
-  transactionWeeksLoaded: 0,
-  transactionLoadError: "",
-  historyTransactions: [],
-  historyTransactionsLoaded: false,
-  historyTransactionsFailed: false,
-  historyTransactionLeaguesLoaded: 0,
-  historyTransactionLoadError: "",
-  historyMatchups: [],
-  historyMatchupsLoaded: false,
-  historyMatchupsFailed: false,
-  historyMatchupLeaguesLoaded: 0,
-  historyMatchupLoadError: "",
-  historyCompare: {
-    mode: "seasons",
-    leftSeason: "",
-    rightSeason: "",
-    leftManagerKey: "",
-    rightManagerKey: "",
-  },
-  nflState: null,
-  seasonWeekRows: new Map(),
-  seasonLoaded: false,
-  seasonLoadError: "",
-  seasonModelCache: { key: "", model: null },
-  simCache: { key: "", result: null },
-  lensRosterId: null,
-  homeWeek: null,
-  standingsView: "overall",
-  awardsWeek: null,
-  recapWeek: null,
-  recapTone: "desk",
-  calc: {
-    partnerRosterId: null,
-    myAssetIds: new Set(),
-    theirAssetIds: new Set(),
-    myQuery: "",
-    theirQuery: "",
-  },
-  pendingMeRosterId: null,
-  pendingTab: null,
-  theme: "dark",
-};
 
 const el = {
+  sleeperUsername: document.querySelector("#sleeper-username"),
+  usernameSearchForm: document.querySelector("#username-search-form"),
+  findLeaguesBtn: document.querySelector("#find-leagues-btn"),
+  leaguePicker: document.querySelector("#league-picker"),
   leagueId: document.querySelector("#league-id"),
   leagueLoadForm: document.querySelector("#league-load-form"),
   loadLeagueBtn: document.querySelector("#load-league-btn"),
@@ -276,7 +229,35 @@ let leagueLoadAnimationTimer = null;
 let leagueLoadStartedAt = 0;
 let copyFeedbackTimer = null;
 let shareFeedbackTimer = null;
+let livePoller = null;
+let liveVisibilityBound = false;
+let userSearchPromise = null;
+let lastSimSignature = "";
 
+function getAssetValue(asset, values = state.values) {
+  return marketAssetValue(asset, values, {
+    valueNameMap: state.valueNameMap,
+    pickCatalog: state.pickValueCatalog,
+    league: state.league,
+  });
+}
+
+function isEstimatedAsset(asset, values = state.values) {
+  return marketIsEstimated(asset, values, {
+    valueNameMap: state.valueNameMap,
+    pickCatalog: state.pickValueCatalog,
+  });
+}
+
+el.usernameSearchForm?.addEventListener("submit", requestFindLeagues);
+el.leaguePicker?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-league-id]");
+  if (!button) return;
+  const leagueId = parseLeagueId(button.dataset.leagueId);
+  if (!leagueId) return;
+  if (el.leagueId) el.leagueId.value = leagueId;
+  void loadLeagueById(leagueId);
+});
 el.leagueLoadForm?.addEventListener("submit", requestLoadLeague);
 el.loadLeagueBtn?.addEventListener("pointerdown", handleLoadLeaguePointerDown);
 el.loadLeagueBtn?.addEventListener("click", requestLoadLeague);
@@ -329,8 +310,9 @@ el.landingFocusBtn?.addEventListener("click", () => {
   if (isPhoneLayout()) {
     setMobileRailOpen(true);
   }
-  el.leagueId?.focus();
-  el.leagueId?.scrollIntoView({ behavior: "smooth", block: "center" });
+  const target = el.sleeperUsername || el.leagueId;
+  target?.focus();
+  target?.scrollIntoView({ behavior: "smooth", block: "center" });
 });
 el.workspace?.addEventListener("click", handleWorkspaceClick);
 el.workspace?.addEventListener("change", handleWorkspaceChange);
@@ -499,25 +481,29 @@ function applyTheme(theme, { persist = true } = {}) {
 }
 
 function bootFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const leagueParam = String(params.get("league") || "").trim();
-  const meParam = Number(params.get("me"));
-  const tabParam = String(params.get("tab") || "").trim();
-  if (Number.isFinite(meParam) && meParam > 0) state.pendingMeRosterId = meParam;
-  if (PAGE_IDS.includes(tabParam)) state.pendingTab = tabParam;
+  const parsed = parseShareParams(window.location.search);
+  if (parsed.meRosterId) state.pendingMeRosterId = parsed.meRosterId;
+  if (PAGE_IDS.includes(parsed.tab)) state.pendingTab = parsed.tab;
+  if (parsed.week) state.pendingWeek = parsed.week;
+  if (parsed.tone) state.pendingTone = parsed.tone;
 
-  if (leagueParam) {
-    const parsedLeagueId = parseLeagueId(leagueParam);
-    el.leagueId.value = parsedLeagueId || leagueParam;
-    loadLeague();
+  if (parsed.leagueId) {
+    if (el.leagueId) el.leagueId.value = parsed.leagueId;
+    void loadLeagueById(parsed.leagueId);
     return;
   }
 
   try {
+    const lastUsername = localStorage.getItem(LAST_USERNAME_STORAGE_KEY);
+    if (lastUsername && el.sleeperUsername && !el.sleeperUsername.value) {
+      el.sleeperUsername.value = lastUsername;
+    }
     const lastLeague = localStorage.getItem(LAST_LEAGUE_STORAGE_KEY);
     if (lastLeague && el.leagueId && !el.leagueId.value) {
       el.leagueId.value = lastLeague;
-      setStatus("Last league remembered. Press Load League to reopen it.");
+      const fallback = document.querySelector("#league-id-fallback");
+      if (fallback) fallback.open = true;
+      setStatus("Last league remembered. Search your username or press Load League.");
     }
   } catch {
     // Storage unavailable.
@@ -526,21 +512,23 @@ function bootFromUrl() {
 
 function updateUrlState() {
   if (!state.leagueId || typeof history?.replaceState !== "function") return;
-  const params = new URLSearchParams();
-  params.set("league", state.leagueId);
-  if (state.meRosterId) params.set("me", String(state.meRosterId));
-  if (state.activePage && state.activePage !== "home") params.set("tab", state.activePage);
-  const nextUrl = `${window.location.pathname}?${params.toString()}`;
-  if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
-    history.replaceState(null, "", nextUrl);
+  const nextUrl = buildShareUrl();
+  const current = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+  if (current !== nextUrl) {
+    history.replaceState(null, "", `${window.location.pathname}${nextUrl.includes("?") ? `?${nextUrl.split("?")[1]}` : ""}`);
   }
 }
 
-function buildShareUrl() {
-  const params = new URLSearchParams();
-  params.set("league", state.leagueId);
-  if (state.meRosterId) params.set("me", String(state.meRosterId));
-  return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+function buildShareUrl(overrides = {}) {
+  return buildShareUrlFromParts({
+    origin: window.location.origin,
+    pathname: window.location.pathname,
+    leagueId: state.leagueId,
+    meRosterId: state.meRosterId,
+    tab: overrides.tab || state.activePage,
+    week: overrides.week ?? (state.activePage === "recap" ? state.recapWeek : state.homeWeek),
+    tone: overrides.tone || (state.activePage === "recap" ? state.recapTone : ""),
+  });
 }
 
 async function copyShareLink() {
@@ -551,31 +539,6 @@ async function copyShareLink() {
   el.shareLinkFeedback.classList.remove("hidden");
   clearTimeout(shareFeedbackTimer);
   shareFeedbackTimer = setTimeout(() => el.shareLinkFeedback.classList.add("hidden"), 1600);
-}
-
-async function copyTextToClipboard(text) {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Fall through to the legacy path.
-  }
-  try {
-    const tempInput = document.createElement("textarea");
-    tempInput.value = text;
-    tempInput.setAttribute("readonly", "");
-    tempInput.style.position = "absolute";
-    tempInput.style.left = "-9999px";
-    document.body.appendChild(tempInput);
-    tempInput.select();
-    const copied = document.execCommand("copy");
-    document.body.removeChild(tempInput);
-    return copied;
-  } catch {
-    return false;
-  }
 }
 
 function getTradeMode() {
@@ -828,21 +791,6 @@ function syncTradeModeUi() {
   renderSessionSnapshot();
 }
 
-function parseLeagueId(raw) {
-  const value = String(raw || "").trim();
-  if (!value) return "";
-
-  const leaguePathMatch = value.match(/leagues\/(\d+)/i);
-  if (leaguePathMatch) return leaguePathMatch[1];
-
-  if (/^\d+$/.test(value)) return value;
-
-  const embeddedId = value.match(/(\d{8,})/);
-  if (embeddedId) return embeddedId[1];
-
-  return "";
-}
-
 function getDemoLeagueId() {
   return el.copyLeagueIdBtn?.textContent?.trim() || DEMO_LEAGUE_ID;
 }
@@ -850,12 +798,34 @@ function getDemoLeagueId() {
 function loadDemoLeague(event) {
   event?.preventDefault?.();
   if (el.leagueId) el.leagueId.value = getDemoLeagueId();
-  void loadLeague();
+  void loadLeagueById(getDemoLeagueId());
 }
 
 function requestLoadLeague(event) {
   event?.preventDefault?.();
+  const classified = classifyLeagueInput(el.leagueId?.value || el.sleeperUsername?.value);
+  if (classified.kind === "league") {
+    if (el.leagueId) el.leagueId.value = classified.leagueId;
+    void loadLeagueById(classified.leagueId);
+    return;
+  }
   void loadLeague();
+}
+
+function requestFindLeagues(event) {
+  event?.preventDefault?.();
+  const classified = classifyLeagueInput(el.sleeperUsername?.value);
+  if (classified.kind === "empty") {
+    setStatus("Type your Sleeper username, then press Find leagues.");
+    el.sleeperUsername?.focus();
+    return;
+  }
+  if (classified.kind === "league") {
+    if (el.leagueId) el.leagueId.value = classified.leagueId;
+    void loadLeagueById(classified.leagueId);
+    return;
+  }
+  void searchUserLeagues(classified.username);
 }
 
 function isPrimaryPointer(event) {
@@ -865,7 +835,7 @@ function isPrimaryPointer(event) {
 function handleLoadLeaguePointerDown(event) {
   if (!isPrimaryPointer(event)) return;
   event.preventDefault();
-  void loadLeague();
+  void requestLoadLeague(event);
 }
 
 function handleDemoLeaguePointerDown(event) {
@@ -874,16 +844,100 @@ function handleDemoLeaguePointerDown(event) {
   loadDemoLeague(event);
 }
 
+async function searchUserLeagues(username) {
+  if (userSearchPromise) return userSearchPromise;
+  userSearchPromise = runUserLeagueSearch(username);
+  try {
+    await userSearchPromise;
+  } finally {
+    userSearchPromise = null;
+  }
+}
+
+async function runUserLeagueSearch(username) {
+  startFindLeaguesUi();
+  setStatus(`Looking up ${username} on Sleeper…`, { loading: true });
+  let autoloadId = "";
+  try {
+    const nflState = await apiGetWithRetry(`/state/nfl`, { timeoutMs: 8000, retries: 1 }).catch(() => state.nflState);
+    if (nflState) state.nflState = nflState;
+    const season = String(nflState?.league_season || nflState?.season || new Date().getUTCFullYear());
+    const { user, leagues } = await fetchUserLeagues(sleeper, username, uniqueSeasons(season, 1));
+    state.sleeperUser = user;
+    state.userLeagues = sortUserLeagues(leagues, season);
+    rememberUsername(username);
+    renderLeaguePicker(state.userLeagues, season);
+    if (state.userLeagues.length === 0) {
+      setStatus(`Found ${user.display_name || username}, but no NFL leagues for ${season}/${Number(season) - 1}.`);
+      return;
+    }
+    if (state.userLeagues.length === 1) {
+      autoloadId = String(state.userLeagues[0].league_id || "");
+      if (el.leagueId && autoloadId) el.leagueId.value = autoloadId;
+      setStatus(`One league found. Opening ${state.userLeagues[0].name || "league"}…`, { loading: true });
+    } else {
+      setStatus(`Found ${state.userLeagues.length} leagues for ${user.display_name || username}. Pick one.`);
+    }
+  } catch (err) {
+    renderLeaguePicker([]);
+    setStatus(`Could not find that Sleeper user. ${err.message}`);
+  } finally {
+    stopFindLeaguesUi();
+  }
+  if (autoloadId) await loadLeagueById(autoloadId);
+}
+
+function renderLeaguePicker(leagues, season) {
+  if (!el.leaguePicker) return;
+  if (!leagues?.length) {
+    el.leaguePicker.classList.add("hidden");
+    el.leaguePicker.innerHTML = "";
+    return;
+  }
+  el.leaguePicker.classList.remove("hidden");
+  el.leaguePicker.innerHTML = renderLeaguePickerMarkup(leagues, season, state.leagueId);
+}
+
+function rememberUsername(username) {
+  try {
+    localStorage.setItem(LAST_USERNAME_STORAGE_KEY, String(username));
+  } catch {
+    // Non-fatal.
+  }
+}
+
+function startFindLeaguesUi() {
+  if (el.findLeaguesBtn) {
+    el.findLeaguesBtn.disabled = true;
+    el.findLeaguesBtn.classList.add("loading");
+    el.findLeaguesBtn.textContent = "Searching...";
+  }
+}
+
+function stopFindLeaguesUi() {
+  if (!el.findLeaguesBtn) return;
+  el.findLeaguesBtn.disabled = false;
+  el.findLeaguesBtn.classList.remove("loading");
+  el.findLeaguesBtn.textContent = "Find leagues";
+}
+
 async function loadLeague() {
   if (leagueLoadPromise) return leagueLoadPromise;
 
-  const leagueId = parseLeagueId(el.leagueId?.value);
+  const classified = classifyLeagueInput(el.leagueId?.value);
+  const leagueId = classified.kind === "league" ? classified.leagueId : parseLeagueId(el.leagueId?.value);
   if (!leagueId) {
-    setStatus("Paste a Sleeper league ID or league URL, then press Load League.");
-    el.leagueId?.focus();
+    setStatus("Search your Sleeper username, or paste a league ID / URL.");
+    (el.sleeperUsername || el.leagueId)?.focus();
     return;
   }
   if (el.leagueId) el.leagueId.value = leagueId;
+  return loadLeagueById(leagueId);
+}
+
+async function loadLeagueById(leagueId) {
+  if (leagueLoadPromise) return leagueLoadPromise;
+  if (!leagueId) return;
 
   leagueLoadPromise = runLeagueLoad(leagueId);
   try {
@@ -896,6 +950,7 @@ async function loadLeague() {
 async function runLeagueLoad(leagueId) {
   try {
     startLeagueLoadingUi();
+    stopLivePolling();
     state.targetAsset = null;
     state.shopAsset = null;
     state.selectedOutgoingAssetIds.clear();
@@ -967,6 +1022,9 @@ async function runLeagueLoad(leagueId) {
     state.normalizedRosters = normalizeRosters(league, rosters, users, state.players, previousContext, tradedPicks, currentDraftContext);
 
     rememberLastLeague(leagueId);
+    if (state.userLeagues.length) {
+      renderLeaguePicker(state.userLeagues, String(state.nflState?.league_season || state.nflState?.season || league?.season || ""));
+    }
     hydrateManagerSelector();
     syncTradeModeUi();
     renderSessionSnapshot();
@@ -975,6 +1033,16 @@ async function runLeagueLoad(leagueId) {
     el.analyticsSection?.classList.remove("hidden");
     el.playerSection?.classList.remove("hidden");
     el.settingsSection?.classList.remove("hidden");
+    if (state.pendingWeek) {
+      state.homeWeek = state.pendingWeek;
+      state.awardsWeek = state.pendingWeek;
+      state.recapWeek = state.pendingWeek;
+      state.pendingWeek = null;
+    }
+    if (state.pendingTone && RECAP_TONES.some((item) => item.id === state.pendingTone)) {
+      state.recapTone = state.pendingTone;
+      state.pendingTone = "";
+    }
     showAppPages();
     scrollLoadedWorkspaceIntoView();
     setMobileRailOpen(false);
@@ -984,6 +1052,7 @@ async function runLeagueLoad(leagueId) {
     loadLeagueTransactions(leagueId, league);
     loadLeagueHistoryTransactions(leagueHistory);
     loadLeagueHistoryMatchups(leagueHistory);
+    startLivePolling();
 
     loadPlayersWithCache()
       .then((players) => {
@@ -1038,6 +1107,81 @@ function resetSeasonState() {
 function invalidateSeasonCaches() {
   state.seasonModelCache = { key: "", model: null };
   state.simCache = { key: "", result: null };
+}
+
+function invalidateSeasonModelCache() {
+  state.seasonModelCache = { key: "", model: null };
+}
+
+function simSignature(model) {
+  if (!model) return "";
+  return [
+    state.leagueId,
+    model.finalThroughWeek,
+    model.remainingGames.length,
+    model.seasonComplete ? 1 : 0,
+    Object.keys(state.values).length,
+    state.previousRosters.length,
+  ].join("|");
+}
+
+function stopLivePolling() {
+  livePoller?.stop();
+  livePoller = null;
+  state.livePolling = false;
+  if (liveVisibilityBound) {
+    document.removeEventListener("visibilitychange", handleLiveVisibility);
+    liveVisibilityBound = false;
+  }
+}
+
+function startLivePolling() {
+  stopLivePolling();
+  livePoller = createLivePoller({
+    intervalMs: LIVE_POLL_INTERVAL_MS,
+    simRefreshMs: LIVE_SIM_REFRESH_MS,
+    isLive: () => shouldPollLive(getSeasonModel(), state.nflState),
+    shouldPause: () => Boolean(document.hidden),
+    fetchUpdate: async () => {
+      const model = getSeasonModel();
+      const week = model?.currentWeek || Number(state.nflState?.week) || 1;
+      const [rows, nflState] = await Promise.all([
+        apiGetWithRetry(`/league/${state.leagueId}/matchups/${week}`, { timeoutMs: 12000, retries: 1 }),
+        apiGetWithRetry(`/state/nfl`, { timeoutMs: 8000, retries: 1 }).catch(() => state.nflState),
+      ]);
+      return { week, rows: Array.isArray(rows) ? rows : [], nflState, previousModel: model };
+    },
+    onScores: ({ week, rows, nflState, previousModel }) => {
+      if (nflState) state.nflState = nflState;
+      state.seasonWeekRows.set(Number(week), rows);
+      invalidateSeasonModelCache();
+      const nextModel = getSeasonModel();
+      if (shouldRefreshSim({
+        previousFinalThroughWeek: previousModel?.finalThroughWeek,
+        nextFinalThroughWeek: nextModel?.finalThroughWeek,
+        previousRemaining: previousModel?.remainingGames?.length,
+        nextRemaining: nextModel?.remainingGames?.length,
+      })) {
+        state.simCache = { key: "", result: null };
+      }
+      state.livePolling = shouldPollLive(nextModel, state.nflState);
+      renderSessionSnapshot();
+      renderTicker();
+      if (["home", "awards", "recap"].includes(state.activePage)) renderActivePage();
+    },
+    onSimRefresh: () => {
+      state.simCache = { key: "", result: null };
+      if (state.activePage === "home") renderHomePage();
+    },
+  });
+  livePoller.start();
+  document.addEventListener("visibilitychange", handleLiveVisibility, { passive: true });
+  liveVisibilityBound = true;
+}
+
+function handleLiveVisibility() {
+  if (!livePoller?.running) return;
+  if (!document.hidden) livePoller.resume();
 }
 
 async function copyHelperLeagueId() {
@@ -1321,20 +1465,18 @@ async function loadLeagueTransactions(leagueId, league) {
 
   const weeks = buildTransactionWeeks(league);
   try {
-    const settled = await Promise.allSettled(
-      weeks.map((week) =>
-        apiGetWithRetry(`/league/${loadLeagueId}/transactions/${week}`, { timeoutMs: 10000, retries: 1 })
-          .then((transactions) => ({
-            week,
-            transactions: Array.isArray(transactions) ? transactions : [],
-          }))
-      )
+    const transactions = [];
+    let loadedWeeks = 0;
+    const settled = await mapInChunks(weeks, MATCHUP_FETCH_CHUNK, (week) =>
+      apiGetWithRetry(`/league/${loadLeagueId}/transactions/${week}`, { timeoutMs: 10000, retries: 1 })
+        .then((weekTransactions) => ({
+          week,
+          transactions: Array.isArray(weekTransactions) ? weekTransactions : [],
+        }))
     );
 
     if (state.leagueId !== loadLeagueId) return;
 
-    const transactions = [];
-    let loadedWeeks = 0;
     settled.forEach((result) => {
       if (result.status !== "fulfilled") return;
       loadedWeeks += 1;
@@ -1386,17 +1528,15 @@ async function loadLeagueHistoryTransactions(historyEntries = []) {
     for (const entry of historicalEntries) {
       if (state.leagueId !== activeLeagueId) return;
       const weeks = buildTransactionWeeks(entry.league);
-      const settled = await Promise.allSettled(
-        weeks.map((week) =>
-          apiGetWithRetry(`/league/${entry.leagueId}/transactions/${week}`, { timeoutMs: 10000, retries: 1 })
-            .then((weekTransactions) => ({
-              week,
-              transactions: Array.isArray(weekTransactions) ? weekTransactions : [],
-            }))
-        )
+      let loadedWeeks = 0;
+      const settled = await mapInChunks(weeks, MATCHUP_FETCH_CHUNK, (week) =>
+        apiGetWithRetry(`/league/${entry.leagueId}/transactions/${week}`, { timeoutMs: 10000, retries: 1 })
+          .then((weekTransactions) => ({
+            week,
+            transactions: Array.isArray(weekTransactions) ? weekTransactions : [],
+          }))
       );
 
-      let loadedWeeks = 0;
       settled.forEach((result) => {
         if (result.status !== "fulfilled") return;
         loadedWeeks += 1;
@@ -1477,7 +1617,7 @@ async function loadLeagueHistoryMatchups(historyEntries = []) {
         ? [...weeks].sort((a, b) => Math.abs(a - currentWeek) - Math.abs(b - currentWeek) || a - b)
         : weeks;
       let loadedWeeks = 0;
-      const chunkSize = 4;
+      const chunkSize = MATCHUP_FETCH_CHUNK;
       for (let i = 0; i < orderedWeeks.length; i += chunkSize) {
         if (state.leagueId !== activeLeagueId) return;
         const chunk = orderedWeeks.slice(i, i + chunkSize);
@@ -1504,6 +1644,7 @@ async function loadLeagueHistoryMatchups(historyEntries = []) {
           invalidateSeasonCaches();
           renderSessionSnapshot();
           renderActivePage();
+          livePoller?.resume();
         }
       }
       if (loadedWeeks > 0) loadedLeagues += 1;
@@ -1513,6 +1654,7 @@ async function loadLeagueHistoryMatchups(historyEntries = []) {
         invalidateSeasonCaches();
         renderSessionSnapshot();
         renderActivePage();
+        livePoller?.resume();
       }
     }
 
@@ -1633,21 +1775,6 @@ function dedupeTransactionsByLeague(transactions) {
     byId.set(key, transaction);
   });
   return [...byId.values()].sort((a, b) => Number(b.status_updated || b.created || 0) - Number(a.status_updated || a.created || 0));
-}
-
-async function apiGetWithRetry(path, { timeoutMs = 25000, retries = 0 } = {}) {
-  let lastError = null;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await apiGet(path, { timeoutMs });
-    } catch (err) {
-      lastError = err;
-      if (attempt < retries) {
-        await sleep(250 * (attempt + 1));
-      }
-    }
-  }
-  throw lastError;
 }
 
 function sleep(ms) {
@@ -1844,7 +1971,7 @@ function getSeasonModel() {
   if (!state.league) return null;
   const key = [
     state.leagueId,
-    state.seasonWeekRows.size,
+    weekRowsFingerprint(state.seasonWeekRows),
     state.seasonLoaded,
     state.rosters.length,
     state.users.length,
@@ -1861,7 +1988,6 @@ function getSeasonModel() {
     optimalPoints: state.playerMetadataLoaded ? computeOptimalPointsForSide : null,
   });
   state.seasonModelCache = { key, model };
-  state.simCache = { key: "", result: null };
   return model;
 }
 
@@ -1880,7 +2006,7 @@ function computeOptimalPointsForSide(side) {
 function getSimulation(model) {
   if (!model) return null;
   if (!state.seasonLoaded && model.remainingGames.length === 0 && !model.seasonComplete) return null;
-  const key = `${state.seasonModelCache.key}|${Object.keys(state.values).length}|${state.previousRosters.length}|${state.meRosterId}`;
+  const key = simSignature(model);
   if (state.simCache.key === key) return state.simCache.result;
   let result = null;
   try {
@@ -1889,6 +2015,7 @@ function getSimulation(model) {
     console.warn("Playoff simulation failed", err);
   }
   state.simCache = { key, result };
+  lastSimSignature = key;
   return result;
 }
 
@@ -1923,14 +2050,10 @@ function buildSimPriors(model) {
   model.standings.forEach((team) => {
     const metrics = metricsByKey.get(String(team.rosterId));
     const percentile = metrics && starterValues.length > 1 ? percentileFromValues(starterValues, metrics.starterValue) : 0.5;
-    const valueMean = baseline * (0.94 + 0.12 * percentile);
     const previous = previousRows.find((row) => row.ownerId && row.ownerId === team.ownerId)
       || previousRows.find((row) => row.rosterId === String(team.rosterId));
     const previousPpg = previous ? previous.pf / previous.games : null;
-    const shrunkPrev = previousPpg != null ? baseline + (previousPpg - baseline) * 0.35 : null;
-    const mixed = shrunkPrev != null ? valueMean * 0.45 + shrunkPrev * 0.55 : valueMean;
-    const mean = baseline + (mixed - baseline) * 0.7;
-    priors.set(team.rosterId, { mean, std: Math.max(24, baseline * 0.22) });
+    priors.set(team.rosterId, blendSimPrior({ baseline, previousPpg, valuePercentile: percentile }));
   });
   return priors;
 }
@@ -2710,8 +2833,9 @@ function renderRecapPage() {
   const weekEntry = requested || model.featuredWeek || weeksWithPoints[weeksWithPoints.length - 1] || null;
   const tone = RECAP_TONES.some((item) => item.id === state.recapTone) ? state.recapTone : "desk";
   let text = "";
+  let weekly = null;
   if (weekEntry) {
-    const weekly = computeWeeklyAwards(model, weekEntry.week, {
+    weekly = computeWeeklyAwards(model, weekEntry.week, {
       playerName: playerNameById,
       playerPosition: playerPositionById,
       optimalPoints: state.playerMetadataLoaded ? computeOptimalPointsForSide : null,
@@ -2735,7 +2859,7 @@ function renderRecapPage() {
           <span class="eyebrow">Weekly Recap</span>
           <h2>Group-chat ready</h2>
         </div>
-        <p class="section-copy">Scores, honors, standings, playoff odds, and the trade desk in one paste. Pick a week and a voice.</p>
+        <p class="section-copy">Scores, honors, standings, playoff odds, and the trade desk in one paste. Copy text, save an image card, or send the free GitHub Pages link.</p>
       </div>
       <div class="recap-controls">
         <label class="recap-control">
@@ -2751,13 +2875,99 @@ function renderRecapPage() {
           </div>
         </div>
         <button type="button" class="recap-copy" data-action="copy-recap" ${text ? "" : "disabled"}>Copy recap</button>
+        <button type="button" class="ghost-btn recap-copy" data-action="copy-recap-link" ${weekEntry ? "" : "disabled"}>Copy recap link</button>
+        <button type="button" class="recap-copy" data-action="save-recap-card" ${weekEntry ? "" : "disabled"}>Save image card</button>
         <span id="recap-copy-feedback" class="feedback-chip hidden">Copied</span>
+      </div>
+      <div class="recap-card-preview ${weekEntry ? "" : "hidden"}">
+        <canvas id="recap-card-canvas" width="1080" height="1350" aria-label="Recap image card"></canvas>
       </div>
       ${text
         ? `<textarea id="recap-text" class="recap-text" readonly rows="${Math.min(40, text.split("\n").length + 1)}">${escapeHtml(text)}</textarea>`
         : `<p class="muted analytics-empty">${state.seasonLoaded ? "No scores yet this season. The recap writes itself once games are posted." : "Syncing matchups from Sleeper…"}</p>`}
     </section>
   `;
+  if (weekEntry && weekly) paintRecapCard(weekEntry, model, weekly);
+}
+
+function recapFeedback(message) {
+  const feedback = document.querySelector("#recap-copy-feedback");
+  if (!feedback) return;
+  feedback.textContent = message;
+  feedback.classList.remove("hidden");
+  setTimeout(() => feedback.classList.add("hidden"), 1800);
+}
+
+function currentRecapCardModel(weekEntry, model, weekly) {
+  const favorite = getSimulation(model)?.results?.[0] || null;
+  return buildRecapCardModel({
+    leagueName: state.leagueName,
+    weekLabel: weekEntry.label,
+    provisional: weekly.provisional,
+    games: weekly.games,
+    awards: weekly.awards,
+    favorite: favorite
+      ? { name: favorite.name, detail: `${Math.round(favorite.titlePct)}% title · ${Math.round(favorite.playoffPct)}% playoffs` }
+      : null,
+    url: buildShareUrl({ tab: "recap", week: weekEntry.week, tone: state.recapTone }),
+  });
+}
+
+function paintRecapCard(weekEntry, model, weekly) {
+  const canvas = document.querySelector("#recap-card-canvas");
+  const ctx = canvas?.getContext("2d");
+  if (!ctx) return;
+  const card = currentRecapCardModel(weekEntry, model, weekly);
+  drawRecapCard(ctx, card, { width: canvas.width, height: canvas.height });
+  state.recapCardModel = card;
+}
+
+function recapShareUrl() {
+  const model = getSeasonModel();
+  const week = state.recapWeek || model?.featuredWeek?.week || model?.currentWeek;
+  return buildShareUrl({ tab: "recap", week, tone: state.recapTone });
+}
+
+async function copyRecapLink() {
+  const copied = await copyTextToClipboard(recapShareUrl());
+  recapFeedback(copied ? "Link copied" : "Copy failed");
+}
+
+async function saveRecapCard() {
+  const model = getSeasonModel();
+  const weekEntry = model?.weeks?.find((entry) => entry.week === Number(state.recapWeek))
+    || model?.featuredWeek
+    || model?.weeks?.find((entry) => entry.hasPoints);
+  if (!weekEntry) return;
+  const weekly = computeWeeklyAwards(model, weekEntry.week, {
+    playerName: playerNameById,
+    playerPosition: playerPositionById,
+    optimalPoints: state.playerMetadataLoaded ? computeOptimalPointsForSide : null,
+  });
+  const card = currentRecapCardModel(weekEntry, model, weekly);
+  try {
+    const blob = await renderRecapCardBlob(card);
+    const file = new File([blob], recapCardFilename(card), { type: "image/png" });
+    if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+      await navigator.share({
+        title: `${state.leagueName} recap`,
+        text: card.kicker,
+        url: card.url,
+        files: [file],
+      });
+      recapFeedback("Shared");
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = recapCardFilename(card);
+    link.click();
+    URL.revokeObjectURL(url);
+    recapFeedback("Card saved");
+  } catch (err) {
+    recapFeedback(err?.name === "AbortError" ? "Share canceled" : "Card failed");
+  }
 }
 
 function buildRecapTradeLines(week) {
@@ -3098,10 +3308,19 @@ function handleWorkspaceClick(event) {
     case "recap-tone": {
       state.recapTone = target.dataset.tone || "desk";
       renderRecapPage();
+      updateUrlState();
       break;
     }
     case "copy-recap": {
       copyRecapText();
+      break;
+    }
+    case "copy-recap-link": {
+      copyRecapLink();
+      break;
+    }
+    case "save-recap-card": {
+      saveRecapCard();
       break;
     }
     case "calc-toggle": {
@@ -3157,6 +3376,7 @@ function handleWorkspaceChange(event) {
     case "recap-week": {
       state.recapWeek = Number(target.value);
       renderRecapPage();
+      updateUrlState();
       break;
     }
     default:
@@ -5677,15 +5897,6 @@ function median(values) {
   return Math.round((sorted[middle - 1] + sorted[middle]) / 2);
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function renderPowerStat(label, value, detail) {
   return `
     <section class="power-stat">
@@ -7338,191 +7549,6 @@ function findClosestValuationPick(targetValue, values, valueNameMap) {
   });
 
   return closestPick;
-}
-
-function buildPickValuationCatalog(values, valueNameMap) {
-  const catalog = [];
-  Object.entries(values).forEach(([assetId, value]) => {
-    if (!Number.isFinite(value)) return;
-    const pickMeta = parsePickAssetId(assetId) || parsePickDescriptor(valueNameMap[assetId] || assetId);
-    if (!pickMeta) return;
-    catalog.push({
-      assetId,
-      name: resolvePickNameForCatalog(assetId, valueNameMap),
-      value,
-      season: pickMeta.season,
-      round: pickMeta.round,
-      bucket: normalizePickBucket(pickMeta.bucket),
-    });
-  });
-
-  return catalog;
-}
-
-function resolvePickNameForCatalog(assetId, valueNameMap) {
-  if (valueNameMap[assetId]) return valueNameMap[assetId];
-  return formatGenericPickAssetLabel(assetId);
-}
-
-function formatGenericPickAssetLabel(assetId) {
-  const pickMeta = parsePickAssetId(assetId);
-  if (!pickMeta) return assetId;
-
-  const bucketLabel = pickMeta.bucket && pickMeta.bucket !== "any" ? ` ${formatPickBucketLabel(pickMeta.bucket)}` : "";
-  if (Number.isFinite(pickMeta.round)) return `${pickMeta.season}${bucketLabel} ${ordinal(pickMeta.round)}`;
-  return assetId;
-}
-
-function parsePickAssetId(assetId) {
-  if (!String(assetId || "").startsWith("pick:")) return null;
-
-  const [, season, ...rest] = assetId.split(":");
-  const roundToken = rest.find((part) => /^r\d+$/i.test(part) || /^\d+$/i.test(part) || /^(?:\d+)(?:st|nd|rd|th)$/i.test(part));
-  const bucketToken = rest.find((part) => /^(any|early|mid|middle|late)$/i.test(part));
-  const round = parsePickRoundToken(roundToken);
-
-  if (!season || !Number.isFinite(round)) return null;
-
-  return {
-    season,
-    round,
-    bucket: normalizePickBucket(bucketToken || "any"),
-  };
-}
-
-function normalizePickBucket(bucket) {
-  const normalized = String(bucket || "any").trim().toLowerCase();
-  if (normalized === "middle") return "mid";
-  return normalized;
-}
-
-function getPickBucketAliases(bucket) {
-  const normalized = normalizePickBucket(bucket);
-  if (normalized === "mid") return ["mid", "middle"];
-  return [normalized];
-}
-
-function formatPickBucketLabel(bucket) {
-  return {
-    early: "Early",
-    mid: "Middle",
-    late: "Late",
-  }[normalizePickBucket(bucket)] || "";
-}
-
-function parsePickRoundToken(token) {
-  const normalized = String(token || "").trim().toLowerCase();
-  if (!normalized) return null;
-  if (/^r\d+$/.test(normalized)) return Number(normalized.slice(1));
-  if (/^\d+$/.test(normalized)) return Number(normalized);
-  if (/^\d+(st|nd|rd|th)$/.test(normalized)) return Number.parseInt(normalized, 10);
-  return null;
-}
-
-function parsePickDescriptor(input) {
-  const source = String(input || "").trim();
-  if (!source) return null;
-
-  const seasonMatch = source.match(/\b(20\d{2})\b/);
-  const bucketMatch = source.match(/\b(early|mid|middle|late)\b/i);
-  const roundMatch = source.match(/\b(\d+)(?:st|nd|rd|th)\b/i) || source.match(/\br(?:ound)?\s*(\d+)\b/i);
-
-  const season = seasonMatch?.[1];
-  const round = roundMatch ? Number(roundMatch[1]) : null;
-  if (!season || !Number.isFinite(round)) return null;
-
-  return {
-    season,
-    round,
-    bucket: normalizePickBucket(bucketMatch?.[1] || "any"),
-  };
-}
-
-function getAssetPickBucket(asset) {
-  if (asset?.assetType !== "pick") return "any";
-  return normalizePickBucket(asset?.raw?.ktcBucket || asset?.valueBucket || "any");
-}
-
-function buildPickLookupMeta(asset) {
-  if (asset?.assetType !== "pick") return null;
-
-  const valueMeta = parsePickAssetId(asset.valueAssetId || "");
-  if (valueMeta) return valueMeta;
-
-  const assetMeta = parsePickAssetId(asset.assetId || "");
-  if (assetMeta) {
-    return {
-      ...assetMeta,
-      bucket: assetMeta.round === 1 ? getAssetPickBucket(asset) : assetMeta.bucket,
-    };
-  }
-
-  const season = asset?.raw?.season != null ? String(asset.raw.season) : "";
-  const round = Number(asset?.raw?.round);
-  if (!season || !Number.isFinite(round)) return null;
-
-  return {
-    season,
-    round,
-    bucket: round === 1 ? getAssetPickBucket(asset) : "any",
-  };
-}
-
-function buildPickValueLookupIds(asset) {
-  const meta = buildPickLookupMeta(asset);
-  if (!meta) return [];
-
-  const ids = [];
-  const seen = new Set();
-  const push = (id) => {
-    if (!id || seen.has(id)) return;
-    seen.add(id);
-    ids.push(id);
-  };
-
-  if (asset.valueAssetId) push(asset.valueAssetId);
-
-  if (meta.round === 1) {
-    getPickBucketAliases(meta.bucket).forEach((bucket) => push(`pick:${meta.season}:r${meta.round}:${bucket}`));
-  }
-  push(`pick:${meta.season}:r${meta.round}:any`);
-
-  return ids;
-}
-
-function findPickCatalogValue(meta, values, valueNameMap) {
-  if (!meta) return null;
-  const catalog = state.pickValueCatalog.length > 0
-    ? state.pickValueCatalog
-    : buildPickValuationCatalog(values, valueNameMap);
-  const desiredBuckets = meta.round === 1
-    ? [...getPickBucketAliases(meta.bucket), "any"]
-    : ["any"];
-
-  for (const bucket of desiredBuckets) {
-    const exact = catalog.find((pick) =>
-      pick.season === meta.season
-      && pick.round === meta.round
-      && pick.bucket === normalizePickBucket(bucket)
-    );
-    if (exact) return exact.value;
-  }
-
-  const numericSeason = Number(meta.season);
-  if (!Number.isFinite(numericSeason)) return null;
-
-  const nearest = catalog
-    .filter((pick) => pick.round === meta.round && desiredBuckets.includes(pick.bucket))
-    .sort((a, b) => Math.abs(Number(a.season) - numericSeason) - Math.abs(Number(b.season) - numericSeason))[0];
-
-  return nearest?.value ?? null;
-}
-
-function resolvePickAssetValue(asset, values, valueNameMap = state.valueNameMap) {
-  for (const candidateId of buildPickValueLookupIds(asset)) {
-    if (Number.isFinite(values[candidateId])) return values[candidateId];
-  }
-  return findPickCatalogValue(buildPickLookupMeta(asset), values, valueNameMap);
 }
 
 function getRequestedTierIds() {
@@ -11607,38 +11633,9 @@ function setButtonLoading(button, isLoading, loadingText = "Loading...") {
   button.textContent = isLoading ? loadingText : button.dataset.defaultLabel;
 }
 
-function formatNumber(value) {
-  return Number(value).toLocaleString();
-}
-
-function formatSignedNumber(value) {
-  const numericValue = Number(value) || 0;
-  return `${numericValue > 0 ? "+" : ""}${formatNumber(numericValue)}`;
-}
-
-function getAssetValue(asset, values) {
-  const exact = values[asset.assetId];
-  if (Number.isFinite(exact)) return applyElitePlayerValuePremium(asset, exact);
-
-  if (asset.assetType === "pick") {
-    const resolvedPickValue = resolvePickAssetValue(asset, values);
-    if (Number.isFinite(resolvedPickValue)) return resolvedPickValue;
-  }
-
-  return applyElitePlayerValuePremium(asset, estimatedValue(asset));
-}
-
-function applyElitePlayerValuePremium(asset, baseValue) {
-  if (asset?.assetType !== "player" || !Number.isFinite(baseValue)) return baseValue;
-
-  const premiumTier = ELITE_VALUE_PREMIUM_TIERS.find((tier) => baseValue >= tier.floor);
-  if (!premiumTier) return baseValue;
-
-  return Math.round(baseValue * premiumTier.multiplier);
-}
-
 function formatAssetSecondaryLabel(asset, values) {
   const parts = [formatNumber(getAssetValue(asset, values))];
+  if (isEstimatedAsset(asset, values)) parts.push("est");
   if (asset.assetType === "player") {
     const position = formatPlayerPositionLabel(asset);
     if (position) parts.push(position);
@@ -11651,14 +11648,6 @@ function formatAssetSecondaryLabel(asset, values) {
     if (asset.raw?.round) parts.push(`R${asset.raw.round}`);
   }
   return `(${parts.join(" • ")})`;
-}
-
-function playerPositionForRaw(raw) {
-  return (raw?.position || raw?.fantasy_positions?.[0] || "").toUpperCase();
-}
-
-function playerPositionForAsset(asset) {
-  return playerPositionForRaw(asset?.raw);
 }
 
 function getPlayerPositionRankLabel(asset) {
@@ -11704,11 +11693,6 @@ function refreshPlayerPositionRanks() {
   state.playerPositionRankByAssetId = nextRankMap;
 }
 
-function playerAgeForAsset(asset) {
-  const age = Number(asset?.raw?.age);
-  return Number.isFinite(age) ? age : null;
-}
-
 function isYouthAsset(asset) {
   if (asset.assetType !== "player") return false;
   const age = playerAgeForAsset(asset);
@@ -11728,43 +11712,6 @@ function getCoreAssetIdSet(myRoster, values) {
     .map((entry) => entry.assetId);
 
   return new Set(topPlayers);
-}
-
-function estimatedValue(asset) {
-  if (asset.assetType === "pick") return 2200;
-  if (isInactivePlayerAsset(asset)) return 0;
-
-  const position = playerPositionForAsset(asset);
-  const age = Number(asset.raw?.age || 26);
-  const baseByPos = {
-    QB: 4300,
-    RB: 4200,
-    WR: 4000,
-    TE: 3000,
-    K: 100,
-    DEF: 500,
-  };
-  const base = baseByPos[position] || 1800;
-  const ageModifier = Math.max(-1400, (26 - age) * 130);
-  return Math.max(300, Math.round(base + ageModifier));
-}
-
-function isInactivePlayerAsset(asset) {
-  if (asset.assetType !== "player") return false;
-  if (asset.raw?.active === false) return true;
-
-  const status = String(asset.raw?.status || "").trim().toLowerCase();
-  if (["inactive", "retired", "reserve_retired", "reserve/did_not_report", "did_not_report"].includes(status)) {
-    return true;
-  }
-
-  const team = String(asset.raw?.team || "").trim().toUpperCase();
-  if (!team || team === "FA") {
-    const age = playerAgeForAsset(asset);
-    if (Number.isFinite(age) && age >= 30) return true;
-  }
-
-  return false;
 }
 
 function normalizeRosterIdKey(value) {
@@ -12246,21 +12193,24 @@ function formatPickName(pick, { userById, rosterById, previousFinishLookup, pick
 
 async function loadValues(optionalUrl) {
   if (optionalUrl) {
-    const payload = await fetch(optionalUrl).then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
+    const payload = await fetch(optionalUrl).then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
     });
     return coerceValueMap(payload);
   }
 
-  const csvText = await fetch(SAMPLE_VALUES_PATH).then((r) => {
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.text();
-  });
-  return parseCsvValues(csvText);
+  state.valueBundles = await fetchValuationBundles();
+  return pickValueBundle(state.valueBundles, selectValueFormat(state.league));
 }
 
 function primeValuationData() {
+  const format = selectValueFormat(state.league);
+  if (state.valueBundles?.sf?.values && Object.keys(state.valueBundles.sf.values).length > 0) {
+    applyValuationBundle(pickValueBundle(state.valueBundles, format));
+    return;
+  }
+  state.valuationsPromise = null;
   ensureValuesLoaded("").catch((err) => {
     console.warn("Could not preload valuation data", err);
   });
@@ -12271,7 +12221,12 @@ async function ensureValuesLoaded(optionalUrl = "") {
     return applyValuationBundle(await loadValues(optionalUrl), { rerender: false });
   }
 
-  if (Object.keys(state.values).length > 0 && state.pickValueCatalog.length > 0) {
+  const format = selectValueFormat(state.league);
+  if (
+    Object.keys(state.values).length > 0
+    && state.pickValueCatalog.length > 0
+    && state.valueFormat === format
+  ) {
     return { values: state.values, nameMap: state.valueNameMap };
   }
 
@@ -12288,6 +12243,7 @@ async function ensureValuesLoaded(optionalUrl = "") {
 }
 
 function applyValuationBundle(bundle, { rerender = true } = {}) {
+  state.valueFormat = selectValueFormat(state.league);
   state.values = bundle?.values && typeof bundle.values === "object" ? bundle.values : {};
   state.valueNameMap = bundle?.nameMap && typeof bundle.nameMap === "object" ? bundle.nameMap : {};
   refreshPlayerPositionRanks();
@@ -12322,81 +12278,6 @@ function applyValuationBundle(bundle, { rerender = true } = {}) {
     values: state.values,
     nameMap: state.valueNameMap,
   };
-}
-
-function parseCsvValues(csvText) {
-  const rows = csvText.trim().split("\n");
-  const values = {};
-  const nameMap = {};
-  for (let i = 1; i < rows.length; i++) {
-    const [assetId, rawValue, ...rawNameParts] = rows[i].split(",");
-    const value = Number(rawValue);
-    const name = rawNameParts.join(",").trim();
-    if (assetId && Number.isFinite(value)) {
-      values[assetId] = value;
-      if (name) nameMap[assetId] = name;
-    }
-  }
-  return { values, nameMap };
-}
-
-function coerceValueMap(payload) {
-  if (Array.isArray(payload)) {
-    return payload.reduce((acc, item) => {
-      if (item?.asset_id && Number.isFinite(item.value)) {
-        acc.values[item.asset_id] = item.value;
-        if (item.name) acc.nameMap[item.asset_id] = item.name;
-      }
-      return acc;
-    }, { values: {}, nameMap: {} });
-  }
-  return {
-    values: payload?.values && typeof payload.values === "object" ? payload.values : payload,
-    nameMap: payload?.nameMap && typeof payload.nameMap === "object" ? payload.nameMap : {},
-  };
-}
-
-async function apiGet(path, { timeoutMs = 25000 } = {}) {
-  const controller = new AbortController();
-  const abortTimeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await withTimeout(fetch(`${API_BASE}${path}`, {
-      signal: controller.signal,
-      cache: "no-store",
-      credentials: "omit",
-      mode: "cors",
-    }), timeoutMs + 1500, `Request timed out after ${Math.round(timeoutMs / 1000)}s`);
-    if (!response.ok) {
-      throw new Error(`Sleeper API returned ${response.status}`);
-    }
-    return await withTimeout(response.json(), timeoutMs + 1500, "Sleeper API response parse timed out");
-  } catch (err) {
-    if (err.name === "AbortError") {
-      throw new Error(`Sleeper API timed out after ${Math.round(timeoutMs / 1000)}s`);
-    }
-    if (err instanceof TypeError) {
-      throw new Error("Network/CORS error while contacting Sleeper API");
-    }
-    throw err;
-  } finally {
-    clearTimeout(abortTimeoutId);
-  }
-}
-
-function withTimeout(promise, timeoutMs, message) {
-  return new Promise((resolve, reject) => {
-    const id = setTimeout(() => reject(new Error(message)), timeoutMs);
-    promise
-      .then((value) => {
-        clearTimeout(id);
-        resolve(value);
-      })
-      .catch((err) => {
-        clearTimeout(id);
-        reject(err);
-      });
-  });
 }
 
 function setStatus(message, { ok = false, loading = false } = {}) {

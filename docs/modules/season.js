@@ -227,6 +227,20 @@ export function getWeekEntry(model, week) {
   return model?.weeks?.find((entry) => entry.week === Number(week)) || null;
 }
 
+export function blendSimPrior({ baseline, previousPpg = null, valuePercentile = 0.5 } = {}) {
+  const base = Number(baseline) > 0 ? Number(baseline) : 125;
+  const percentile = Number.isFinite(Number(valuePercentile)) ? Number(valuePercentile) : 0.5;
+  const valueMean = base * (0.94 + 0.12 * percentile);
+  const shrunkPrev = previousPpg != null && Number.isFinite(Number(previousPpg))
+    ? base + (Number(previousPpg) - base) * 0.35
+    : null;
+  const mixed = shrunkPrev != null ? valueMean * 0.45 + shrunkPrev * 0.55 : valueMean;
+  return {
+    mean: base + (mixed - base) * 0.7,
+    std: Math.max(24, base * 0.22),
+  };
+}
+
 export function buildTeamDistributions(model, priors = new Map(), { priorWeight = SIM_PRIOR_WEIGHT } = {}) {
   const distributions = new Map();
   const leagueAverage = model.leagueAverage || 0;
