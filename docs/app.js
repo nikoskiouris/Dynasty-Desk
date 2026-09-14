@@ -452,13 +452,15 @@ function readStoredTheme() {
   } catch {
     // Storage unavailable; fall through to the default.
   }
-  return "dark";
+  return "light";
 }
 
 function applyTheme(theme, { persist = true } = {}) {
-  const nextTheme = theme === "light" ? "light" : "dark";
+  const nextTheme = theme === "dark" ? "dark" : "light";
   state.theme = nextTheme;
   document.documentElement.dataset.theme = nextTheme;
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) themeColor.content = nextTheme === "dark" ? "#0b141c" : "#eef3f7";
   if (el.themeToggleBtn) {
     el.themeToggleBtn.textContent = nextTheme === "dark" ? "Light mode" : "Dark mode";
     el.themeToggleBtn.setAttribute("aria-pressed", String(nextTheme === "light"));
