@@ -165,6 +165,22 @@ test("passport collapses consecutive seasons with the same manager", () => {
   assert.equal(passport.stops[1].managerName, "Nikoball");
 });
 
+test("passport keeps a takeover stop when the name on the desk changes", () => {
+  const passport = buildPlayerPassport({
+    playerId: "chase",
+    name: "Ja'Marr Chase",
+    seasons: [
+      { season: "2024", managerKey: "user:juan", managerName: "Gus K" },
+      { season: "2025", managerKey: "user:juan", managerName: "Gus K" },
+      { season: "2026", managerKey: "user:juan", managerName: "Juan Platanis" },
+    ],
+  });
+  assert.equal(passport.stops.length, 2);
+  assert.equal(passport.stops[0].managerName, "Gus K");
+  assert.equal(passport.stops[0].toSeason, "2025");
+  assert.equal(passport.stops[1].managerName, "Juan Platanis");
+});
+
 test("hall rows rank titles then wins", () => {
   const rows = buildHallRows([
     { managerName: "Niko", titles: 1, totalWins: 40, totalLosses: 20, records: [{ finishRank: 2 }, { playoffFinish: 1 }] },

@@ -109,6 +109,12 @@ import {
 } from "./modules/loyalty.js";
 import { renderLeaguePickerMarkup } from "./modules/league-search.js";
 import {
+  personManagerKey,
+  buildTakeoverAliasMap,
+  resolveFranchiseManagerKey,
+  takeoverForRoster,
+} from "./modules/franchise.js";
+import {
   formatPickWithSelection,
   indexDraftSelections,
   lookupDraftedSelection,
@@ -301,6 +307,7 @@ let liveVisibilityBound = false;
 let userSearchPromise = null;
 let lastSimSignature = "";
 let leagueTradeSideCache = { key: "", sides: [] };
+let takeoverIndexCache = { key: "", aliases: new Map(), takeovers: [] };
 
 function getAssetValue(asset, values = state.values) {
   return marketAssetValue(asset, values, {
@@ -1192,6 +1199,7 @@ async function runLeagueLoad(leagueId) {
     state.activePage = DEFAULT_PAGE;
     state.tradeRoom = DEFAULT_TRADE_ROOM;
     state.leagueRoom = DEFAULT_LEAGUE_ROOM;
+    takeoverIndexCache = { key: "", aliases: new Map(), takeovers: [] };
     state.transactions = [];
     state.transactionsLoaded = false;
     state.transactionsFailed = false;
@@ -3322,6 +3330,7 @@ function renderLoyaltyDashboard() {
 
   const currentIds = playerIdsFromRoster(roster);
   const managerKey = rosterManagerKey(roster);
+  const takeover = getRosterTakeover(roster.rosterId);
   const seasons = seasonPlayerSetsForManager(managerKey);
   const dna = buildRosterDna({
     currentIds,
@@ -3354,6 +3363,7 @@ function renderLoyaltyDashboard() {
         <span class="eyebrow">Loyalty</span>
         <h3>${escapeHtml(roster.manager.displayName)}</h3>
         <p class="muted">${loyaltyTierLabel(score)} desk · iron share ${iron}%${longest ? ` · ${escapeHtml(longest.name)} ${longest.consecutiveSeasons} szn` : ""}</p>
+        ${takeover ? `<p class="muted small takeover-note">Took over from ${escapeHtml(takeover.fromName)}.</p>` : ""}
       </div>
       <div class="loyalty-score">
         <span>Score</span>
@@ -6120,10 +6130,38 @@ function getHistoryRosterInfo(leagueId, rosterId) {
   };
 }
 
+function takeoverCacheKey() {
+  return [
+    state.leagueId,
+    (state.rosters || []).map((roster) => `${roster.roster_id}:${roster.owner_id}`).join(","),
+    (state.leagueHistory || []).map((entry) => (
+      `${entry.leagueId}:${(entry.rosters || []).map((roster) => `${roster.roster_id}:${roster.owner_id}`).join("-")}`
+    )).join("|"),
+  ].join("::");
+}
+
+function getTakeoverIndex() {
+  const key = takeoverCacheKey();
+  if (takeoverIndexCache.key === key) return takeoverIndexCache;
+  const users = [
+    ...(state.users || []),
+    ...(state.leagueHistory || []).flatMap((entry) => entry.users || []),
+  ];
+  const index = buildTakeoverAliasMap({
+    currentRosters: state.rosters,
+    historyEntries: state.leagueHistory,
+    users,
+  });
+  takeoverIndexCache = { key, aliases: index.aliases, takeovers: index.takeovers };
+  return takeoverIndexCache;
+}
+
+function getRosterTakeover(rosterId) {
+  return takeoverForRoster(getTakeoverIndex().takeovers, rosterId);
+}
+
 function buildManagerKey(userId, leagueId, rosterId) {
-  const normalizedUserId = String(userId || "").trim();
-  if (normalizedUserId && normalizedUserId !== "unknown") return `user:${normalizedUserId}`;
-  return `roster:${leagueId || "league"}:${rosterId || "unknown"}`;
+  return resolveFranchiseManagerKey(userId, leagueId, rosterId, getTakeoverIndex().aliases);
 }
 
 function extractRosterDecimalStat(roster, wholeKey, decimalKey) {
@@ -6979,7 +7017,7 @@ function lookupTradePickSelection(pick, transaction = null) {
     season,
     round,
     originalRosterId,
-    ownerKey: ownerInfo?.managerKey,
+    ownerKey: personManagerKey(ownerInfo?.userId, sourceLeagueId, originalRosterId),
   });
 }
 

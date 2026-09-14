@@ -427,7 +427,7 @@ export function buildPlayerPassport({ playerId, name = "", seasons = [] } = {}) 
   const stops = [];
   ordered.forEach((entry) => {
     const last = stops[stops.length - 1];
-    if (last && last.managerKey === entry.managerKey) {
+    if (last && last.managerKey === entry.managerKey && last.managerName === (entry.managerName || "Unknown")) {
       last.toSeason = String(entry.season);
       return;
     }

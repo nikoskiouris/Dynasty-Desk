@@ -5626,6 +5626,10 @@ body.dock-visible {
   margin: 0.15rem 0 0.2rem;
 }
 
+.takeover-note {
+  margin: 0.25rem 0 0;
+}
+
 .loyalty-score {
   display: grid;
   justify-items: end;
