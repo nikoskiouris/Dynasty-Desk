@@ -188,9 +188,21 @@ export function finishesAfterTrade(rows = [], trade = {}) {
   });
 }
 
-// Market swing, package lopsidedness, and the star that moved set fleece.
-// Impact waits on a real sample: record since the week is shrunk toward .500
-// so 2-0 cannot beat 12-4, then mixed in only as games pile up.
+// Fleece is a market steal, not raw KTC delta: log-ratio of the packages,
+// relative lopsidedness, and the star that moved. Heater is the record
+// after the deal: Bayesian shrink toward .500 plus a Wilson lower bound
+// so 2-0 cannot beat a real sample. Impact still waits on games piling up.
+export function wilsonLowerBound(successes = 0, n = 0, z = 1.28) {
+  const games = Number(n) || 0;
+  if (games <= 0) return 0;
+  const p = Math.max(0, Math.min(1, Number(successes) / games));
+  const z2 = z * z;
+  const denom = 1 + z2 / games;
+  const center = p + z2 / (2 * games);
+  const spread = z * Math.sqrt((p * (1 - p) + z2 / (4 * games)) / games);
+  return Math.max(0, (center - spread) / denom);
+}
+
 export function scoreTradeSide({
   receivedNow = 0,
   sentNow = 0,
@@ -207,19 +219,23 @@ export function scoreTradeSide({
   const wins = Number(since.wins) || 0;
   const losses = Number(since.losses) || 0;
   const ties = Number(since.ties) || 0;
-  const rawPct = games ? (wins + ties * 0.5) / games : 0.5;
-  const shrinkPct = (wins + ties * 0.5 + 3) / (games + 6);
+  const successes = wins + ties * 0.5;
+  const rawPct = games ? successes / games : 0.5;
+  const shrinkPct = (successes + 3) / (games + 6);
+  const wilsonPct = wilsonLowerBound(successes, games);
   const recordEdge = (shrinkPct - 0.5) * 100;
   const valuePts = Math.max(-60, Math.min(60, delta / 70));
   const relPts = Math.max(-40, Math.min(40, rel * 80));
   const starGot = Math.max(0, ...received.map((item) => Number(item.value) || 0), 0);
   const starLost = Math.max(0, ...sent.map((item) => Number(item.value) || 0), 0);
   const starPts = Math.max(-30, Math.min(30, (starGot - starLost) / 280));
+  const logPts = Math.max(-45, Math.min(45, Math.log((got + 400) / (gave + 400)) * 22));
   const sample = 1 - Math.exp(-games / 8);
   const formPts = recordEdge * (0.35 + 0.65 * sample);
-  const marketPts = valuePts * 0.5 + relPts * 0.3 + starPts * 0.2;
+  const marketPts = valuePts * 0.38 + relPts * 0.22 + starPts * 0.18 + logPts * 0.22;
   const impact = marketPts * (0.25 + 0.75 * sample) + formPts * 0.9;
   const fleece = marketPts;
+  const heaterScore = shrinkPct * 100 + wilsonPct * 20 * sample;
   const evenness = 1 - Math.min(1, Math.abs(rel) * 2.2 + Math.abs(starGot - starLost) / 12000);
   return {
     delta,
@@ -228,9 +244,11 @@ export function scoreTradeSide({
     games,
     winPct: rawPct,
     shrinkPct,
+    wilsonPct,
     sample,
     impact,
     fleece,
+    heaterScore,
     evenness,
     starGot,
     starLost,
@@ -368,27 +386,33 @@ export function analyzeLeagueTradeSides({
   return sides;
 }
 
+function laterFinishBoost(finishes = []) {
+  let boost = 0;
+  (finishes || []).forEach((row) => {
+    const rank = Number(row.finishRank);
+    const label = String(row.label || "").toLowerCase();
+    if (label.includes("champion") || rank === 1) boost = Math.max(boost, 6);
+    else if (Number.isFinite(rank) && rank <= 3) boost = Math.max(boost, 3);
+    else if (Number.isFinite(rank) && rank <= 6) boost = Math.max(boost, 1);
+  });
+  return boost;
+}
+
+function heaterRankScore(side) {
+  return (Number(side.heaterScore) || Number(side.shrinkPct) * 100 || 0) + laterFinishBoost(side.laterFinishes);
+}
+
 export function pickLeagueTradeAwards(sides = []) {
   const real = sides.filter((side) => Number(side.dealSize) >= 600);
   if (!real.length) {
-    return { best: null, fleece: null, worst: null, even: null, heater: null };
+    return { fleece: null, heater: null };
   }
-  const withSample = real.filter((side) => Number(side.games) >= 4);
-  const bestPool = withSample.length >= 3 ? withSample : real;
-  const best = [...bestPool].sort((a, b) => b.impact - a.impact)[0] || null;
   const fleece = [...real].sort((a, b) => b.fleece - a.fleece)[0] || null;
-  const worst = [...bestPool].sort((a, b) => a.impact - b.impact)[0] || null;
-  const evenPool = [...new Map(real
-    .filter((side) => Number(side.dealSize) >= 1800)
-    .map((side) => [side.id, side]))
-    .values()];
-  const even = [...(evenPool.length ? evenPool : real)].sort((a, b) => {
-    const bump = (side) => (side.id === best?.id || side.id === fleece?.id ? 1 : 0);
-    return bump(a) - bump(b) || b.evenness - a.evenness;
-  })[0] || null;
+  const withSample = real.filter((side) => Number(side.games) >= 4);
   const heaterPool = real.filter((side) => Number(side.games) >= 6);
-  const heater = [...(heaterPool.length ? heaterPool : withSample)].sort((a, b) => b.shrinkPct - a.shrinkPct || b.games - a.games)[0] || null;
-  return { best, fleece, worst, even, heater };
+  const heater = [...(heaterPool.length ? heaterPool : withSample)]
+    .sort((a, b) => heaterRankScore(b) - heaterRankScore(a) || b.games - a.games)[0] || null;
+  return { fleece, heater };
 }
 
 export function biggestTradeMiss(trades = [], { myRosterId, valueOf = () => 0 } = {}) {

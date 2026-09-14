@@ -376,6 +376,255 @@ export function simulateSeason(model, { priors = new Map(), iterations = SIM_DEF
   };
 }
 
+export function resolveUpcomingWeekEntry(model) {
+  if (!model?.weeks?.length) return null;
+  const current = model.currentWeekEntry;
+  if (current && current.status !== "final" && current.games?.length) return current;
+  return model.weeks.find((entry) => entry.status === "upcoming" && entry.games?.length) || null;
+}
+
+function gaussianKernel(x, mu, sigma) {
+  const width = Math.max(Number(sigma) || 0.01, 0.01);
+  const z = (Number(x) - Number(mu)) / width;
+  return Math.exp(-0.5 * z * z);
+}
+
+function logisticPdf(x, scale = 1.15) {
+  const s = Math.max(Number(scale) || 0.2, 0.2);
+  const z = Number(x) / s;
+  const e = Math.exp(Math.min(40, Math.max(-40, -z)));
+  return e / ((1 + e) ** 2) / s;
+}
+
+function playoffWinCutoff(model, sim) {
+  const rows = [...(sim?.results || [])].sort((a, b) => (
+    Number(b.projectedWins) - Number(a.projectedWins)
+    || Number(b.playoffPct) - Number(a.playoffPct)
+  ));
+  const cutIndex = Math.max(0, Math.min(rows.length - 1, (model?.playoffTeams || 6) - 1));
+  return Number(rows[cutIndex]?.projectedWins);
+}
+
+function bubbleIndex(simRow) {
+  const playoff = Math.max(0, Math.min(1, (Number(simRow?.playoffPct) || 0) / 100));
+  const title = Math.max(0, Math.min(1, (Number(simRow?.titlePct) || 0) / 100));
+  return 4 * playoff * (1 - playoff) + 2.4 * title * (1 - title);
+}
+
+export function scoreUpcomingWeekAngles(model, sim = null, { weekEntry = null } = {}) {
+  const entry = weekEntry || resolveUpcomingWeekEntry(model);
+  const empty = {
+    week: entry?.week ?? null,
+    label: entry?.label || "",
+    status: entry?.status || "",
+    darkHorses: [],
+    trapGames: [],
+    leverageGames: [],
+    tossUps: [],
+    cards: [],
+  };
+  if (!model || !entry || entry.status === "final" || !Array.isArray(entry.games) || entry.games.length === 0) {
+    return empty;
+  }
+
+  const distributions = sim?.distributions || buildTeamDistributions(model);
+  const byRoster = sim?.byRosterId || new Map();
+  const cutoff = playoffWinCutoff(model, sim);
+  const darkHorses = [];
+  const trapGames = [];
+  const leverageGames = [];
+  const tossUps = [];
+
+  entry.games.forEach((game) => {
+    const sides = game?.sides || [];
+    if (sides.length < 2) return;
+    const left = sides[0];
+    const right = sides[1];
+    const distA = distributions.get(String(left.rosterId)) || distributions.get(left.rosterId);
+    const distB = distributions.get(String(right.rosterId)) || distributions.get(right.rosterId);
+    if (!distA || !distB) return;
+
+    const pLeft = winProbability(distA, distB);
+    const pRight = 1 - pLeft;
+    const underIsLeft = pLeft <= pRight;
+    const under = {
+      side: underIsLeft ? left : right,
+      dist: underIsLeft ? distA : distB,
+      p: underIsLeft ? pLeft : pRight,
+    };
+    const fav = {
+      side: underIsLeft ? right : left,
+      dist: underIsLeft ? distB : distA,
+      p: underIsLeft ? pRight : pLeft,
+    };
+
+    const spread = Math.sqrt((Number(distA.std) || 16) ** 2 + (Number(distB.std) || 16) ** 2) || 1;
+    const zSpread = Math.abs(Number(distA.mean) - Number(distB.mean)) / spread;
+    const overlapDensity = normalPdf(zSpread) / spread;
+    const boomZ = (Number(fav.dist.mean) - Number(under.dist.mean)) / Math.max(Number(under.dist.std) || 1, 1);
+    const boomReach = 1 - normalCdf(boomZ);
+    const volShare = Number(under.dist.std) / Math.max(Number(under.dist.std) + Number(fav.dist.std), 1);
+
+    const underTeam = model.teams.get(String(under.side.rosterId));
+    const favTeam = model.teams.get(String(fav.side.rosterId));
+    const underSim = byRoster.get(String(under.side.rosterId));
+    const favSim = byRoster.get(String(fav.side.rosterId));
+    const luck = Number(underTeam?.luck) || 0;
+    const luckRev = luck < 0 ? Math.min(1, Math.abs(luck) / 2.5) : Math.max(-0.2, -luck / 5);
+    const streak = underTeam?.streak;
+    const heat = streak?.type === "W"
+      ? Math.min(1, Number(streak.length) / 4)
+      : streak?.type === "L"
+        ? -0.08 * Math.min(1, Number(streak.length) / 4)
+        : 0;
+
+    const underCutoffGap = Number.isFinite(cutoff) && Number.isFinite(Number(underSim?.projectedWins))
+      ? Number(underSim.projectedWins) - cutoff
+      : 0;
+    const favCutoffGap = Number.isFinite(cutoff) && Number.isFinite(Number(favSim?.projectedWins))
+      ? Number(favSim.projectedWins) - cutoff
+      : 0;
+    const underLeverage = logisticPdf(underCutoffGap) * (1 - under.p) + 0.35 * bubbleIndex(underSim);
+    const favLeverage = logisticPdf(favCutoffGap) * (1 - fav.p) + 0.2 * bubbleIndex(favSim);
+    const gameLeverage = underLeverage + favLeverage * 0.55;
+
+    const horseKernel = gaussianKernel(under.p, 0.29, 0.08);
+    const horseScore = under.p >= 0.14 && under.p <= 0.45
+      ? horseKernel * (
+        0.32
+        + 0.22 * boomReach
+        + 0.14 * Math.min(1, volShare * 2)
+        + 0.14 * Math.min(1, overlapDensity * 80)
+        + 0.12 * Math.min(1, underLeverage)
+        + 0.08 * luckRev
+        + 0.06 * heat
+      )
+      : 0;
+
+    const trapKernel = fav.p >= 0.57 && fav.p <= 0.82 ? gaussianKernel(fav.p, 0.67, 0.09) : 0;
+    const trapScore = trapKernel * (0.4 * boomReach + 0.35 * volShare + 0.25 * Math.min(1, overlapDensity * 70));
+
+    const tossScore = under.p >= 0.46 && under.p <= 0.5
+      ? (0.5 + 8 * (under.p - 0.46)) * Math.min(1, overlapDensity * 90)
+      : 0;
+
+    const matchupId = game.matchupId ?? `${left.rosterId}-${right.rosterId}`;
+    const underName = underTeam?.name || `Roster ${under.side.rosterId}`;
+    const favName = favTeam?.name || `Roster ${fav.side.rosterId}`;
+    const winLabel = `${Math.round(under.p * 100)}%`;
+    const favWinLabel = `${Math.round(fav.p * 100)}%`;
+
+    if (horseScore > 0) {
+      darkHorses.push({
+        kind: "dark-horse",
+        title: "Dark horse",
+        rosterId: String(under.side.rosterId),
+        teamName: underName,
+        opponentRosterId: String(fav.side.rosterId),
+        opponentName: favName,
+        winPct: under.p * 100,
+        valueLabel: winLabel,
+        detail: `${winLabel} by scoring-profile sim to beat ${favName}. Boom tail, playoff bubble, and all-play luck — not roster KTC.`,
+        tone: "gold",
+        score: horseScore,
+        matchupId,
+      });
+    }
+
+    if (trapScore > 0.08) {
+      trapGames.push({
+        kind: "trap",
+        title: "Trap game",
+        rosterId: String(fav.side.rosterId),
+        teamName: favName,
+        opponentRosterId: String(under.side.rosterId),
+        opponentName: underName,
+        winPct: fav.p * 100,
+        valueLabel: favWinLabel,
+        detail: `${favName} is the model favorite (${favWinLabel}) but ${underName} has a fat scoring tail. Pre-game distributions, not market value.`,
+        tone: "rose",
+        score: trapScore,
+        matchupId,
+      });
+    }
+
+    if (gameLeverage > 0.04 && Number.isFinite(cutoff)) {
+      const bubbleTeam = bubbleIndex(underSim) >= bubbleIndex(favSim) ? under : fav;
+      const bubbleTeamRow = bubbleTeam === under ? underTeam : favTeam;
+      const bubbleP = bubbleTeam.p;
+      leverageGames.push({
+        kind: "leverage",
+        title: "Highest leverage",
+        rosterId: String(bubbleTeam.side.rosterId),
+        teamName: bubbleTeamRow?.name || `Roster ${bubbleTeam.side.rosterId}`,
+        opponentRosterId: String(bubbleTeam === under ? fav.side.rosterId : under.side.rosterId),
+        opponentName: bubbleTeam === under ? favName : underName,
+        winPct: bubbleP * 100,
+        valueLabel: `${Math.round(bubbleP * 100)}%`,
+        detail: `Monte Carlo projected wins sit on the playoff cut. This kickoff moves playoff and title odds more than a typical game.`,
+        tone: "blue",
+        score: gameLeverage,
+        matchupId,
+      });
+    }
+
+    if (tossScore > 0) {
+      tossUps.push({
+        kind: "toss-up",
+        title: "Coin flip",
+        rosterId: String(left.rosterId),
+        teamName: model.teams.get(String(left.rosterId))?.name || `Roster ${left.rosterId}`,
+        opponentRosterId: String(right.rosterId),
+        opponentName: model.teams.get(String(right.rosterId))?.name || `Roster ${right.rosterId}`,
+        winPct: Math.min(pLeft, pRight) * 100,
+        valueLabel: `${Math.round(Math.min(pLeft, pRight) * 100)}-${Math.round(Math.max(pLeft, pRight) * 100)}`,
+        detail: "Scoring distributions overlap almost completely. The Gaussian win model calls this a toss-up.",
+        tone: "green",
+        score: tossScore,
+        matchupId,
+      });
+    }
+  });
+
+  darkHorses.sort((a, b) => b.score - a.score);
+  trapGames.sort((a, b) => b.score - a.score);
+  leverageGames.sort((a, b) => b.score - a.score);
+  tossUps.sort((a, b) => b.score - a.score);
+
+  return {
+    week: entry.week,
+    label: entry.label,
+    status: entry.status,
+    darkHorses,
+    trapGames,
+    leverageGames,
+    tossUps,
+    cards: pickWeekAngleCards({ darkHorses, trapGames, leverageGames, tossUps }),
+  };
+}
+
+export function pickWeekAngleCards({
+  darkHorses = [],
+  trapGames = [],
+  leverageGames = [],
+  tossUps = [],
+} = {}, { max = 4 } = {}) {
+  const cards = [];
+  const seen = new Set();
+  const push = (item) => {
+    if (!item || cards.length >= max) return;
+    const key = `${item.kind}:${item.rosterId}:${item.matchupId}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    cards.push(item);
+  };
+  darkHorses.slice(0, 2).forEach(push);
+  push(trapGames[0]);
+  push(leverageGames[0]);
+  if (cards.length < 2) push(tossUps[0]);
+  return cards.slice(0, max);
+}
+
 export function computeWeeklyAwards(model, week, { playerName = (id) => id, playerPosition = () => "", optimalPoints = null } = {}) {
   const entry = getWeekEntry(model, week);
   if (!entry) return { week, entry: null, awards: [], games: [] };
@@ -841,11 +1090,16 @@ export function ordinal(rank) {
   return `${value}${suffix}`;
 }
 
+export function normalPdf(z) {
+  if (!Number.isFinite(z)) return 0;
+  return Math.exp(-0.5 * z * z) / Math.sqrt(2 * Math.PI);
+}
+
 export function normalCdf(z) {
   if (!Number.isFinite(z)) return z > 0 ? 1 : 0;
   const t = 1 / (1 + 0.2316419 * Math.abs(z));
   const poly = t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
-  const density = Math.exp(-0.5 * z * z) / Math.sqrt(2 * Math.PI);
+  const density = normalPdf(z);
   const tail = density * poly;
   return z >= 0 ? 1 - tail : tail;
 }

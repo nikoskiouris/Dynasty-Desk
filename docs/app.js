@@ -8,6 +8,7 @@ import {
   buildTeamDistributions,
   formatPoints,
   blendSimPrior,
+  scoreUpcomingWeekAngles,
 } from "./modules/season.js";
 import { buildRecap, RECAP_TONES, resolveSeasonStartDate, selectRecapTrades } from "./modules/recap.js";
 import {
@@ -2614,6 +2615,7 @@ function renderHomePage() {
   el.homeDashboard.innerHTML = `
     ${renderPulseStrip(model, sim, profiles)}
     ${renderScoreboardPanel(model, sim)}
+    ${renderWeekAnglesPanel(model, sim)}
     <div class="home-two-col">
       ${renderStandingsPanel(model, sim)}
       ${renderPlayoffOddsPanel(model, sim)}
@@ -2763,6 +2765,25 @@ function renderScoreboardPanel(model, sim) {
             <span class="muted small">Bye week</span>
           </article>
         `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderWeekAnglesPanel(model, sim) {
+  const angles = scoreUpcomingWeekAngles(model, sim);
+  if (!angles.cards.length) return "";
+  return `
+    <section class="workspace-panel week-angles-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Upcoming week</span>
+          <h2>${escapeHtml(angles.label || "This week")} · dark horses</h2>
+        </div>
+        <p class="section-copy">Win% from the scoring-profile sim (empirical-Bayes mean/std, Gaussian matchup CDF, Monte Carlo playoff bubble). Not a KTC roster check.</p>
+      </div>
+      <div class="award-grid week-angles-grid">
+        ${angles.cards.map(renderAwardCard).join("")}
       </div>
     </section>
   `;
@@ -5897,22 +5918,19 @@ function renderTradeAwardCard(title, blurb, side, tone = "") {
 
 function renderTradeWireBoard() {
   const awards = pickLeagueTradeAwards(leagueTradeSides());
-  if (!awards.best && !awards.fleece && !awards.even) return "";
+  if (!awards.fleece && !awards.heater) return "";
   return `
     <section class="workspace-panel trade-wire" id="league-wire">
       <div class="panel-heading">
         <div>
           <span class="eyebrow">Trade wire</span>
-          <h3>Best, fleece, even, heater</h3>
+          <h3>Hottest since and biggest fleece</h3>
         </div>
-        <p class="section-copy">Score mixes today's KTC swing, how lopsided the packages were, the star that moved, and the shrunk record since that week. Zero-game steals can still win fleece. Heaters need a real sample.</p>
+        <p class="section-copy">Hottest since is the Bayesian-shrunk record after the deal, with a Wilson floor so 2-0 cannot beat a real sample. Fleece is log-ratio plus package lopsidedness plus the star that moved — not a raw KTC dump.</p>
       </div>
       <div class="trade-wire-grid">
-        ${renderTradeAwardCard("Best trade", "Value plus the wins that followed.", awards.best, "won")}
-        ${renderTradeAwardCard("Biggest fleece", "The steal on today's board, even if the record is still young.", awards.fleece, "won")}
-        ${renderTradeAwardCard("Got cooked", "Lost the market and the games after.", awards.worst, "lost")}
-        ${renderTradeAwardCard("Most even", "Big packages, tiny gap.", awards.even, "even")}
-        ${renderTradeAwardCard("Heater since", "Hottest record after a deal. Sample required.", awards.heater, "won")}
+        ${renderTradeAwardCard("Hottest since", "Best shrunk record after the deal. Wilson sample required.", awards.heater, "won")}
+        ${renderTradeAwardCard("Biggest fleece", "Log-ratio steal on today's board, even if games have not posted yet.", awards.fleece, "won")}
       </div>
     </section>
   `;
