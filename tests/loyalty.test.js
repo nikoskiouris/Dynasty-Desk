@@ -106,6 +106,8 @@ test("past trade analyzer grades hindsight value and record since", () => {
   assert.equal(analyzed.length, 1);
   assert.equal(analyzed[0].verdict, "won");
   assert.equal(analyzed[0].since.wins, 2);
+  assert.equal(analyzed[0].after[0].week, 5);
+  assert.equal(analyzed[0].after[1].week, 6);
   assert.equal(analyzed[0].grade, "A+");
   assert.deepEqual(analyzed[0].laterFinishes.map((row) => row.label), ["10th"]);
   assert.match(analyzed[0].recap, /10th/);

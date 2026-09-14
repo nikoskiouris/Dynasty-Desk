@@ -3161,12 +3161,13 @@ function renderTradeAssetLine(item) {
 }
 
 function renderResultPills(games = []) {
-  const recent = games.slice(-12);
-  if (!recent.length) return `<p class="muted small">No games after this deal yet.</p>`;
-  return `<div class="result-pills" aria-label="Results since the trade">${recent.map((game) => {
+  const shown = games.slice(-16);
+  if (!shown.length) return `<p class="muted small">No games after this deal yet.</p>`;
+  const extra = games.length - shown.length;
+  return `<div class="result-pills" aria-label="Results since the trade">${shown.map((game) => {
     const mark = String(game.result || "").toUpperCase() || "T";
     return `<span class="result-pill ${mark === "W" ? "win" : mark === "L" ? "loss" : "tie"}" title="${escapeHtml(`${game.season} W${game.week}`)}">${escapeHtml(mark)}</span>`;
-  }).join("")}</div>`;
+  }).join("")}${extra > 0 ? `<span class="muted small">+${extra} earlier</span>` : ""}</div>`;
 }
 
 function renderLaterFinishes(rows = []) {
@@ -5522,7 +5523,7 @@ function renderTradeWireBoard() {
         ${renderTradeAwardCard("Biggest fleece", "The steal on today's board, even if the record is still young.", awards.fleece, "won")}
         ${renderTradeAwardCard("Got cooked", "Lost the market and the games after.", awards.worst, "lost")}
         ${renderTradeAwardCard("Most even", "Big packages, tiny gap.", awards.even, "even")}
-        ${renderTradeAwardCard("Heater since", "Hottest desk after a deal. Record since that week, shrunk toward .500 so 2-0 does not beat 12-4.", awards.heater, "won")}
+        ${renderTradeAwardCard("Heater since", "Hottest record after a deal. Sample required.", awards.heater, "won")}
       </div>
     </section>
   `;

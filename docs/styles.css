@@ -5549,6 +5549,12 @@ body.dock-visible {
   font-weight: 700;
 }
 
+.trade-row-since {
+  min-width: 3.25rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .trade-row-move {
   min-width: 0;
   overflow: hidden;

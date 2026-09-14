@@ -250,8 +250,8 @@ export function buildTradeRecap({
   grade = "C",
   finishes = [],
 } = {}) {
-  const got = received.map((item) => item.name).filter(Boolean).slice(0, 4).join(", ") || "picks";
-  const gave = sent.map((item) => item.name).filter(Boolean).slice(0, 4).join(", ") || "picks";
+  const got = received.map((item) => item.name).filter(Boolean).slice(0, 6).join(", ") || "picks";
+  const gave = sent.map((item) => item.name).filter(Boolean).slice(0, 6).join(", ") || "picks";
   const when = Number(week) > 0 ? `${season} Week ${week}` : String(season || "That season");
   const recordBit = Number(since.games) > 0
     ? `Since the deal the desk is ${since.label} (${Math.round((Number(since.winPct) || 0) * 100)}%).`
@@ -290,7 +290,9 @@ export function analyzePastTrades({
       const receivedNow = received.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
       const sentNow = sent.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
       const delta = receivedNow - sentNow;
-      const after = games.filter((game) => gameIsAfter(game, trade));
+      const after = games
+        .filter((game) => gameIsAfter(game, trade))
+        .sort((a, b) => gameSortKey(a) - gameSortKey(b));
       const since = recordFromResults(after);
       const grade = hindsightGrade(delta, since.games ? since.winPct : 0.5);
       const scored = scoreTradeSide({ receivedNow, sentNow, received, sent, since });
