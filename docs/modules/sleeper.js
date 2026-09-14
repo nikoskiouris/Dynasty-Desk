@@ -166,6 +166,18 @@ export function dedupeLeagues(leagues) {
   return [...byId.values()];
 }
 
+export function preferLatestLeagues(leagues) {
+  const rows = Array.isArray(leagues) ? leagues : [];
+  const ids = new Set(rows.map((league) => String(league?.league_id || "")).filter(Boolean));
+  const superseded = new Set();
+  rows.forEach((league) => {
+    const previousId = String(league?.previous_league_id || "");
+    if (previousId && ids.has(previousId)) superseded.add(previousId);
+  });
+  if (!superseded.size) return rows;
+  return rows.filter((league) => !superseded.has(String(league?.league_id || "")));
+}
+
 export async function fetchUserLeagues(client, username, seasons) {
   const handle = String(username || "").trim();
   if (!handle) throw new Error("Type a Sleeper username.");
@@ -189,7 +201,7 @@ export async function fetchUserLeagues(client, username, seasons) {
   );
   return {
     user,
-    leagues: dedupeLeagues(batches.flat()),
+    leagues: preferLatestLeagues(dedupeLeagues(batches.flat())),
   };
 }
 

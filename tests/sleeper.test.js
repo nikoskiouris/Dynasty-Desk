@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSleeperClient, fetchUserLeagues, dedupeLeagues, mapInChunks } from "../docs/modules/sleeper.js";
+import { createSleeperClient, fetchUserLeagues, dedupeLeagues, preferLatestLeagues, mapInChunks } from "../docs/modules/sleeper.js";
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return {
@@ -88,6 +88,36 @@ test("fetchUserLeagues loads current and previous seasons and drops dupes", asyn
 
 test("dedupeLeagues keeps first id", () => {
   assert.equal(dedupeLeagues([{ league_id: "1" }, { league_id: "1" }, { league_id: "2" }]).length, 2);
+});
+
+test("preferLatestLeagues hides last year's desk when this year rolled over", () => {
+  const latest = preferLatestLeagues([
+    { league_id: "2026-a", name: "Try Hard or Die Hard", season: "2026", previous_league_id: "2025-a" },
+    { league_id: "2026-b", name: "Steven's Angels", season: "2026", previous_league_id: "2025-b" },
+    { league_id: "2025-a", name: "Try Hard or Die Hard", season: "2025", previous_league_id: "2024-a" },
+    { league_id: "2025-b", name: "Steven's Angels", season: "2025", previous_league_id: "2024-b" },
+    { league_id: "2025-c", name: "One-and-done", season: "2025", previous_league_id: "2024-c" },
+  ]);
+  assert.deepEqual(latest.map((league) => league.league_id), ["2026-a", "2026-b", "2025-c"]);
+});
+
+test("fetchUserLeagues drops rolled-over previous seasons", async () => {
+  const client = createSleeperClient({
+    minIntervalMs: 0,
+    sleep: async () => {},
+    fetchImpl: async (url) => {
+      if (url.endsWith("/user/Niko")) return jsonResponse({ user_id: "u1", display_name: "Niko" });
+      if (url.includes("/leagues/nfl/2026")) {
+        return jsonResponse([{ league_id: "now", name: "Try Hard", season: "2026", previous_league_id: "then" }]);
+      }
+      if (url.includes("/leagues/nfl/2025")) {
+        return jsonResponse([{ league_id: "then", name: "Try Hard", season: "2025", previous_league_id: "older" }]);
+      }
+      return jsonResponse([], 404);
+    },
+  });
+  const result = await fetchUserLeagues(client, "Niko", ["2026", "2025"]);
+  assert.deepEqual(result.leagues.map((league) => league.league_id), ["now"]);
 });
 
 test("mapInChunks preserves order and isolates failures", async () => {
