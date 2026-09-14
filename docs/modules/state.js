@@ -28,6 +28,7 @@ export function createState() {
     globalMaxPlayerValue: 9999,
     tradedPicks: [],
     currentDraftContext: null,
+    draftedPickByKey: new Map(),
     targetFilters: { players: true, picks: false },
     outgoingFilters: { players: true, picks: true },
     selectedOutgoingAssetIds: new Set(),

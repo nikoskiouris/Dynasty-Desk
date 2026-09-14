@@ -5681,8 +5681,12 @@ body.dock-visible {
   overflow: hidden;
   color: var(--muted-strong);
   font-size: 0.8rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+}
+
+.pick-selection {
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .trade-file-hero {

@@ -102,6 +102,15 @@ import {
 } from "./modules/loyalty.js";
 import { renderLeaguePickerMarkup } from "./modules/league-search.js";
 import {
+  formatPickWithSelection,
+  indexDraftSelections,
+  lookupDraftedSelection,
+  mergeDraftSelectionIndex,
+  ownerKeyByRosterIdFromRosters,
+  slotToRosterIdFromDraft,
+  sortDraftsForSelectionIngest,
+} from "./modules/draft-picks.js";
+import {
   applyDocumentMeta,
   applyStorageNoticeHidden,
   buildDocumentTitle,
@@ -1105,6 +1114,7 @@ async function runLeagueLoad(leagueId) {
     state.customParticipantRosterIds = [];
     state.tradedPicks = [];
     state.currentDraftContext = null;
+    state.draftedPickByKey = new Map();
     state.trendingAdds = [];
     state.trendingDrops = [];
     state.trendingLoaded = false;
@@ -1201,6 +1211,7 @@ async function runLeagueLoad(leagueId) {
     loadLeagueTransactions(leagueId, league);
     loadLeagueHistoryTransactions(leagueHistory);
     loadLeagueHistoryMatchups(leagueHistory);
+    loadDraftSelectionIndex(leagueHistory);
     startLivePolling();
 
     loadPlayersWithCache()
@@ -1546,6 +1557,73 @@ function buildCurrentDraftContext(league, rosters, draftDetails, draftPicks = []
   };
 }
 
+function ingestDraftSelections(season, draftDetails, draftPicks, rosters = []) {
+  if (!(state.draftedPickByKey instanceof Map)) state.draftedPickByKey = new Map();
+  const indexed = indexDraftSelections({
+    season: String(season || draftDetails?.season || ""),
+    slotToRosterId: slotToRosterIdFromDraft(draftDetails, rosters),
+    ownerKeyByRosterId: ownerKeyByRosterIdFromRosters(rosters),
+    picks: Array.isArray(draftPicks) ? draftPicks : [],
+  });
+  mergeDraftSelectionIndex(state.draftedPickByKey, indexed);
+}
+
+function collectDraftIngestJobs(historyEntries = []) {
+  const jobs = [];
+  const seenDraftIds = new Set();
+  (Array.isArray(historyEntries) ? historyEntries : []).forEach((entry) => {
+    const draftIds = [];
+    const drafts = [...(Array.isArray(entry?.drafts) ? entry.drafts : [])];
+    const leagueDraftId = String(entry?.league?.draft_id || "").trim();
+    if (leagueDraftId && !drafts.some((draft) => String(draft?.draft_id || "") === leagueDraftId)) {
+      drafts.push({ draft_id: leagueDraftId, settings: { rounds: 0 } });
+    }
+    sortDraftsForSelectionIngest(drafts).forEach((draft) => {
+      const draftId = String(draft?.draft_id || "").trim();
+      if (!draftId || seenDraftIds.has(draftId)) return;
+      seenDraftIds.add(draftId);
+      draftIds.push(draftId);
+    });
+    draftIds.forEach((draftId) => {
+      jobs.push({
+        draftId,
+        seasonHint: String(entry?.season || ""),
+        rosters: Array.isArray(entry?.rosters) ? entry.rosters : [],
+      });
+    });
+  });
+  return jobs;
+}
+
+async function loadDraftSelectionIndex(historyEntries = []) {
+  const activeLeagueId = state.leagueId;
+  const jobs = collectDraftIngestJobs(historyEntries);
+  if (!jobs.length) return;
+
+  const settled = await mapInChunks(jobs, MATCHUP_FETCH_CHUNK, async (job) => {
+    const [draftDetails, draftPicks] = await Promise.all([
+      apiGetWithRetry(`/draft/${job.draftId}`, { timeoutMs: 12000, retries: 1 }),
+      apiGetWithRetry(`/draft/${job.draftId}/picks`, { timeoutMs: 12000, retries: 1 }).catch(() => []),
+    ]);
+    return {
+      job,
+      draftDetails,
+      draftPicks: Array.isArray(draftPicks) ? draftPicks : [],
+    };
+  });
+
+  if (state.leagueId !== activeLeagueId) return;
+
+  settled.forEach((result) => {
+    if (result.status !== "fulfilled") return;
+    const { job, draftDetails, draftPicks } = result.value;
+    ingestDraftSelections(draftDetails?.season || job.seasonHint, draftDetails, draftPicks, job.rosters);
+  });
+
+  leagueTradeSideCache = { key: "", sides: [] };
+  renderActivePage();
+}
+
 async function loadCurrentSeasonDraftContext(leagueId, league, rosters, drafts = []) {
   const candidateIds = buildCurrentDraftDetailCandidateIds(league, drafts);
   for (const draftId of candidateIds) {
@@ -1554,12 +1632,9 @@ async function loadCurrentSeasonDraftContext(leagueId, league, rosters, drafts =
         apiGetWithRetry(`/draft/${draftId}`, { timeoutMs: 12000, retries: 1 }),
         apiGetWithRetry(`/draft/${draftId}/picks`, { timeoutMs: 12000, retries: 1 }).catch(() => []),
       ]);
-      const context = buildCurrentDraftContext(
-        league,
-        rosters,
-        draftDetails,
-        Array.isArray(draftPicks) ? draftPicks : []
-      );
+      const picks = Array.isArray(draftPicks) ? draftPicks : [];
+      ingestDraftSelections(draftDetails?.season || league?.season, draftDetails, picks, rosters);
+      const context = buildCurrentDraftContext(league, rosters, draftDetails, picks);
       if (context) return context;
     } catch (err) {
       console.warn(`Could not load draft details for ${draftId}`, err);
@@ -3057,6 +3132,7 @@ function leagueTradeSidesCacheKey() {
     Object.keys(state.values || {}).length,
     (state.historyMatchups || []).length,
     (state.leagueHistory || []).length,
+    state.draftedPickByKey?.size || 0,
     state.seasonLoaded ? "1" : "0",
   ].join(":");
 }
@@ -3267,7 +3343,15 @@ function renderLoyaltyDashboard() {
 }
 
 function renderTradeAssetLine(item) {
-  return `<li><span>${escapeHtml(item.name || "Asset")}</span><strong>${formatNumber(Math.round(item.value || 0))}</strong></li>`;
+  const valueLabel = formatNumber(Math.round(item.value || 0));
+  if (item.draftedPlayerName) {
+    const pickLabel = escapeHtml(item.pickLabel || item.name || "Pick");
+    const extraValue = Number(item.draftedPlayerValue) > 0
+      ? `, ${formatNumber(Math.round(item.draftedPlayerValue))}`
+      : "";
+    return `<li><span>${pickLabel} <span class="pick-selection">(${escapeHtml(item.draftedPlayerName)}${extraValue})</span></span><strong>${valueLabel}</strong></li>`;
+  }
+  return `<li><span>${escapeHtml(item.name || "Asset")}</span><strong>${valueLabel}</strong></li>`;
 }
 
 function renderResultPills(games = []) {
@@ -6762,12 +6846,18 @@ function buildTradeMovements(transaction) {
     const fromRosterId = pick?.previous_owner_id;
     const toRosterId = pick?.owner_id;
     if (fromRosterId == null || toRosterId == null || String(fromRosterId) === String(toRosterId)) return;
-    const asset = buildTransactionPickAsset(pick);
-    const value = getAssetValue(asset, state.values);
+    const asset = buildTransactionPickAsset(pick, transaction);
+    const pickValue = getAssetValue(asset, state.values);
+    const value = Number(asset.draftedPlayerValue) > 0
+      ? asset.draftedPlayerValue
+      : (Number.isFinite(pickValue) ? pickValue : 0);
     movements.push({
       assetId: asset.assetId,
       assetType: "pick",
       name: asset.name,
+      pickLabel: asset.pickLabel,
+      draftedPlayerName: asset.draftedPlayerName,
+      draftedPlayerValue: asset.draftedPlayerValue,
       fromRosterId: normalizeRosterIdKey(fromRosterId),
       toRosterId: normalizeRosterIdKey(toRosterId),
       value: Number.isFinite(value) ? value : 0,
@@ -6798,7 +6888,31 @@ function buildTransactionPlayerAsset(playerId) {
   };
 }
 
-function buildTransactionPickAsset(pick) {
+function resolveDraftedPlayerName(selection) {
+  if (!selection) return "";
+  const mapped = selection.playerId ? playerNameById(selection.playerId) : "";
+  if (mapped && !/^Player\s/i.test(mapped)) return mapped;
+  return String(selection.metaName || "").trim() || mapped;
+}
+
+function lookupTradePickSelection(pick, transaction = null) {
+  const season = pick?.season != null ? String(pick.season) : "";
+  const round = Number(pick?.round);
+  const originalRosterId = pick?.roster_id ?? pick?.original_owner;
+  if (!season || !Number.isFinite(round) || originalRosterId == null || originalRosterId === "any") {
+    return null;
+  }
+  const sourceLeagueId = transaction?.sourceLeagueId || state.leagueId;
+  const ownerInfo = getHistoryRosterInfo(sourceLeagueId, originalRosterId);
+  return lookupDraftedSelection(state.draftedPickByKey, {
+    season,
+    round,
+    originalRosterId,
+    ownerKey: ownerInfo?.managerKey,
+  });
+}
+
+function buildTransactionPickAsset(pick, transaction = null) {
   const season = pick?.season != null ? String(pick.season) : "";
   const round = Number(pick?.round);
   const originalOwner = pick?.roster_id ?? pick?.original_owner ?? "any";
@@ -6806,7 +6920,11 @@ function buildTransactionPickAsset(pick) {
   const rosterById = new Map(state.rosters.map((roster) => [String(roster.roster_id), roster]));
   const ownerName = resolvePickOwnerName(originalOwner, rosterById, userById);
   const roundLabel = Number.isFinite(round) ? ordinal(round) : "pick";
-  const name = `${season} ${roundLabel}${ownerName ? ` from ${ownerName}` : ""}`;
+  const pickLabel = `${season} ${roundLabel}${ownerName ? ` from ${ownerName}` : ""}`.trim();
+  const selection = lookupTradePickSelection(pick, transaction);
+  const draftedPlayerName = resolveDraftedPlayerName(selection);
+  const draftedPlayerValue = selection?.playerId ? playerValueById(selection.playerId) : 0;
+  const name = formatPickWithSelection(pickLabel, draftedPlayerName, draftedPlayerValue, formatNumber);
   const normalizedPick = {
     ...pick,
     season,
@@ -6820,6 +6938,9 @@ function buildTransactionPickAsset(pick) {
     valueAssetId: `pick:${season}:r${round}:any`,
     valueBucket: "any",
     name,
+    pickLabel,
+    draftedPlayerName,
+    draftedPlayerValue,
     assetType: "pick",
     raw: normalizedPick,
   };
