@@ -113,6 +113,13 @@ export function parseShareParams(search) {
   };
 }
 
+export function bootSearchFieldValues({ leagueFromUrl = "" } = {}) {
+  return {
+    username: "",
+    leagueId: String(leagueFromUrl || "").trim(),
+  };
+}
+
 export function buildShareUrl({ origin, pathname, ...rest }) {
   const params = buildShareParams(rest);
   const path = pathname || "/";

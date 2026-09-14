@@ -1,8 +1,6 @@
 import { sleeperClient } from "./sleeper.js";
 import { PAGE_IDS } from "./constants.js";
 
-export const LAST_LEAGUE_STORAGE_KEY = "dynasty_desk_last_league";
-export const LAST_USERNAME_STORAGE_KEY = "dynasty_desk_last_username";
 export const THEME_STORAGE_KEY = "dynasty_desk_theme";
 export const PLAYERS_CACHE_KEY = "fda_players_nfl_cache_v1";
 
