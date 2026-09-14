@@ -488,8 +488,10 @@ export function scoreUpcomingWeekAngles(model, sim = null, { weekEntry = null } 
     const favLeverage = logisticPdf(favCutoffGap) * (1 - fav.p) + 0.2 * bubbleIndex(favSim);
     const gameLeverage = underLeverage + favLeverage * 0.55;
 
-    const horseKernel = gaussianKernel(under.p, 0.29, 0.08);
-    const horseScore = under.p >= 0.14 && under.p <= 0.45
+    const horseKernel = under.p >= 0.14 && under.p < 0.45
+      ? gaussianKernel(under.p, 0.30, 0.09)
+      : 0;
+    const horseScore = horseKernel
       ? horseKernel * (
         0.32
         + 0.22 * boomReach
@@ -501,11 +503,11 @@ export function scoreUpcomingWeekAngles(model, sim = null, { weekEntry = null } 
       )
       : 0;
 
-    const trapKernel = fav.p >= 0.57 && fav.p <= 0.82 ? gaussianKernel(fav.p, 0.67, 0.09) : 0;
+    const trapKernel = fav.p >= 0.56 && fav.p <= 0.84 ? gaussianKernel(fav.p, 0.66, 0.10) : 0;
     const trapScore = trapKernel * (0.4 * boomReach + 0.35 * volShare + 0.25 * Math.min(1, overlapDensity * 70));
 
-    const tossScore = under.p >= 0.46 && under.p <= 0.5
-      ? (0.5 + 8 * (under.p - 0.46)) * Math.min(1, overlapDensity * 90)
+    const tossScore = under.p >= 0.45 && under.p <= 0.5
+      ? (0.55 + 10 * (under.p - 0.45)) * Math.min(1, overlapDensity * 90)
       : 0;
 
     const matchupId = game.matchupId ?? `${left.rosterId}-${right.rosterId}`;
@@ -531,7 +533,7 @@ export function scoreUpcomingWeekAngles(model, sim = null, { weekEntry = null } 
       });
     }
 
-    if (trapScore > 0.08) {
+    if (trapScore > 0.04) {
       trapGames.push({
         kind: "trap",
         title: "Trap game",
@@ -586,10 +588,44 @@ export function scoreUpcomingWeekAngles(model, sim = null, { weekEntry = null } 
     }
   });
 
-  darkHorses.sort((a, b) => b.score - a.score);
+  darkHorses.sort((a, b) => b.score - a.score || a.winPct - b.winPct);
   trapGames.sort((a, b) => b.score - a.score);
   leverageGames.sort((a, b) => b.score - a.score);
   tossUps.sort((a, b) => b.score - a.score);
+
+  if (!darkHorses.length) {
+    const longest = [...entry.games]
+      .map((game) => {
+        const sides = game?.sides || [];
+        if (sides.length < 2) return null;
+        const distA = distributions.get(String(sides[0].rosterId)) || distributions.get(sides[0].rosterId);
+        const distB = distributions.get(String(sides[1].rosterId)) || distributions.get(sides[1].rosterId);
+        if (!distA || !distB) return null;
+        const pLeft = winProbability(distA, distB);
+        const underIsLeft = pLeft <= 0.5;
+        const under = underIsLeft ? sides[0] : sides[1];
+        const fav = underIsLeft ? sides[1] : sides[0];
+        const p = underIsLeft ? pLeft : 1 - pLeft;
+        if (p >= 0.5) return null;
+        return {
+          kind: "dark-horse",
+          title: p <= 0.42 ? "Dark horse" : "Slight dog",
+          rosterId: String(under.rosterId),
+          teamName: model.teams.get(String(under.rosterId))?.name || `Roster ${under.rosterId}`,
+          opponentRosterId: String(fav.rosterId),
+          opponentName: model.teams.get(String(fav.rosterId))?.name || `Roster ${fav.rosterId}`,
+          winPct: p * 100,
+          valueLabel: `${Math.round(p * 100)}%`,
+          detail: `${Math.round(p * 100)}% by scoring-profile sim to beat ${model.teams.get(String(fav.rosterId))?.name || "the favorite"}. Gaussian matchup CDF on empirical-Bayes scoring, not roster KTC.`,
+          tone: "gold",
+          score: 0.5 - p,
+          matchupId: game.matchupId ?? `${sides[0].rosterId}-${sides[1].rosterId}`,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.winPct - b.winPct)[0];
+    if (longest) darkHorses.push(longest);
+  }
 
   return {
     week: entry.week,
@@ -621,7 +657,7 @@ export function pickWeekAngleCards({
   darkHorses.slice(0, 2).forEach(push);
   push(trapGames[0]);
   push(leverageGames[0]);
-  if (cards.length < 2) push(tossUps[0]);
+  push(tossUps[0]);
   return cards.slice(0, max);
 }
 
