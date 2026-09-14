@@ -68,6 +68,30 @@ export function applyDocumentMeta(doc, { title, description } = {}) {
   }
 }
 
+export function readStorageNoticeDismissed(storage = globalThis.localStorage) {
+  try {
+    return storage?.getItem(STORAGE_NOTICE_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+export function writeStorageNoticeDismissed(storage = globalThis.localStorage) {
+  try {
+    storage?.setItem(STORAGE_NOTICE_KEY, "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function applyStorageNoticeHidden(notice, dismissed) {
+  if (!notice) return;
+  const hide = Boolean(dismissed);
+  notice.hidden = hide;
+  notice.classList?.toggle?.("hidden", hide);
+}
+
 function setMetaContent(doc, attr, key, value) {
   const node = doc.querySelector(`meta[${attr}="${key}"]`);
   if (!node) return;

@@ -79,9 +79,11 @@ import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber, clam
 import { renderLeaguePickerMarkup } from "./modules/league-search.js";
 import {
   applyDocumentMeta,
+  applyStorageNoticeHidden,
   buildDocumentTitle,
   buildPageDescription,
-  STORAGE_NOTICE_KEY,
+  readStorageNoticeDismissed,
+  writeStorageNoticeDismissed,
 } from "./modules/site.js";
 
 const OUTGOING_POOL_LIMIT = 18;
@@ -12474,27 +12476,14 @@ function syncDocumentMeta() {
   });
 }
 
-function hasDismissedStorageNotice() {
-  try {
-    return localStorage.getItem(STORAGE_NOTICE_KEY) === "1";
-  } catch {
-    return true;
-  }
-}
-
 function syncStorageNotice() {
-  if (!el.storageNotice) return;
-  el.storageNotice.hidden = hasDismissedStorageNotice();
+  applyStorageNoticeHidden(el.storageNotice, readStorageNoticeDismissed());
   syncSiteDock();
 }
 
 function dismissStorageNotice() {
-  try {
-    localStorage.setItem(STORAGE_NOTICE_KEY, "1");
-  } catch {
-    // Non-fatal.
-  }
-  if (el.storageNotice) el.storageNotice.hidden = true;
+  writeStorageNoticeDismissed();
+  applyStorageNoticeHidden(el.storageNotice, true);
   syncSiteDock();
 }
 
