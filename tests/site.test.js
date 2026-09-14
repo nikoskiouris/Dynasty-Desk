@@ -37,6 +37,10 @@ test("document titles and descriptions change with tab and league", () => {
     buildDocumentTitle({ page: "team", leagueName: "Try Hard or Die Hard", loaded: true }),
     "My Team · Try Hard or Die Hard — Dynasty Desk"
   );
+  assert.equal(
+    buildDocumentTitle({ page: "trader", leagueName: "Try Hard or Die Hard", loaded: true, room: "passport" }),
+    "Passport · Try Hard or Die Hard — Dynasty Desk"
+  );
   assert.match(
     buildPageDescription({ page: "home", leagueName: "Try Hard or Die Hard", loaded: true }),
     /Now open: Try Hard or Die Hard/
@@ -101,7 +105,14 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /data-page="team"/);
   assert.match(index, /data-page="league"/);
   assert.match(index, /data-page="trader"/);
+  assert.match(index, /id="trader-menu"/);
+  assert.match(index, /data-trade-room="history"/);
+  assert.match(index, /data-trade-room="calculator"/);
+  assert.match(index, /data-trade-room="passport"/);
+  assert.match(index, /data-trade-room="lab"/);
+  assert.match(index, /id="trade-passport-dashboard"/);
   assert.doesNotMatch(index, /data-page="home"/);
+  assert.doesNotMatch(index, /data-trade-mode="calculator"/);
   assert.doesNotMatch(index, /Plus Jakarta/);
 
   const usernameInput = index.match(/<input[^>]*id="sleeper-username"[^>]*>/)?.[0] || "";

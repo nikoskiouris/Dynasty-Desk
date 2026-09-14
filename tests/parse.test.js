@@ -73,4 +73,34 @@ test("share params map old recap/home tabs onto league", () => {
   assert.equal(parseShareParams("league=1&tab=recap").tab, "league");
   assert.equal(parseShareParams("league=1&tab=teams").tab, "team");
   assert.equal(parseShareParams("league=1&tab=trader").tab, "trader");
+  assert.equal(parseShareParams("league=1&tab=trader").view, "history");
+});
+
+test("share params keep trade rooms on the trades tab", () => {
+  const passportUrl = buildShareUrl({
+    origin: "https://nikoskiouris.github.io",
+    pathname: "/FantasyDynastyAnalyzer/",
+    leagueId: "1315165104303513600",
+    tab: "trader",
+    view: "passport",
+  });
+  assert.match(passportUrl, /tab=trader/);
+  assert.match(passportUrl, /view=passport/);
+  assert.equal(parseShareParams(passportUrl.split("?")[1]).view, "passport");
+
+  const historyUrl = buildShareUrl({
+    origin: "https://nikoskiouris.github.io",
+    pathname: "/FantasyDynastyAnalyzer/",
+    leagueId: "1",
+    tab: "trader",
+    view: "history",
+  });
+  assert.match(historyUrl, /tab=trader/);
+  assert.doesNotMatch(historyUrl, /view=/);
+
+  assert.equal(parseShareParams("league=1&tab=calculator").tab, "trader");
+  assert.equal(parseShareParams("league=1&tab=calculator").view, "calculator");
+  assert.equal(parseShareParams("league=1&tab=generator").view, "lab");
+  assert.equal(parseShareParams("league=1&tab=history").tab, "league");
+  assert.equal(parseShareParams("league=1&tab=history").view, "");
 });

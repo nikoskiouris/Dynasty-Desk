@@ -1,3 +1,5 @@
+import { TRADE_ROOM_HINTS, TRADE_ROOM_LABELS } from "./constants.js";
+
 export const SITE_NAME = "Dynasty Desk";
 export const SITE_ORIGIN = "https://nikoskiouris.github.io";
 export const SITE_PATH = "/FantasyDynastyAnalyzer/";
@@ -22,7 +24,7 @@ export const PAGE_META = {
   },
   trader: {
     title: "Trades",
-    description: "Calculator, suggested deals, player passports, and a past-trade analyzer.",
+    description: "Trade history, calculator, player passports, and a deal generator — each on its own page.",
   },
   home: {
     title: "League",
@@ -38,8 +40,19 @@ export const PAGE_META = {
   },
 };
 
-export function buildDocumentTitle({ page = "", leagueName = "", loaded = false } = {}) {
-  const pageLabel = PAGE_META[page]?.title || "";
+function pageMetaFor({ page = "", room = "" } = {}) {
+  const base = PAGE_META[page];
+  if (page === "trader" && room && TRADE_ROOM_LABELS[room]) {
+    return {
+      title: TRADE_ROOM_LABELS[room],
+      description: base?.description || TRADE_ROOM_HINTS[room] || "",
+    };
+  }
+  return base || null;
+}
+
+export function buildDocumentTitle({ page = "", leagueName = "", loaded = false, room = "" } = {}) {
+  const pageLabel = pageMetaFor({ page, room })?.title || "";
   const league = String(leagueName || "").trim();
   if (loaded && league && pageLabel) return `${pageLabel} · ${league} — ${SITE_NAME}`;
   if (loaded && league) return `${league} — ${SITE_NAME}`;
@@ -47,8 +60,8 @@ export function buildDocumentTitle({ page = "", leagueName = "", loaded = false 
   return DEFAULT_TITLE;
 }
 
-export function buildPageDescription({ page = "", leagueName = "", loaded = false } = {}) {
-  const pageMeta = PAGE_META[page];
+export function buildPageDescription({ page = "", leagueName = "", loaded = false, room = "" } = {}) {
+  const pageMeta = pageMetaFor({ page, room });
   const league = String(leagueName || "").trim();
   if (loaded && league && pageMeta) return `${pageMeta.description} Now open: ${league}.`;
   return pageMeta?.description || DEFAULT_DESCRIPTION;

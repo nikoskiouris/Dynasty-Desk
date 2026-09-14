@@ -24,6 +24,38 @@ export const PAGE_ALIASES = {
   history: "league",
   trade: "trader",
   trades: "trader",
+  calculator: "trader",
+  calc: "trader",
+  passport: "trader",
+  lab: "trader",
+  generator: "trader",
+};
+export const TRADE_ROOMS = ["history", "calculator", "passport", "lab"];
+export const DEFAULT_TRADE_ROOM = "history";
+export const TRADE_ROOM_LABELS = {
+  history: "Trade History",
+  calculator: "Calculator",
+  passport: "Passport",
+  lab: "Generator",
+};
+export const TRADE_ROOM_HINTS = {
+  history: "Past deals and grades",
+  calculator: "Build both sides",
+  passport: "Who held whom",
+  lab: "Find new deals",
+};
+export const TRADE_ROOM_ALIASES = {
+  history: "history",
+  file: "history",
+  tradehistory: "history",
+  calculator: "calculator",
+  calc: "calculator",
+  passport: "passport",
+  lab: "lab",
+  generator: "lab",
+  shop: "lab",
+  acquire: "lab",
+  blockbuster: "lab",
 };
 export const PHONE_PAGE_ORDER = ["league", "team", "trader"];
 export const DEFAULT_FAIRNESS_PCT = 20;

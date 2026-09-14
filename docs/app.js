@@ -17,6 +17,10 @@ import {
   PAGE_IDS,
   PAGE_LABELS,
   DEFAULT_PAGE,
+  TRADE_ROOMS,
+  DEFAULT_TRADE_ROOM,
+  TRADE_ROOM_LABELS,
+  TRADE_ROOM_HINTS,
   DEFAULT_FAIRNESS_PCT,
   DEFAULT_MAX_RESULTS,
   DEMO_LEAGUE_ID,
@@ -43,6 +47,7 @@ import {
   parseLeagueId,
   parseShareParams,
   normalizeDeskTab,
+  normalizeTradeRoom,
   bootSearchFieldValues,
   buildShareUrl as buildShareUrlFromParts,
   uniqueSeasons,
@@ -194,6 +199,9 @@ const el = {
   pageTabs: document.querySelector("#page-tabs"),
   analyticsTab: document.querySelector("#analytics-tab"),
   traderTab: document.querySelector("#trader-tab"),
+  traderTabWrap: document.querySelector("#trader-tab-wrap"),
+  traderMenu: document.querySelector("#trader-menu"),
+  traderTabHint: document.querySelector("#trader-tab-hint"),
   analyticsPage: document.querySelector("#analytics-page"),
   traderPage: document.querySelector("#trader-page"),
   powerSection: document.querySelector("#power-section"),
@@ -229,6 +237,8 @@ const el = {
   recapDashboard: document.querySelector("#recap-dashboard"),
   loyaltyDashboard: document.querySelector("#loyalty-dashboard"),
   tradeHistoryDashboard: document.querySelector("#trade-history-dashboard"),
+  tradePassportDashboard: document.querySelector("#trade-passport-dashboard"),
+  tradeRoomPanels: document.querySelectorAll("[data-trade-room-panel]"),
   ticker: document.querySelector("#ticker"),
   tickerTrack: document.querySelector("#ticker-track"),
   calculatorSection: document.querySelector("#calculator-section"),
@@ -319,7 +329,21 @@ el.railDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
 el.railDemoBtn?.addEventListener("click", loadDemoLeague);
 el.copyLeagueIdBtn?.addEventListener("click", copyHelperLeagueId);
 el.pageTabButtons?.forEach((button) => {
-  button.addEventListener("click", () => setActivePage(button.dataset.page));
+  button.addEventListener("click", (event) => {
+    if (button.dataset.page === "trader") {
+      event.preventDefault();
+      toggleTradeMenu();
+      return;
+    }
+    closeTradeMenu();
+    setActivePage(button.dataset.page);
+  });
+});
+el.traderMenu?.addEventListener("click", (event) => {
+  const item = event.target.closest("[data-trade-room]");
+  if (!item) return;
+  event.preventDefault();
+  openTradeRoom(item.dataset.tradeRoom);
 });
 el.pageTabs?.addEventListener("keydown", handlePageTabKeydown);
 el.themeToggleBtn?.addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
@@ -334,10 +358,20 @@ el.mobileRailToggle?.addEventListener("click", () => {
 el.mobileRailClose?.addEventListener("click", () => setMobileRailOpen(false));
 el.railBackdrop?.addEventListener("click", () => setMobileRailOpen(false));
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && isTradeMenuOpen()) {
+    closeTradeMenu();
+    el.traderTab?.focus();
+    return;
+  }
   if (event.key === "Escape" && document.body.classList.contains("rail-open")) {
     setMobileRailOpen(false);
     el.mobileRailToggle?.focus();
   }
+});
+document.addEventListener("click", (event) => {
+  if (!isTradeMenuOpen()) return;
+  if (el.traderTabWrap?.contains(event.target)) return;
+  closeTradeMenu();
 });
 window.matchMedia(PHONE_LAYOUT_QUERY).addEventListener("change", () => {
   setMobileRailOpen(false);
@@ -398,6 +432,53 @@ if (isPhoneLayout()) setMobileRailOpen(false);
 syncDocumentMeta();
 syncSiteDock();
 
+function getTradeRoom() {
+  return TRADE_ROOMS.includes(state.tradeRoom) ? state.tradeRoom : DEFAULT_TRADE_ROOM;
+}
+
+function isTradeMenuOpen() {
+  return Boolean(el.traderTabWrap?.classList.contains("open"));
+}
+
+function closeTradeMenu() {
+  el.traderTabWrap?.classList.remove("open");
+  document.body.classList.remove("trade-menu-open");
+  if (el.traderMenu) el.traderMenu.hidden = true;
+  el.traderTab?.setAttribute("aria-expanded", "false");
+}
+
+function openTradeMenu() {
+  el.traderTabWrap?.classList.add("open");
+  document.body.classList.add("trade-menu-open");
+  if (el.traderMenu) el.traderMenu.hidden = false;
+  el.traderTab?.setAttribute("aria-expanded", "true");
+  syncTradeRoomUi();
+}
+
+function toggleTradeMenu() {
+  if (isTradeMenuOpen()) closeTradeMenu();
+  else openTradeMenu();
+}
+
+function openTradeRoom(room) {
+  const next = TRADE_ROOMS.includes(room) ? room : DEFAULT_TRADE_ROOM;
+  state.tradeRoom = next;
+  if (next === "lab" && el.tradeModeSelect?.value === "calculator") {
+    el.tradeModeSelect.value = "shop";
+  }
+  if (next !== "history") {
+    state.selectedTradeId = "";
+    state.selectedTradeManagerKey = "";
+  }
+  closeTradeMenu();
+  if (state.activePage !== "trader") setActivePage("trader");
+  else {
+    renderActivePage();
+    updateUrlState();
+    syncDocumentMeta();
+  }
+}
+
 function invalidateResults() {
   el.resultsSection.classList.add("hidden");
   syncGenerateState();
@@ -408,6 +489,11 @@ function showAppPages() {
   el.shareLinkBtn?.classList.remove("hidden");
   const requested = state.pendingTab && PAGE_IDS.includes(state.pendingTab) ? state.pendingTab : state.activePage || DEFAULT_PAGE;
   state.pendingTab = null;
+  if (requested === "trader") {
+    const pendingRoom = normalizeTradeRoom(state.pendingTradeRoom);
+    state.tradeRoom = pendingRoom || getTradeRoom();
+  }
+  state.pendingTradeRoom = null;
   setActivePage(requested);
 }
 
@@ -415,6 +501,7 @@ function hideAppPages() {
   el.pageTabs?.classList.add("hidden");
   el.shareLinkBtn?.classList.add("hidden");
   el.ticker?.classList.add("hidden");
+  closeTradeMenu();
   PAGE_IDS.forEach((page) => {
     const pageEl = el.pages[page];
     pageEl?.classList.add("hidden");
@@ -425,6 +512,7 @@ function hideAppPages() {
 function setActivePage(page) {
   const nextPage = PAGE_IDS.includes(page) ? page : DEFAULT_PAGE;
   state.activePage = nextPage;
+  if (nextPage !== "trader") closeTradeMenu();
 
   PAGE_IDS.forEach((pageId) => {
     const pageEl = el.pages[pageId];
@@ -471,8 +559,10 @@ function renderActivePage() {
       renderLeaguePage();
       break;
     case "trader":
+      syncTradeRoomUi();
       syncTradeModeUi();
       renderTradeHistoryDesk();
+      renderPassportDesk();
       break;
     default:
       renderLeaguePage();
@@ -521,6 +611,9 @@ function bootFromUrl() {
   if (parsed.meRosterId) state.pendingMeRosterId = parsed.meRosterId;
   const requestedTab = normalizeDeskTab(parsed.tab);
   if (PAGE_IDS.includes(requestedTab)) state.pendingTab = requestedTab;
+  if (requestedTab === "trader") {
+    state.pendingTradeRoom = parsed.view || DEFAULT_TRADE_ROOM;
+  }
   if (parsed.week) state.pendingWeek = parsed.week;
   if (parsed.tone) state.pendingTone = parsed.tone;
 
@@ -549,6 +642,7 @@ function buildShareUrl(overrides = {}) {
     leagueId: state.leagueId,
     meRosterId: state.meRosterId,
     tab: overrides.tab || state.activePage,
+    view: overrides.view || (state.activePage === "trader" ? getTradeRoom() : ""),
     week: overrides.week ?? (state.activePage === "league" ? state.recapWeek || state.homeWeek : state.homeWeek),
     tone: overrides.tone || state.recapTone || "",
   });
@@ -565,7 +659,9 @@ async function copyShareLink() {
 }
 
 function getTradeMode() {
-  return el.tradeModeSelect?.value || "shop";
+  const mode = el.tradeModeSelect?.value || "shop";
+  if (mode === "acquire" || mode === "surprise") return mode;
+  return "shop";
 }
 
 function getTradeTier() {
@@ -763,10 +859,30 @@ function scrollLoadedWorkspaceIntoView() {
   });
 }
 
+function syncTradeRoomUi() {
+  const room = getTradeRoom();
+  el.tradeRoomPanels?.forEach((panel) => {
+    const isActive = panel.dataset.tradeRoomPanel === room;
+    panel.classList.toggle("hidden", !isActive);
+  });
+  el.traderMenu?.querySelectorAll("[data-trade-room]")?.forEach((button) => {
+    const isActive = button.dataset.tradeRoom === room && state.activePage === "trader";
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-current", isActive ? "page" : "false");
+  });
+  if (el.traderTabHint) {
+    el.traderTabHint.textContent = state.activePage === "trader"
+      ? (TRADE_ROOM_HINTS[room] || TRADE_ROOM_LABELS[room] || "Pick a desk")
+      : "History, calculator, passport";
+  }
+}
+
 function syncTradeModeUi() {
+  const room = getTradeRoom();
   const mode = getTradeMode();
-  const isCalculator = mode === "calculator";
-  const searchEnabled = mode !== "surprise" && !isCalculator;
+  const isLab = room === "lab" && state.activePage === "trader";
+  const isCalculatorRoom = room === "calculator" && state.activePage === "trader";
+  const searchEnabled = isLab && mode !== "surprise";
   const selectedAsset = getCurrentPrimaryAsset();
   const copyByMode = {
     acquire: {
@@ -781,11 +897,9 @@ function syncTradeModeUi() {
       help: "No player search needed. The app will pick teams and build a multi-team blockbuster.",
       label: "Surprise blockbuster",
     },
-    calculator: {
-      help: "Choose a trade partner, tap assets on both sides, and the desk grades the deal instantly.",
-      label: "Trade calculator",
-    },
   };
+
+  syncTradeRoomUi();
 
   el.modeCards?.forEach((button) => {
     const isActive = button.dataset.tradeMode === mode;
@@ -796,9 +910,6 @@ function syncTradeModeUi() {
   el.playerSearchLabel?.classList.toggle("hidden", !searchEnabled);
   el.targetSearchShell?.classList.toggle("hidden", !searchEnabled);
   el.playerResults?.classList.toggle("hidden", !searchEnabled);
-  el.calculatorSection?.classList.toggle("hidden", !isCalculator || !state.leagueId);
-  el.settingsSection?.classList.toggle("hidden", isCalculator || !state.leagueId);
-  if (isCalculator) el.resultsSection?.classList.add("hidden");
 
   if (el.tradeModeHelp) el.tradeModeHelp.textContent = copyByMode[mode]?.help || "";
   if (el.playerSearchLabel) el.playerSearchLabel.textContent = copyByMode[mode]?.label || "Search player or pick";
@@ -813,7 +924,7 @@ function syncTradeModeUi() {
     }
     renderPlayerSearch();
   }
-  if (isCalculator && state.leagueId) {
+  if (isCalculatorRoom && state.leagueId) {
     renderCalculator();
   }
   syncGenerateState();
@@ -1000,6 +1111,7 @@ async function runLeagueLoad(leagueId) {
     state.playerMetadataLoaded = false;
     state.playerMetadataFailed = false;
     state.activePage = DEFAULT_PAGE;
+    state.tradeRoom = DEFAULT_TRADE_ROOM;
     state.transactions = [];
     state.transactionsLoaded = false;
     state.transactionsFailed = false;
@@ -1070,8 +1182,6 @@ async function runLeagueLoad(leagueId) {
     el.identitySection?.classList.remove("hidden");
     el.powerSection?.classList.remove("hidden");
     el.analyticsSection?.classList.remove("hidden");
-    el.playerSection?.classList.remove("hidden");
-    el.settingsSection?.classList.remove("hidden");
     if (state.pendingWeek) {
       state.homeWeek = state.pendingWeek;
       state.awardsWeek = state.pendingWeek;
@@ -3231,7 +3341,7 @@ function renderTradeHistoryDesk() {
   if (!host) return;
   const roster = getMyRoster() || getLensRoster();
   if (!roster) {
-    host.innerHTML = `<p class="muted">Choose your team to grade past trades and open passports.</p>`;
+    host.innerHTML = `<p class="muted">Choose your team to grade past trades.</p>`;
     return;
   }
 
@@ -3252,16 +3362,8 @@ function renderTradeHistoryDesk() {
       || leagueTradeSides().find((row) => row.id === state.selectedTradeId && row.managerKey === wantKey)
       || null;
   }
-  const passports = buildPassportBoard(roster, 12);
-  const partnerId = Number(state.calc?.partnerRosterId || 0);
-  const partner = partnerId ? findNormalizedRoster(partnerId) : null;
-  const partnerKey = partner ? rosterManagerKey(partner) : "";
-  const pairRows = partnerKey
-    ? trades.filter((trade) => trade.participantKeys.includes(partnerKey)).slice(0, 8)
-    : [];
 
-  host.innerHTML = `
-    ${selected ? renderTradeDetail(selected) : `
+  host.innerHTML = selected ? renderTradeDetail(selected) : `
     <section class="workspace-panel trade-analyzer">
       <div class="panel-heading">
         <div>
@@ -3281,39 +3383,59 @@ function renderTradeHistoryDesk() {
         `).join("") || `<p class="muted">No completed trades in the loaded archive yet.</p>`}
       </div>
     </section>
-    `}
-    <div class="trade-side-stack">
-      <section class="workspace-panel passport-card">
+  `;
+}
+
+function renderPassportDesk() {
+  const host = el.tradePassportDashboard;
+  if (!host) return;
+  const roster = getMyRoster() || getLensRoster();
+  if (!roster) {
+    host.innerHTML = `<p class="muted">Choose your team to stamp player passports.</p>`;
+    return;
+  }
+
+  const managerKey = rosterManagerKey(roster);
+  const trades = loyaltyTradesForRoster(roster);
+  const passports = buildPassportBoard(roster, 12);
+  const partnerId = Number(state.calc?.partnerRosterId || 0);
+  const partner = partnerId ? findNormalizedRoster(partnerId) : null;
+  const partnerKey = partner ? rosterManagerKey(partner) : "";
+  const pairRows = partnerKey
+    ? trades.filter((trade) => trade.participantKeys.includes(partnerKey)).slice(0, 8)
+    : [];
+
+  host.innerHTML = `
+    <section class="workspace-panel passport-card">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Player passport</span>
+          <h2>Who held whom</h2>
+        </div>
+        <p class="section-copy">Ownership by season from the archive plus the current boards.</p>
+      </div>
+      ${passports.map((row) => `
+        <article class="passport-block">
+          <strong>${escapeHtml(row.name)}</strong>
+          <div class="passport-stops">
+            ${row.stops.map((stop) => `<span class="passport-stop">${escapeHtml(stop.managerName)} ${escapeHtml(stop.fromSeason)}${stop.toSeason !== stop.fromSeason ? `–${escapeHtml(stop.toSeason)}` : ""}</span>`).join("")}
+          </div>
+        </article>
+      `).join("") || `<p class="muted small">Need roster history to stamp passports.</p>`}
+    </section>
+    ${partner && pairRows.length ? `
+      <section class="workspace-panel pair-history">
         <div class="panel-heading">
           <div>
-            <span class="eyebrow">Player passport</span>
-            <h2>Who held whom</h2>
+            <span class="eyebrow">Vs this desk</span>
+            <h2>${escapeHtml(partner.manager.displayName)}</h2>
           </div>
-          <p class="section-copy">Ownership by season from the archive plus the current boards.</p>
         </div>
-        ${passports.map((row) => `
-          <article class="passport-block">
-            <strong>${escapeHtml(row.name)}</strong>
-            <div class="passport-stops">
-              ${row.stops.map((stop) => `<span class="passport-stop">${escapeHtml(stop.managerName)} ${escapeHtml(stop.fromSeason)}${stop.toSeason !== stop.fromSeason ? `–${escapeHtml(stop.toSeason)}` : ""}</span>`).join("")}
-            </div>
-          </article>
-        `).join("") || `<p class="muted small">Need roster history to stamp passports.</p>`}
+        ${pairRows.map((trade) => `
+          <button type="button" class="linklike" data-action="open-trade" data-trade-id="${escapeHtml(trade.id)}" data-manager-key="${escapeHtml(managerKey)}">${escapeHtml(trade.season)} W${trade.week || "?"} · ${escapeHtml(trade.movements.filter((item) => item.toRosterId === managerKey).map((item) => item.name).join(", ") || "picks")} for ${escapeHtml(trade.movements.filter((item) => item.fromRosterId === managerKey).map((item) => item.name).join(", ") || "picks")}</button>
+        `).join("")}
       </section>
-      ${partner && pairRows.length ? `
-        <section class="workspace-panel pair-history">
-          <div class="panel-heading">
-            <div>
-              <span class="eyebrow">Vs this desk</span>
-              <h2>${escapeHtml(partner.manager.displayName)}</h2>
-            </div>
-          </div>
-          ${pairRows.map((trade) => `
-            <button type="button" class="linklike" data-action="open-trade" data-trade-id="${escapeHtml(trade.id)}" data-manager-key="${escapeHtml(managerKey)}">${escapeHtml(trade.season)} W${trade.week || "?"} · ${escapeHtml(trade.movements.filter((item) => item.toRosterId === managerKey).map((item) => item.name).join(", ") || "picks")} for ${escapeHtml(trade.movements.filter((item) => item.fromRosterId === managerKey).map((item) => item.name).join(", ") || "picks")}</button>
-          `).join("")}
-        </section>
-      ` : ""}
-    </div>
+    ` : ""}
   `;
 }
 
@@ -3998,10 +4120,8 @@ function refreshCalculatorLists() {
 function openCalculatorWith(rosterId) {
   state.calc.partnerRosterId = Number(rosterId);
   resetCalculatorState({ keepPartner: true });
-  if (el.tradeModeSelect) el.tradeModeSelect.value = "calculator";
   invalidateResults();
-  setActivePage("trader");
-  syncTradeModeUi();
+  openTradeRoom("calculator");
   el.calculatorSection?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -4114,8 +4234,14 @@ function handleWorkspaceClick(event) {
       state.selectedTradeId = String(target.dataset.tradeId || "");
       state.selectedTradeManagerKey = String(target.dataset.managerKey || "");
       if (!state.selectedTradeId) return;
+      state.tradeRoom = "history";
+      closeTradeMenu();
       if (state.activePage !== "trader") setActivePage("trader");
-      else renderTradeHistoryDesk();
+      else {
+        renderActivePage();
+        updateUrlState();
+        syncDocumentMeta();
+      }
       el.tradeHistoryDashboard?.scrollIntoView({ behavior: "smooth", block: "start" });
       break;
     }
@@ -4173,7 +4299,6 @@ function handleWorkspaceChange(event) {
       state.calc.partnerRosterId = Number(target.value);
       resetCalculatorState({ keepPartner: true });
       renderCalculator();
-      renderTradeHistoryDesk();
       break;
     }
     case "recap-week": {
@@ -13231,11 +13356,13 @@ function syncDocumentMeta() {
       page: state.leagueId ? state.activePage : "",
       leagueName: state.leagueName,
       loaded: Boolean(state.leagueId),
+      room: state.leagueId && state.activePage === "trader" ? getTradeRoom() : "",
     }),
     description: buildPageDescription({
       page: state.leagueId ? state.activePage : "",
       leagueName: state.leagueName,
       loaded: Boolean(state.leagueId),
+      room: state.leagueId && state.activePage === "trader" ? getTradeRoom() : "",
     }),
   });
 }
