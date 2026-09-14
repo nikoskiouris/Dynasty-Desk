@@ -660,6 +660,9 @@ function isPhoneLayout() {
 
 function setMobileRailOpen(open) {
   const shouldOpen = Boolean(open) && isPhoneLayout();
+  if (!shouldOpen && el.controlRail?.contains(document.activeElement)) {
+    el.mobileRailToggle?.focus();
+  }
   document.body.classList.toggle("rail-open", shouldOpen);
   el.controlRail?.classList.toggle("is-open", shouldOpen);
   el.mobileRailToggle?.setAttribute("aria-expanded", String(shouldOpen));
