@@ -41,6 +41,14 @@ test("document titles and descriptions change with tab and league", () => {
     buildDocumentTitle({ page: "trader", leagueName: "Try Hard or Die Hard", loaded: true, room: "passport" }),
     "Passport · Try Hard or Die Hard — Dynasty Desk"
   );
+  assert.equal(
+    buildDocumentTitle({ page: "trader", leagueName: "Try Hard or Die Hard", loaded: true, room: "lab" }),
+    "Find deals · Try Hard or Die Hard — Dynasty Desk"
+  );
+  assert.equal(
+    buildDocumentTitle({ page: "league", leagueName: "Try Hard or Die Hard", loaded: true, room: "hall" }),
+    "Hall · Try Hard or Die Hard — Dynasty Desk"
+  );
   assert.match(
     buildPageDescription({ page: "home", leagueName: "Try Hard or Die Hard", loaded: true }),
     /Now open: Try Hard or Die Hard/
@@ -111,6 +119,10 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /data-trade-room="passport"/);
   assert.match(index, /data-trade-room="lab"/);
   assert.match(index, /id="trade-passport-dashboard"/);
+  assert.match(index, /data-league-room="now"/);
+  assert.match(index, /data-league-room="hall"/);
+  assert.match(index, />Find deals</);
+  assert.doesNotMatch(index, /href="#league-wire"/);
   assert.doesNotMatch(index, /data-page="home"/);
   assert.doesNotMatch(index, /data-trade-mode="calculator"/);
   assert.doesNotMatch(index, /Plus Jakarta/);

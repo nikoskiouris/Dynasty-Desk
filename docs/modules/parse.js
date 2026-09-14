@@ -1,4 +1,11 @@
-import { DEFAULT_TRADE_ROOM, TRADE_ROOM_ALIASES, TRADE_ROOMS } from "./constants.js";
+import {
+  DEFAULT_LEAGUE_ROOM,
+  DEFAULT_TRADE_ROOM,
+  LEAGUE_ROOM_ALIASES,
+  LEAGUE_ROOMS,
+  TRADE_ROOM_ALIASES,
+  TRADE_ROOMS,
+} from "./constants.js";
 
 const SLEEPER_LEAGUE_PATH = /leagues\/(\d+)/i;
 const SLEEPER_USER_PATH = /sleeper\.app\/(?:u|user)\/([^/?#]+)/i;
@@ -112,6 +119,13 @@ export function normalizeTradeRoom(value) {
   return TRADE_ROOMS.includes(aliased) ? aliased : "";
 }
 
+export function normalizeLeagueRoom(value) {
+  const key = String(value || "").trim().toLowerCase();
+  if (!key) return "";
+  const aliased = LEAGUE_ROOM_ALIASES[key] || key;
+  return LEAGUE_ROOMS.includes(aliased) ? aliased : "";
+}
+
 export function buildShareParams({
   leagueId,
   meRosterId = null,
@@ -125,8 +139,13 @@ export function buildShareParams({
   if (meRosterId) params.set("me", String(meRosterId));
   const deskTab = normalizeDeskTab(tab);
   if (deskTab && deskTab !== "league") params.set("tab", deskTab);
-  const room = normalizeTradeRoom(view) || (deskTab === "trader" ? (normalizeTradeRoom(tab) || DEFAULT_TRADE_ROOM) : "");
-  if (deskTab === "trader" && room && room !== DEFAULT_TRADE_ROOM) params.set("view", room);
+  if (deskTab === "trader") {
+    const room = normalizeTradeRoom(view) || normalizeTradeRoom(tab) || DEFAULT_TRADE_ROOM;
+    if (room !== DEFAULT_TRADE_ROOM) params.set("view", room);
+  } else if (!deskTab || deskTab === "league") {
+    const room = normalizeLeagueRoom(view) || normalizeLeagueRoom(tab) || DEFAULT_LEAGUE_ROOM;
+    if (room !== DEFAULT_LEAGUE_ROOM) params.set("view", room);
+  }
   if (Number.isFinite(Number(week)) && Number(week) > 0) params.set("week", String(week));
   if (tone && tone !== "desk") params.set("tone", String(tone));
   return params;
@@ -140,9 +159,12 @@ export function parseShareParams(search) {
   const tab = normalizeDeskTab(rawTab);
   const week = Number(params.get("week"));
   const tone = String(params.get("tone") || "").trim();
+  const rawView = params.get("view") || "";
   const view = tab === "trader"
-    ? (normalizeTradeRoom(params.get("view") || "") || normalizeTradeRoom(rawTab) || DEFAULT_TRADE_ROOM)
-    : "";
+    ? (normalizeTradeRoom(rawView) || normalizeTradeRoom(rawTab) || DEFAULT_TRADE_ROOM)
+    : (tab === "league" || !tab)
+      ? (normalizeLeagueRoom(rawView) || normalizeLeagueRoom(rawTab) || DEFAULT_LEAGUE_ROOM)
+      : "";
   return {
     leagueId: parseLeagueId(league) || league,
     meRosterId: Number.isFinite(me) && me > 0 ? me : null,

@@ -5585,19 +5585,24 @@ body.dock-visible {
   margin: 0 0 1rem;
 }
 
-.league-jump a {
+.league-jump button {
   padding: 0.35rem 0.7rem;
   border: 1px solid var(--line);
   border-radius: 999px;
+  background: transparent;
   color: var(--muted-strong);
-  text-decoration: none;
   font-size: 0.78rem;
   font-weight: 700;
 }
 
-.league-jump a:hover {
+.league-jump button:hover,
+.league-jump button.active {
   color: var(--blue);
   border-color: var(--blue);
+}
+
+.league-jump button.active {
+  background: var(--blue-soft);
 }
 
 .loyalty-dashboard {

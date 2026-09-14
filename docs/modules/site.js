@@ -1,4 +1,4 @@
-import { TRADE_ROOM_HINTS, TRADE_ROOM_LABELS } from "./constants.js";
+import { DEFAULT_LEAGUE_ROOM, LEAGUE_ROOM_HINTS, LEAGUE_ROOM_LABELS, TRADE_ROOM_HINTS, TRADE_ROOM_LABELS } from "./constants.js";
 
 export const SITE_NAME = "Dynasty Desk";
 export const SITE_ORIGIN = "https://nikoskiouris.github.io";
@@ -24,7 +24,7 @@ export const PAGE_META = {
   },
   trader: {
     title: "Trades",
-    description: "Trade history, calculator, player passports, and a deal generator — each on its own page.",
+    description: "Trade history, calculator, player passports, and find deals — each on its own desk.",
   },
   home: {
     title: "League",
@@ -46,6 +46,12 @@ function pageMetaFor({ page = "", room = "" } = {}) {
     return {
       title: TRADE_ROOM_LABELS[room],
       description: base?.description || TRADE_ROOM_HINTS[room] || "",
+    };
+  }
+  if (page === "league" && room && room !== DEFAULT_LEAGUE_ROOM && LEAGUE_ROOM_LABELS[room]) {
+    return {
+      title: LEAGUE_ROOM_LABELS[room],
+      description: LEAGUE_ROOM_HINTS[room] || base?.description || "",
     };
   }
   return base || null;

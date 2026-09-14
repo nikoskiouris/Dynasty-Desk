@@ -182,11 +182,11 @@
             <span class="tab-copy"><strong>My Team</strong><small>Lineup, DNA, charms</small></span>
           </button>
           <button id="league-tab" class="page-tab active" type="button" role="tab" aria-selected="true" aria-controls="league-page" tabindex="0" data-page="league">
-            <span class="tab-copy"><strong>League</strong><small>Now, awards, hall</small></span>
+            <span class="tab-copy"><strong>League</strong><small id="league-tab-hint">Now, awards, recap, hall</small></span>
           </button>
           <div class="page-tab-wrap" id="trader-tab-wrap" data-page="trader">
             <button id="trader-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="trader-menu" aria-haspopup="menu" aria-expanded="false" tabindex="-1" data-page="trader">
-              <span class="tab-copy"><strong>Trades</strong><small id="trader-tab-hint">History, calculator, passport</small></span>
+              <span class="tab-copy"><strong>Trades</strong><small id="trader-tab-hint">History, calculator, find deals</small></span>
               <span class="tab-caret" aria-hidden="true"></span>
             </button>
             <div id="trader-menu" class="page-tab-menu" role="menu" aria-label="Trade pages" hidden>
@@ -203,7 +203,7 @@
                 <small>Who held whom</small>
               </button>
               <button type="button" role="menuitem" data-trade-room="lab">
-                <strong>Generator</strong>
+                <strong>Find deals</strong>
                 <small>Shop, acquire, blockbuster</small>
               </button>
             </div>
@@ -222,7 +222,7 @@
             <div class="landing-copy">
               <span class="step-badge accent">Start</span>
               <h2>Search a Sleeper username to open the desk.</h2>
-              <p class="muted">Type the username, pick the league, done. Three rooms: your team, the league hall, and trades. Loyalty, luck charms, and trade hindsight come with the archive.</p>
+              <p class="muted">Type the username, pick the league, done. Team is your board. League is one chapter at a time. Trades is a menu of desks.</p>
               <div class="landing-actions">
                 <button id="landing-demo-btn" type="button">Open demo league</button>
                 <button id="landing-focus-btn" type="button" class="ghost-btn">I have a username</button>
@@ -234,8 +234,8 @@
             </div>
             <ul class="landing-features">
               <li><strong>My Team</strong><span>Lineup, roster DNA, longest-tenured, luck charms, and the trade you still regret.</span></li>
-              <li><strong>League</strong><span>Live scores, awards, recap, finish heatmap, and the all-time hall in one room.</span></li>
-              <li><strong>Trades</strong><span>A dropdown for trade history, the calculator, player passports, and the deal generator.</span></li>
+              <li><strong>League</strong><span>Now, awards, recap, and the hall — pick one chapter, not a long scroll.</span></li>
+              <li><strong>Trades</strong><span>History, calculator, passports, and find deals. Each desk is its own page.</span></li>
             </ul>
           </div>
         </section>
@@ -280,29 +280,28 @@
         </div>
 
         <div id="league-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="league-tab">
-          <nav class="league-jump" aria-label="League sections">
-            <a href="#league-now">Now</a>
-            <a href="#league-awards">Awards</a>
-            <a href="#league-recap">Recap</a>
-            <a href="#league-hall">Hall</a>
-            <a href="#league-wire">Wire</a>
+          <nav class="league-jump" id="league-jump" aria-label="League pages">
+            <button type="button" data-league-room="now">Now</button>
+            <button type="button" data-league-room="awards">Awards</button>
+            <button type="button" data-league-room="recap">Recap</button>
+            <button type="button" data-league-room="hall">Hall</button>
           </nav>
-          <div id="league-now">
+          <div id="league-now" class="league-room" data-league-room-panel="now">
             <div id="home-dashboard" class="home-dashboard"></div>
           </div>
-          <div id="league-awards">
+          <div id="league-awards" class="league-room hidden" data-league-room-panel="awards">
             <div id="awards-dashboard" class="awards-dashboard"></div>
           </div>
-          <div id="league-recap">
+          <div id="league-recap" class="league-room hidden" data-league-room-panel="recap">
             <div id="recap-dashboard" class="recap-dashboard"></div>
           </div>
-          <section class="workspace-panel" id="analytics-section">
+          <section class="workspace-panel league-room hidden" id="analytics-section" data-league-room-panel="hall">
             <div class="panel-heading" id="league-hall">
               <div>
                 <span class="eyebrow">All-time hall</span>
                 <h2>Dynasty history</h2>
               </div>
-              <p class="section-copy">Finish heatmap, career table, rivalries, and season comparisons. Current week stays up top.</p>
+              <p class="section-copy">Finish heatmap, career table, rivalries, trade wire, and season comparisons.</p>
             </div>
             <div id="analytics-dashboard" class="analytics-dashboard">
               <p class="muted">Load a league and choose a team to generate analytics.</p>
@@ -329,7 +328,7 @@
             <section class="workspace-panel" id="player-section">
               <div class="panel-heading">
                 <div>
-                  <span class="eyebrow">Trade Generator</span>
+                  <span class="eyebrow">Find deals</span>
                   <h2>Choose the problem</h2>
                 </div>
                 <p class="section-copy">Pick the trade path first, then choose the asset only when the path needs one.</p>

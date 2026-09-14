@@ -63,10 +63,12 @@ test("share params map old recap/home tabs onto league", () => {
     tone: "roast",
   });
   assert.doesNotMatch(url, /tab=/);
+  assert.match(url, /view=recap/);
   assert.match(url, /week=2/);
   assert.match(url, /tone=roast/);
   const parsed = parseShareParams(url.split("?")[1]);
   assert.equal(parsed.tab, "");
+  assert.equal(parsed.view, "recap");
   assert.equal(parsed.week, 2);
   assert.equal(parsed.tone, "roast");
   assert.equal(parsed.meRosterId, 3);
@@ -102,5 +104,9 @@ test("share params keep trade rooms on the trades tab", () => {
   assert.equal(parseShareParams("league=1&tab=calculator").view, "calculator");
   assert.equal(parseShareParams("league=1&tab=generator").view, "lab");
   assert.equal(parseShareParams("league=1&tab=history").tab, "league");
-  assert.equal(parseShareParams("league=1&tab=history").view, "");
+  assert.equal(parseShareParams("league=1&tab=history").view, "hall");
+  assert.equal(parseShareParams("league=1&tab=awards").view, "awards");
+  assert.equal(parseShareParams("league=1&tab=analytics").view, "hall");
+  assert.equal(parseShareParams("league=1&view=hall").view, "hall");
+  assert.equal(parseShareParams("league=1").view, "now");
 });

@@ -21,6 +21,12 @@ import {
   DEFAULT_TRADE_ROOM,
   TRADE_ROOM_LABELS,
   TRADE_ROOM_HINTS,
+  TRADE_TAB_IDLE_HINT,
+  LEAGUE_ROOMS,
+  DEFAULT_LEAGUE_ROOM,
+  LEAGUE_ROOM_LABELS,
+  LEAGUE_ROOM_HINTS,
+  LEAGUE_TAB_IDLE_HINT,
   DEFAULT_FAIRNESS_PCT,
   DEFAULT_MAX_RESULTS,
   DEMO_LEAGUE_ID,
@@ -48,6 +54,7 @@ import {
   parseShareParams,
   normalizeDeskTab,
   normalizeTradeRoom,
+  normalizeLeagueRoom,
   bootSearchFieldValues,
   buildShareUrl as buildShareUrlFromParts,
   uniqueSeasons,
@@ -211,6 +218,9 @@ const el = {
   traderTabWrap: document.querySelector("#trader-tab-wrap"),
   traderMenu: document.querySelector("#trader-menu"),
   traderTabHint: document.querySelector("#trader-tab-hint"),
+  leagueTabHint: document.querySelector("#league-tab-hint"),
+  leagueJump: document.querySelector("#league-jump"),
+  leagueRoomPanels: document.querySelectorAll("[data-league-room-panel]"),
   analyticsPage: document.querySelector("#analytics-page"),
   traderPage: document.querySelector("#trader-page"),
   powerSection: document.querySelector("#power-section"),
@@ -354,6 +364,12 @@ el.traderMenu?.addEventListener("click", (event) => {
   event.preventDefault();
   openTradeRoom(item.dataset.tradeRoom);
 });
+el.leagueJump?.addEventListener("click", (event) => {
+  const item = event.target.closest("[data-league-room]");
+  if (!item) return;
+  event.preventDefault();
+  openLeagueRoom(item.dataset.leagueRoom);
+});
 el.pageTabs?.addEventListener("keydown", handlePageTabKeydown);
 el.themeToggleBtn?.addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
 el.mobileThemeBtn?.addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
@@ -445,6 +461,10 @@ function getTradeRoom() {
   return TRADE_ROOMS.includes(state.tradeRoom) ? state.tradeRoom : DEFAULT_TRADE_ROOM;
 }
 
+function getLeagueRoom() {
+  return LEAGUE_ROOMS.includes(state.leagueRoom) ? state.leagueRoom : DEFAULT_LEAGUE_ROOM;
+}
+
 function isTradeMenuOpen() {
   return Boolean(el.traderTabWrap?.classList.contains("open"));
 }
@@ -488,6 +508,20 @@ function openTradeRoom(room) {
   }
 }
 
+function openLeagueRoom(room) {
+  const next = LEAGUE_ROOMS.includes(room) ? room : DEFAULT_LEAGUE_ROOM;
+  state.leagueRoom = next;
+  closeTradeMenu();
+  if (state.activePage !== "league") setActivePage("league");
+  else {
+    syncLeagueRoomUi();
+    renderActivePage();
+    updateUrlState();
+    syncDocumentMeta();
+  }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function invalidateResults() {
   el.resultsSection.classList.add("hidden");
   syncGenerateState();
@@ -502,7 +536,12 @@ function showAppPages() {
     const pendingRoom = normalizeTradeRoom(state.pendingTradeRoom);
     state.tradeRoom = pendingRoom || getTradeRoom();
   }
+  if (requested === "league") {
+    const pendingRoom = normalizeLeagueRoom(state.pendingLeagueRoom);
+    state.leagueRoom = pendingRoom || getLeagueRoom();
+  }
   state.pendingTradeRoom = null;
+  state.pendingLeagueRoom = null;
   setActivePage(requested);
 }
 
@@ -560,6 +599,8 @@ function handlePageTabKeydown(event) {
 
 function renderActivePage() {
   if (!state.leagueId) return;
+  syncTradeRoomUi();
+  syncLeagueRoomUi();
   switch (state.activePage) {
     case "team":
       renderTeamPage();
@@ -568,7 +609,6 @@ function renderActivePage() {
       renderLeaguePage();
       break;
     case "trader":
-      syncTradeRoomUi();
       syncTradeModeUi();
       renderTradeHistoryDesk();
       renderPassportDesk();
@@ -622,6 +662,11 @@ function bootFromUrl() {
   if (PAGE_IDS.includes(requestedTab)) state.pendingTab = requestedTab;
   if (requestedTab === "trader") {
     state.pendingTradeRoom = parsed.view || DEFAULT_TRADE_ROOM;
+  } else if (requestedTab === "league" || !requestedTab) {
+    const hashToken = String(window.location.hash || "").replace(/^#league-/, "").replace(/^#/, "");
+    state.pendingLeagueRoom = parsed.view
+      || normalizeLeagueRoom(hashToken)
+      || DEFAULT_LEAGUE_ROOM;
   }
   if (parsed.week) state.pendingWeek = parsed.week;
   if (parsed.tone) state.pendingTone = parsed.tone;
@@ -651,7 +696,13 @@ function buildShareUrl(overrides = {}) {
     leagueId: state.leagueId,
     meRosterId: state.meRosterId,
     tab: overrides.tab || state.activePage,
-    view: overrides.view || (state.activePage === "trader" ? getTradeRoom() : ""),
+    view: overrides.view || (
+      state.activePage === "trader"
+        ? getTradeRoom()
+        : state.activePage === "league"
+          ? getLeagueRoom()
+          : ""
+    ),
     week: overrides.week ?? (state.activePage === "league" ? state.recapWeek || state.homeWeek : state.homeWeek),
     tone: overrides.tone || state.recapTone || "",
   });
@@ -882,7 +933,25 @@ function syncTradeRoomUi() {
   if (el.traderTabHint) {
     el.traderTabHint.textContent = state.activePage === "trader"
       ? (TRADE_ROOM_HINTS[room] || TRADE_ROOM_LABELS[room] || "Pick a desk")
-      : "History, calculator, passport";
+      : TRADE_TAB_IDLE_HINT;
+  }
+}
+
+function syncLeagueRoomUi() {
+  const room = getLeagueRoom();
+  el.leagueRoomPanels?.forEach((panel) => {
+    const isActive = panel.dataset.leagueRoomPanel === room;
+    panel.classList.toggle("hidden", !isActive);
+  });
+  el.leagueJump?.querySelectorAll("[data-league-room]")?.forEach((button) => {
+    const isActive = button.dataset.leagueRoom === room && state.activePage === "league";
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-current", isActive ? "page" : "false");
+  });
+  if (el.leagueTabHint) {
+    el.leagueTabHint.textContent = state.activePage === "league"
+      ? (LEAGUE_ROOM_HINTS[room] || LEAGUE_ROOM_LABELS[room] || LEAGUE_TAB_IDLE_HINT)
+      : LEAGUE_TAB_IDLE_HINT;
   }
 }
 
@@ -1122,6 +1191,7 @@ async function runLeagueLoad(leagueId) {
     state.playerMetadataFailed = false;
     state.activePage = DEFAULT_PAGE;
     state.tradeRoom = DEFAULT_TRADE_ROOM;
+    state.leagueRoom = DEFAULT_LEAGUE_ROOM;
     state.transactions = [];
     state.transactionsLoaded = false;
     state.transactionsFailed = false;
@@ -2452,6 +2522,7 @@ function renderHomePage() {
 }
 
 function renderLeaguePage() {
+  syncLeagueRoomUi();
   renderHomePage();
   renderAwardsPage();
   renderRecapPage();
@@ -13472,18 +13543,25 @@ function focusUsernameSearch() {
 }
 
 function syncDocumentMeta() {
+  const room = state.leagueId
+    ? (state.activePage === "trader"
+      ? getTradeRoom()
+      : state.activePage === "league"
+        ? getLeagueRoom()
+        : "")
+    : "";
   applyDocumentMeta(document, {
     title: buildDocumentTitle({
       page: state.leagueId ? state.activePage : "",
       leagueName: state.leagueName,
       loaded: Boolean(state.leagueId),
-      room: state.leagueId && state.activePage === "trader" ? getTradeRoom() : "",
+      room,
     }),
     description: buildPageDescription({
       page: state.leagueId ? state.activePage : "",
       leagueName: state.leagueName,
       loaded: Boolean(state.leagueId),
-      room: state.leagueId && state.activePage === "trader" ? getTradeRoom() : "",
+      room,
     }),
   });
 }

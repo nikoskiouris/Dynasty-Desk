@@ -36,14 +36,15 @@ export const TRADE_ROOM_LABELS = {
   history: "Trade History",
   calculator: "Calculator",
   passport: "Passport",
-  lab: "Generator",
+  lab: "Find deals",
 };
 export const TRADE_ROOM_HINTS = {
   history: "Past deals and grades",
   calculator: "Build both sides",
   passport: "Who held whom",
-  lab: "Find new deals",
+  lab: "Shop, acquire, blockbuster",
 };
+export const TRADE_TAB_IDLE_HINT = "History, calculator, find deals";
 export const TRADE_ROOM_ALIASES = {
   history: "history",
   file: "history",
@@ -56,6 +57,33 @@ export const TRADE_ROOM_ALIASES = {
   shop: "lab",
   acquire: "lab",
   blockbuster: "lab",
+};
+export const LEAGUE_ROOMS = ["now", "awards", "recap", "hall"];
+export const DEFAULT_LEAGUE_ROOM = "now";
+export const LEAGUE_ROOM_LABELS = {
+  now: "Now",
+  awards: "Awards",
+  recap: "Recap",
+  hall: "Hall",
+};
+export const LEAGUE_ROOM_HINTS = {
+  now: "Scores, standings, odds",
+  awards: "Weekly honors",
+  recap: "Group chat recap",
+  hall: "All-time archive",
+};
+export const LEAGUE_TAB_IDLE_HINT = "Now, awards, recap, hall";
+export const LEAGUE_ROOM_ALIASES = {
+  now: "now",
+  home: "now",
+  scores: "now",
+  standings: "now",
+  awards: "awards",
+  recap: "recap",
+  hall: "hall",
+  analytics: "hall",
+  history: "hall",
+  wire: "hall",
 };
 export const PHONE_PAGE_ORDER = ["league", "team", "trader"];
 export const DEFAULT_FAIRNESS_PCT = 20;
