@@ -4,13 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Dynasty Desk — Fantasy League Command Center</title>
-    <meta name="description" content="Live scoreboard, playoff odds, awards, record book, roster explorer, and a dynasty trade lab for your Sleeper league." />
+    <meta name="description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a group-chat recap for your league." />
     <meta name="theme-color" content="#eef3f7" />
-    <meta property="og:title" content="Dynasty Desk" />
-    <meta property="og:description" content="Search your Sleeper username. Open live scores, playoff odds, awards, and a group-chat recap for your dynasty league." />
+    <meta property="og:title" content="Dynasty Desk — Fantasy League Command Center" />
+    <meta property="og:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a group-chat recap for your league." />
     <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235eb6ff'/%3E%3Cstop offset='1' stop-color='%231f86ef'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='18' fill='url(%23g)'/%3E%3Ctext x='32' y='43' font-family='Arial,sans-serif' font-size='34' font-weight='800' text-anchor='middle' fill='%23ffffff'%3ED%3C/text%3E%3C/svg%3E" />
+    <meta property="og:url" content="https://nikoskiouris.github.io/FantasyDynastyAnalyzer/" />
+    <meta property="og:image" content="https://nikoskiouris.github.io/FantasyDynastyAnalyzer/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Dynasty Desk: your league on a broadcast desk" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Dynasty Desk — Fantasy League Command Center" />
+    <meta name="twitter:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a group-chat recap for your league." />
+    <meta name="twitter:image" content="https://nikoskiouris.github.io/FantasyDynastyAnalyzer/og-image.jpg" />
+    <link rel="canonical" href="https://nikoskiouris.github.io/FantasyDynastyAnalyzer/" />
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
@@ -67,7 +79,7 @@
             </div>
           </div>
 
-          <form id="username-search-form" class="league-load-form">
+          <form id="username-search-form" class="league-load-form" novalidate>
             <label for="sleeper-username">Sleeper username</label>
             <input
               id="sleeper-username"
@@ -78,14 +90,17 @@
               autocorrect="off"
               spellcheck="false"
               enterkeyhint="search"
+              required
+              aria-describedby="username-error"
             />
+            <p id="username-error" class="field-error" hidden role="alert"></p>
             <button id="find-leagues-btn" type="submit">Find leagues</button>
           </form>
           <div id="league-picker" class="league-picker hidden"></div>
 
           <details id="league-id-fallback" class="league-id-fallback">
             <summary>Have a league ID or URL instead?</summary>
-            <form id="league-load-form" class="league-load-form">
+            <form id="league-load-form" class="league-load-form" novalidate>
               <label for="league-id">League ID</label>
               <input
                 id="league-id"
@@ -96,7 +111,9 @@
                 autocorrect="off"
                 spellcheck="false"
                 enterkeyhint="go"
+                aria-describedby="league-id-error"
               />
+              <p id="league-id-error" class="field-error" hidden role="alert"></p>
               <button id="load-league-btn" type="submit">Load League</button>
             </form>
           </details>
@@ -107,7 +124,7 @@
             <span id="copy-league-id-feedback" class="feedback-chip hidden">Copied!</span>
           </p>
 
-          <p id="league-status" class="status muted">
+          <p id="league-status" class="status muted" aria-live="polite">
             <span id="league-status-loader" class="status-loader hidden" aria-hidden="true"></span>
             <span id="league-status-text">Search your Sleeper username to pick a league.</span>
           </p>
@@ -202,6 +219,10 @@
                 <button id="landing-demo-btn" type="button">Open demo league</button>
                 <button id="landing-focus-btn" type="button" class="ghost-btn">I have a username</button>
               </div>
+              <p id="landing-loading" class="landing-loading hidden" aria-live="polite">
+                <span class="status-loader" aria-hidden="true"></span>
+                <span id="landing-loading-text">Opening league from Sleeper…</span>
+              </p>
             </div>
             <ul class="landing-features">
               <li><strong>Command Center</strong><span>Live scores with pre-game win probability, standings with luck and all-play, power rankings, playoff and title odds from Monte Carlo season sims.</span></li>
@@ -337,7 +358,10 @@
               <h2>Trade ideas</h2>
               <p id="generate-help" class="muted small">Choose a trade path first.</p>
             </div>
-            <button id="generate-btn" type="button" disabled>Find Trades</button>
+            <div class="action-panel-cta">
+              <button id="generate-btn" type="button" disabled>Find Trades</button>
+              <p id="generate-error" class="field-error" hidden role="alert"></p>
+            </div>
           </section>
 
           <section class="workspace-panel hidden results-shell" id="results-section">
@@ -358,8 +382,24 @@
 
         <footer class="workspace-footer">
           <span>Dynasty Desk reads public Sleeper league data in your browser. Values blend KeepTradeCut 1QB or Superflex rankings with a TE-premium bump and a labeled estimate when an asset is missing.</span>
+          <nav class="footer-links" aria-label="Site">
+            <a href="./privacy.html">Privacy</a>
+            <a href="./terms.html">Terms</a>
+            <a href="https://github.com/nikoskiouris/FantasyDynastyAnalyzer/issues">Contact</a>
+          </nav>
         </footer>
       </main>
+    </div>
+
+    <div id="site-dock" class="site-dock">
+      <div id="sticky-mobile-cta" class="sticky-mobile-cta" hidden>
+        <button id="sticky-find-btn" type="button">Find leagues</button>
+        <button id="sticky-demo-btn" type="button" class="ghost-btn">Open demo</button>
+      </div>
+      <div id="storage-notice" class="storage-notice" hidden>
+        <p>This desk saves your last username, league, and theme in this browser. No cookies. No ads. No analytics. <a href="./privacy.html">Privacy</a></p>
+        <button id="storage-notice-dismiss" type="button">Got it</button>
+      </div>
     </div>
 
     <script type="module" src="./app.js"></script>
