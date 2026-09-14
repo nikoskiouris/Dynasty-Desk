@@ -88,6 +88,15 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /id="storage-notice"/);
   assert.match(index, /id="username-error"/);
   assert.match(index, /privacy\.html/);
+
+  const usernameInput = index.match(/<input[^>]*id="sleeper-username"[^>]*>/)?.[0] || "";
+  const leagueInput = index.match(/<input[^>]*id="league-id"[^>]*>/)?.[0] || "";
+  assert.match(usernameInput, /value=""/);
+  assert.match(leagueInput, /value=""/);
+  assert.doesNotMatch(usernameInput, /value="[^"]+"/);
+  assert.doesNotMatch(leagueInput, /value="[^"]+"/);
+  assert.match(usernameInput, /autocomplete="off"/);
+  assert.doesNotMatch(index, /last username, league/);
   assert.match(index, /terms\.html/);
 
   const robots = readDocs("robots.txt");
@@ -107,6 +116,13 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(privacy, /localStorage/);
   assert.match(privacy, /No accounts/);
   assert.match(privacy, /GitHub issues/);
+  assert.doesNotMatch(privacy, /Last Sleeper username/);
+  assert.doesNotMatch(privacy, /Last league ID/);
+
+  const app = readDocs("app.js");
+  assert.doesNotMatch(app, /dynasty_desk_last_username/);
+  assert.doesNotMatch(app, /dynasty_desk_last_league/);
+  assert.doesNotMatch(app, /Last league remembered/);
 
   const terms = readDocs("terms.html");
   assert.match(terms, /not affiliated/i);

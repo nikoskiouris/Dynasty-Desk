@@ -35,12 +35,13 @@ import {
   LIVE_SIM_REFRESH_MS,
   MATCHUP_FETCH_CHUNK,
 } from "./modules/constants.js";
-import { state, sleeper, LAST_LEAGUE_STORAGE_KEY, LAST_USERNAME_STORAGE_KEY, THEME_STORAGE_KEY, PLAYERS_CACHE_KEY } from "./modules/state.js";
+import { state, sleeper, THEME_STORAGE_KEY, PLAYERS_CACHE_KEY } from "./modules/state.js";
 import { apiGet, apiGetWithRetry, fetchUserLeagues, mapInChunks } from "./modules/sleeper.js";
 import {
   classifyLeagueInput,
   parseLeagueId,
   parseShareParams,
+  bootSearchFieldValues,
   buildShareUrl as buildShareUrlFromParts,
   uniqueSeasons,
   sortUserLeagues,
@@ -509,26 +510,12 @@ function bootFromUrl() {
   if (parsed.week) state.pendingWeek = parsed.week;
   if (parsed.tone) state.pendingTone = parsed.tone;
 
-  if (parsed.leagueId) {
-    if (el.leagueId) el.leagueId.value = parsed.leagueId;
-    void loadLeagueById(parsed.leagueId);
-    return;
-  }
+  const fields = bootSearchFieldValues({ leagueFromUrl: parsed.leagueId });
+  if (el.sleeperUsername) el.sleeperUsername.value = fields.username;
+  if (el.leagueId) el.leagueId.value = fields.leagueId;
 
-  try {
-    const lastUsername = localStorage.getItem(LAST_USERNAME_STORAGE_KEY);
-    if (lastUsername && el.sleeperUsername && !el.sleeperUsername.value) {
-      el.sleeperUsername.value = lastUsername;
-    }
-    const lastLeague = localStorage.getItem(LAST_LEAGUE_STORAGE_KEY);
-    if (lastLeague && el.leagueId && !el.leagueId.value) {
-      el.leagueId.value = lastLeague;
-      const fallback = document.querySelector("#league-id-fallback");
-      if (fallback) fallback.open = true;
-      setStatus("Last league remembered. Search your username or press Load League.");
-    }
-  } catch {
-    // Storage unavailable.
+  if (parsed.leagueId) {
+    void loadLeagueById(parsed.leagueId);
   }
 }
 
@@ -902,7 +889,6 @@ async function runUserLeagueSearch(username) {
     const { user, leagues } = await fetchUserLeagues(sleeper, username, uniqueSeasons(season, 1));
     state.sleeperUser = user;
     state.userLeagues = sortUserLeagues(leagues, season);
-    rememberUsername(username);
     renderLeaguePicker(state.userLeagues, season);
     setFieldError(el.sleeperUsername, el.usernameError, "");
     if (state.userLeagues.length === 0) {
@@ -937,14 +923,6 @@ function renderLeaguePicker(leagues, season) {
   }
   el.leaguePicker.classList.remove("hidden");
   el.leaguePicker.innerHTML = renderLeaguePickerMarkup(leagues, season, state.leagueId);
-}
-
-function rememberUsername(username) {
-  try {
-    localStorage.setItem(LAST_USERNAME_STORAGE_KEY, String(username));
-  } catch {
-    // Non-fatal.
-  }
 }
 
 function startFindLeaguesUi() {
@@ -1065,7 +1043,6 @@ async function runLeagueLoad(leagueId) {
     state.leagueHistory = leagueHistory;
     state.normalizedRosters = normalizeRosters(league, rosters, users, state.players, previousContext, tradedPicks, currentDraftContext);
 
-    rememberLastLeague(leagueId);
     setFieldError(el.leagueId, el.leagueIdError, "");
     if (state.userLeagues.length) {
       renderLeaguePicker(state.userLeagues, String(state.nflState?.league_season || state.nflState?.season || league?.season || ""));
@@ -1132,14 +1109,6 @@ async function runLeagueLoad(leagueId) {
     setStatus(message, { error: true });
   } finally {
     stopLeagueLoadingUi();
-  }
-}
-
-function rememberLastLeague(leagueId) {
-  try {
-    localStorage.setItem(LAST_LEAGUE_STORAGE_KEY, String(leagueId));
-  } catch {
-    // Non-fatal.
   }
 }
 

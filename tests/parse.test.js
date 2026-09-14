@@ -8,6 +8,7 @@ import {
   sortUserLeagues,
   parseShareParams,
   buildShareUrl,
+  bootSearchFieldValues,
 } from "../docs/modules/parse.js";
 
 test("parseLeagueId reads snowflake, path, and embedded URL", () => {
@@ -40,6 +41,15 @@ test("sortUserLeagues puts the current in-season league first", () => {
   assert.equal(sorted[0].name, "Alpha");
   assert.equal(sorted[1].name, "Zeta");
   assert.equal(sorted[2].name, "Old");
+});
+
+test("boot search fields stay blank unless the URL has a league", () => {
+  assert.deepEqual(bootSearchFieldValues(), { username: "", leagueId: "" });
+  assert.deepEqual(bootSearchFieldValues({ leagueFromUrl: "" }), { username: "", leagueId: "" });
+  assert.deepEqual(bootSearchFieldValues({ leagueFromUrl: "  1315165104303513600  " }), {
+    username: "",
+    leagueId: "1315165104303513600",
+  });
 });
 
 test("share params round-trip week and recap tone", () => {
