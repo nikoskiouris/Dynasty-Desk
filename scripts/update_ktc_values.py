@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+import sys
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
@@ -14,12 +15,18 @@ from urllib.request import Request, urlopen
 KTC_BASE_URL = "https://keeptradecut.com/dynasty-rankings"
 KTC_PROXY_BASE_URL = "https://r.jina.ai/http://keeptradecut.com/dynasty-rankings"
 SLEEPER_PLAYERS_URL = "https://api.sleeper.app/v1/players/nfl"
-OUTPUT_PATHS = (
+KTC_FILTERS = "QB|WR|RB|TE|RDP"
+SF_OUTPUT_PATHS = (
     Path("data/ktc_values_sample.csv"),
     Path("docs/data/ktc_values_sample.csv"),
+    Path("docs/data/ktc_values_sf.csv"),
 )
+ONE_QB_OUTPUT_PATHS = (
+    Path("docs/data/ktc_values_1qb.csv"),
+)
+JSON_OUTPUT_PATH = Path("docs/data/ktc_values.json")
 TIMEOUT_SECONDS = 25
-MAX_PAGES = 20
+MAX_PAGES = 24
 PICK_POSITIONS = {"PICK", "RDP"}
 NAME_SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
 TEAM_ALIASES = {
@@ -205,19 +212,48 @@ class SleeperPlayerIndex:
         return candidates[0].asset_id if candidates else None
 
 
-def main() -> None:
-    players = load_players()
-    rankings = load_all_rankings()
-    value_map = build_value_map(players, rankings)
+def main() -> int:
+    try:
+        players = load_players()
+    except Exception as exc:
+        print(f"Could not load Sleeper players: {exc}", file=sys.stderr)
+        return 0 if fallback_values_exist() else 1
 
-    if len(value_map) < 100:
-        raise RuntimeError(f"Refusing to overwrite local values with only {len(value_map)} mapped assets.")
+    sf_values = scrape_format(players, extra_params={"filters": KTC_FILTERS})
+    one_qb_values = scrape_format(players, extra_params={"filters": KTC_FILTERS, "format": 1}) or sf_values
 
-    for output_path in OUTPUT_PATHS:
-        write_values_csv(output_path, value_map, players)
+    if not sf_values:
+        print("KTC scrape returned no Superflex rankings; leaving existing sample files in place.", file=sys.stderr)
+        return 0 if fallback_values_exist() else 1
 
-    destinations = ", ".join(str(path) for path in OUTPUT_PATHS)
-    print(f"Wrote {len(value_map)} KTC-backed values to {destinations}")
+    for output_path in SF_OUTPUT_PATHS:
+        write_values_csv(output_path, sf_values, players)
+    if one_qb_values:
+        for output_path in ONE_QB_OUTPUT_PATHS:
+            write_values_csv(output_path, one_qb_values, players)
+    write_values_json(JSON_OUTPUT_PATH, sf_values, one_qb_values, players)
+
+    print(
+        f"Wrote {len(sf_values)} SF values and {len(one_qb_values or {})} 1QB values "
+        f"to CSV + {JSON_OUTPUT_PATH}"
+    )
+    return 0
+
+
+def fallback_values_exist() -> bool:
+    return Path("docs/data/ktc_values_sample.csv").exists()
+
+
+def scrape_format(players: dict, extra_params: dict | None = None) -> dict[str, int]:
+    try:
+        rankings = load_all_rankings(extra_params or {})
+        value_map = build_value_map(players, rankings)
+        if len(value_map) < 100:
+            raise RuntimeError(f"Only mapped {len(value_map)} assets.")
+        return value_map
+    except Exception as exc:
+        print(f"KTC format scrape failed ({extra_params}): {exc}", file=sys.stderr)
+        return {}
 
 
 def load_players() -> dict:
@@ -228,12 +264,13 @@ def load_players() -> dict:
     return players
 
 
-def load_all_rankings() -> list[KtcRow]:
+def load_all_rankings(extra_params: dict | None = None) -> list[KtcRow]:
     rankings: list[KtcRow] = []
     seen_first_ranks: set[int] = set()
+    params = extra_params or {}
 
     for page in range(MAX_PAGES):
-        page_rows = fetch_rankings_page(page)
+        page_rows = fetch_rankings_page(page, params)
         if not page_rows:
             break
 
@@ -250,9 +287,9 @@ def load_all_rankings() -> list[KtcRow]:
     return rankings
 
 
-def fetch_rankings_page(page: int) -> list[KtcRow]:
+def fetch_rankings_page(page: int, extra_params: dict | None = None) -> list[KtcRow]:
     last_error: Exception | None = None
-    for url in (build_ktc_url(page), build_proxy_url(page)):
+    for url in (build_ktc_url(page, extra_params), build_proxy_url(page, extra_params)):
         try:
             raw_text = fetch_text(url)
             lines = lines_from_response(raw_text, url)
@@ -267,16 +304,27 @@ def fetch_rankings_page(page: int) -> list[KtcRow]:
     return []
 
 
-def build_ktc_url(page: int) -> str:
-    if page == 0:
+def build_query(page: int, extra_params: dict | None = None) -> dict[str, str | int]:
+    params: dict[str, str | int] = {}
+    if extra_params:
+        params.update(extra_params)
+    if page:
+        params["page"] = page
+    return params
+
+
+def build_ktc_url(page: int, extra_params: dict | None = None) -> str:
+    params = build_query(page, extra_params)
+    if not params:
         return KTC_BASE_URL
-    return f"{KTC_BASE_URL}?{urlencode({'page': page})}"
+    return f"{KTC_BASE_URL}?{urlencode(params)}"
 
 
-def build_proxy_url(page: int) -> str:
-    if page == 0:
+def build_proxy_url(page: int, extra_params: dict | None = None) -> str:
+    params = build_query(page, extra_params)
+    if not params:
         return KTC_PROXY_BASE_URL
-    return f"{KTC_PROXY_BASE_URL}?{urlencode({'page': page})}"
+    return f"{KTC_PROXY_BASE_URL}?{urlencode(params)}"
 
 
 def fetch_text(url: str) -> str:
@@ -403,8 +451,10 @@ def extract_value(lines: list[str], start_idx: int) -> tuple[int | None, int]:
         if is_table_terminator(token):
             break
 
-        if re.fullmatch(r"\d+", token) and idx + 1 < len(lines) and looks_like_row_label(lines[idx + 1]):
-            break
+        if re.fullmatch(r"\d+", token) and idx + 1 < len(lines):
+            next_token = strip_inline_markup(lines[idx + 1])
+            if not is_table_terminator(next_token) and looks_like_row_label(next_token):
+                break
 
         if re.fullmatch(r"-?\d+", token):
             integers.append(int(token))
@@ -590,5 +640,16 @@ def resolve_asset_name(asset_id: str, players: dict) -> str:
     return asset_id
 
 
+def write_values_json(path: Path, sf_values: dict[str, int], one_qb_values: dict[str, int], players: dict) -> None:
+    names: dict[str, str] = {}
+    for asset_id in set(sf_values) | set(one_qb_values or {}):
+        names[asset_id] = resolve_asset_name(asset_id, players)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"sf": sf_values, "oneQb": one_qb_values or sf_values, "names": names}, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

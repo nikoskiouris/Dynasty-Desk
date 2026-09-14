@@ -323,9 +323,103 @@ h5 {
 }
 
 #load-league-btn,
+#find-leagues-btn,
 #landing-demo-btn,
 #rail-demo-btn {
   touch-action: manipulation;
+}
+
+.league-id-fallback {
+  margin-top: 0.85rem;
+  border-top: 1px solid var(--rail-line);
+  padding-top: 0.75rem;
+}
+
+.league-id-fallback summary {
+  cursor: pointer;
+  color: var(--rail-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.league-id-fallback .league-load-form {
+  margin-top: 0.7rem;
+}
+
+.league-picker {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
+.league-picker-head {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.league-picker-head strong {
+  font-size: 0.92rem;
+}
+
+.league-picker-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.league-pick {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--rail-line);
+  border-radius: 12px;
+  background: var(--rail-2);
+  color: var(--rail-text);
+  text-align: left;
+}
+
+.league-pick:hover,
+.league-pick.current,
+.league-pick.selected {
+  border-color: var(--team-a-border);
+  background: var(--team-a-soft);
+}
+
+.league-pick-avatar {
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--gradient);
+  font-weight: 800;
+}
+
+.league-pick-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.league-pick-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.league-pick-copy strong,
+.league-pick-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.league-pick-copy small {
+  color: var(--rail-muted);
+  font-size: 0.72rem;
 }
 
 .module-heading {
@@ -2300,6 +2394,23 @@ button.ghost-btn:hover {
   width: auto;
   min-height: 2.75rem;
   padding: 0.6rem 1.1rem;
+}
+
+.recap-card-preview {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 1rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #070a12;
+}
+
+.recap-card-preview canvas {
+  display: block;
+  width: min(100%, 22rem);
+  height: auto;
+  margin: 0 auto;
 }
 
 .recap-text {
@@ -4394,19 +4505,6 @@ button.ghost-btn:hover {
 }
 
 @media (max-width: 860px) {
-  .app-frame {
-    grid-template-columns: 1fr;
-  }
-
-  .control-rail {
-    position: static;
-    min-height: auto;
-    max-height: none;
-    overflow: visible;
-    border-right: 0;
-    border-bottom: 1px solid var(--rail-line);
-  }
-
   .workspace-tabs {
     top: 0.5rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4873,6 +4971,13 @@ button.ghost-btn:hover {
     border-radius: 10px;
   }
 
+  .page-tab[data-page="home"] { order: 1; }
+  .page-tab[data-page="recap"] { order: 2; }
+  .page-tab[data-page="trader"] { order: 3; }
+  .page-tab[data-page="teams"] { order: 4; }
+  .page-tab[data-page="awards"] { order: 5; }
+  .page-tab[data-page="analytics"] { order: 6; }
+
   .tab-icon {
     display: none;
   }
@@ -5010,6 +5115,26 @@ button.ghost-btn:hover {
   .week-chips button {
     flex: 0 0 auto;
     min-height: 2.35rem;
+  }
+
+  .recap-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem;
+    align-items: stretch;
+  }
+
+  .recap-control {
+    min-width: 0;
+  }
+
+  .recap-controls .recap-copy,
+  .recap-controls .ghost-btn {
+    width: 100%;
+  }
+
+  .recap-card-preview canvas {
+    width: 100%;
   }
 
   .recap-text {
