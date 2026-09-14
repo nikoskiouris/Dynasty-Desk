@@ -8,9 +8,13 @@ import {
   DEFAULT_TITLE,
   OG_IMAGE_URL,
   SITE_URL,
+  STORAGE_NOTICE_KEY,
   applyDocumentMeta,
+  applyStorageNoticeHidden,
   buildDocumentTitle,
   buildPageDescription,
+  readStorageNoticeDismissed,
+  writeStorageNoticeDismissed,
 } from "../docs/modules/site.js";
 
 const docs = join(dirname(fileURLToPath(import.meta.url)), "../docs");
@@ -110,4 +114,41 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
 
   assert.ok(statSync(join(docs, "og-image.jpg")).size < 120_000);
   assert.match(OG_IMAGE_URL, /og-image\.jpg$/);
+});
+
+test("Got it hides the storage notice and remembers the choice", () => {
+  const memory = new Map();
+  const storage = {
+    getItem(key) {
+      return memory.has(key) ? memory.get(key) : null;
+    },
+    setItem(key, value) {
+      memory.set(key, String(value));
+    },
+  };
+
+  assert.equal(readStorageNoticeDismissed(storage), false);
+  writeStorageNoticeDismissed(storage);
+  assert.equal(memory.get(STORAGE_NOTICE_KEY), "1");
+  assert.equal(readStorageNoticeDismissed(storage), true);
+
+  const classes = new Set();
+  const notice = {
+    hidden: false,
+    classList: {
+      toggle(name, force) {
+        if (force) classes.add(name);
+        else classes.delete(name);
+      },
+    },
+  };
+  applyStorageNoticeHidden(notice, true);
+  assert.equal(notice.hidden, true);
+  assert.equal(classes.has("hidden"), true);
+});
+
+test("storage notice CSS does not override the hidden attribute", () => {
+  const css = readDocs("styles.css");
+  assert.match(css, /\.storage-notice:not\(\[hidden\]\)\s*\{[^}]*display:\s*flex/s);
+  assert.doesNotMatch(css, /\.storage-notice\s*\{[^}]*display:\s*flex/s);
 });

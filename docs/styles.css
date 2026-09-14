@@ -5387,7 +5387,7 @@ body.rail-open .site-dock {
 }
 
 .storage-notice {
-  display: flex;
+  display: none;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
@@ -5399,6 +5399,10 @@ body.rail-open .site-dock {
   box-shadow: var(--shadow);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+}
+
+.storage-notice:not([hidden]) {
+  display: flex;
 }
 
 .storage-notice p {
