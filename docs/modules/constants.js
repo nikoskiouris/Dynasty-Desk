@@ -3,16 +3,29 @@ export const SLEEPER_AVATAR_BASE = "https://sleepercdn.com/avatars/thumbs/";
 export const SAMPLE_VALUES_PATH = "./data/ktc_values_sample.csv";
 export const PLAYERS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 export const SIM_ITERATIONS = 4000;
-export const PAGE_IDS = ["home", "teams", "awards", "analytics", "trader", "recap"];
+export const PAGE_IDS = ["team", "league", "trader"];
+export const DEFAULT_PAGE = "league";
 export const PAGE_LABELS = {
-  home: "Command Center",
-  teams: "Teams",
-  awards: "Awards",
-  analytics: "History",
-  trader: "Trade Lab",
-  recap: "Recap",
+  team: "My Team",
+  league: "League",
+  trader: "Trades",
+  home: "League",
+  teams: "My Team",
+  awards: "League",
+  analytics: "League",
+  recap: "League",
 };
-export const PHONE_PAGE_ORDER = ["home", "recap", "trader", "teams", "awards", "analytics"];
+export const PAGE_ALIASES = {
+  home: "league",
+  teams: "team",
+  awards: "league",
+  analytics: "league",
+  recap: "league",
+  history: "league",
+  trade: "trader",
+  trades: "trader",
+};
+export const PHONE_PAGE_ORDER = ["league", "team", "trader"];
 export const DEFAULT_FAIRNESS_PCT = 20;
 export const DEFAULT_MAX_RESULTS = 3;
 export const DEMO_LEAGUE_ID = "1315165104303513600";

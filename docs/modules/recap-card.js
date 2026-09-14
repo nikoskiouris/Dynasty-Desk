@@ -78,15 +78,15 @@ function wrapText(ctx, text, maxWidth) {
 
 export function drawRecapCard(ctx, model, { width = 1080, height = 1350 } = {}) {
   const palette = {
-    bg: "#eef3f7",
-    panel: "rgba(255,255,255,0.86)",
-    line: "rgba(21,32,43,0.10)",
-    text: "#15202b",
-    muted: "#5b6b7c",
-    blue: "#1f86ef",
-    violet: "#5c7cff",
-    green: "#0f9d8a",
-    amber: "#c4840c",
+    bg: "#071018",
+    panel: "rgba(255,255,255,0.06)",
+    line: "rgba(46,230,197,0.16)",
+    text: "#e7f4f1",
+    muted: "#8aa4a8",
+    blue: "#2ee6c5",
+    violet: "#5fd0dc",
+    green: "#2ee6c5",
+    amber: "#f5c14a",
   };
 
   ctx.clearRect(0, 0, width, height);
@@ -94,23 +94,23 @@ export function drawRecapCard(ctx, model, { width = 1080, height = 1350 } = {}) 
   ctx.fillRect(0, 0, width, height);
 
   const glow = ctx.createRadialGradient(width * 0.8, 0, 40, width * 0.8, 0, width * 0.7);
-  glow.addColorStop(0, "rgba(94,182,255,0.32)");
-  glow.addColorStop(1, "rgba(94,182,255,0)");
+  glow.addColorStop(0, "rgba(46,230,197,0.22)");
+  glow.addColorStop(1, "rgba(46,230,197,0)");
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, width, height);
 
   const glow2 = ctx.createRadialGradient(width * 0.1, height, 20, width * 0.1, height, width * 0.6);
-  glow2.addColorStop(0, "rgba(31,134,239,0.16)");
-  glow2.addColorStop(1, "rgba(31,134,239,0)");
+  glow2.addColorStop(0, "rgba(46,230,197,0.12)");
+  glow2.addColorStop(1, "rgba(46,230,197,0)");
   ctx.fillStyle = glow2;
   ctx.fillRect(0, 0, width, height);
 
   ctx.fillStyle = palette.blue;
-  ctx.font = "700 28px Inter, \"Plus Jakarta Sans\", system-ui, sans-serif";
+  ctx.font = "700 28px Inter, system-ui, sans-serif";
   ctx.fillText(model.eyebrow || "Dynasty Desk", 72, 92);
 
   ctx.fillStyle = palette.text;
-  ctx.font = "800 64px \"Plus Jakarta Sans\", Inter, system-ui, sans-serif";
+  ctx.font = "800 64px Inter, system-ui, sans-serif";
   const titleLines = wrapText(ctx, model.title, width - 144);
   titleLines.slice(0, 2).forEach((line, index) => {
     ctx.fillText(line, 72, 170 + index * 72);
@@ -148,7 +148,7 @@ export function drawRecapCard(ctx, model, { width = 1080, height = 1350 } = {}) 
       ctx.fillText(game.leftName, 100, y + 52);
       ctx.fillText(game.rightName, 100, y + 100);
       ctx.fillStyle = palette.blue;
-      ctx.font = "800 36px \"Plus Jakarta Sans\", Inter, system-ui, sans-serif";
+      ctx.font = "800 36px Inter, system-ui, sans-serif";
       const leftPts = game.leftPoints.toFixed(1);
       const rightPts = game.rightPoints.toFixed(1);
       ctx.fillText(leftPts, width - 100 - ctx.measureText(leftPts).width, y + 52);
@@ -161,13 +161,13 @@ export function drawRecapCard(ctx, model, { width = 1080, height = 1350 } = {}) 
   if (model.award) {
     y += 12;
     roundRect(ctx, 72, y, width - 144, 150, 24);
-    ctx.fillStyle = "rgba(15,157,138,0.14)";
+    ctx.fillStyle = "rgba(46,230,197,0.14)";
     ctx.fill();
     ctx.fillStyle = palette.green;
     ctx.font = "700 22px Inter, system-ui, sans-serif";
     ctx.fillText(model.award.title.toUpperCase(), 100, y + 48);
     ctx.fillStyle = palette.text;
-    ctx.font = "800 36px \"Plus Jakarta Sans\", Inter, system-ui, sans-serif";
+    ctx.font = "800 36px Inter, system-ui, sans-serif";
     ctx.fillText(model.award.teamName, 100, y + 98);
     ctx.fillStyle = palette.muted;
     ctx.font = "600 24px Inter, system-ui, sans-serif";
@@ -177,13 +177,13 @@ export function drawRecapCard(ctx, model, { width = 1080, height = 1350 } = {}) 
 
   if (model.favorite) {
     roundRect(ctx, 72, y, width - 144, 130, 24);
-    ctx.fillStyle = "rgba(92,124,255,0.14)";
+    ctx.fillStyle = "rgba(95,208,220,0.16)";
     ctx.fill();
     ctx.fillStyle = palette.violet;
     ctx.font = "700 22px Inter, system-ui, sans-serif";
     ctx.fillText("TITLE FAVORITE", 100, y + 46);
     ctx.fillStyle = palette.text;
-    ctx.font = "800 36px \"Plus Jakarta Sans\", Inter, system-ui, sans-serif";
+    ctx.font = "800 36px Inter, system-ui, sans-serif";
     ctx.fillText(model.favorite.name, 100, y + 94);
     if (model.favorite.detail) {
       ctx.fillStyle = palette.muted;
