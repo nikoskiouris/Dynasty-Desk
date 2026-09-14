@@ -10,7 +10,12 @@ import {
   ironRosterShare,
   summarizeCharms,
   hindsightGrade,
+  scoreTradeSide,
+  buildTradeRecap,
   analyzePastTrades,
+  analyzeLeagueTradeSides,
+  pickLeagueTradeAwards,
+  finishesAfterTrade,
   biggestTradeMiss,
   newCorePlayers,
   buildPlayerPassport,
@@ -92,12 +97,38 @@ test("past trade analyzer grades hindsight value and record since", () => {
       { season: "2025", week: 6, result: "W" },
       { season: "2025", week: 3, result: "L" },
     ],
+    finishes: [
+      { season: "2024", label: "3rd" },
+      { season: "2025", label: "10th" },
+      { season: "2026", label: "live", isCurrent: true },
+    ],
   });
   assert.equal(analyzed.length, 1);
   assert.equal(analyzed[0].verdict, "won");
   assert.equal(analyzed[0].since.wins, 2);
   assert.equal(analyzed[0].grade, "A+");
+  assert.deepEqual(analyzed[0].laterFinishes.map((row) => row.label), ["10th"]);
+  assert.match(analyzed[0].recap, /10th/);
   assert.equal(gameIsAfter({ season: "2025", week: 5 }, { season: "2025", week: 4 }), true);
+});
+
+test("later finishes skip prior seasons and the live year", () => {
+  const later = finishesAfterTrade([
+    { season: "2024", label: "3rd" },
+    { season: "2025", label: "10th" },
+    { season: "2026", label: "live", isCurrent: true },
+  ], { season: "2025", week: 8 });
+  assert.deepEqual(later.map((row) => row.label), ["10th"]);
+  const laterSeasons = finishesAfterTrade(
+    [{ season: "2025", label: "10th" }, { season: "2026", label: "2nd" }],
+    { season: "2025", week: 8 },
+  );
+  assert.deepEqual(laterSeasons.map((row) => row.label), ["10th", "2nd"]);
+  const offseason = finishesAfterTrade(
+    [{ season: "2025", label: "1st" }],
+    { season: "2025", week: 0 },
+  );
+  assert.equal(offseason[0].label, "1st");
 });
 
 test("hindsight grade and biggest miss follow current value", () => {
@@ -153,4 +184,82 @@ test("new core and loyalty score stay in range", () => {
     dna: { overlap: 0.5 },
   });
   assert.ok(score >= 1 && score <= 99);
+});
+
+test("trade score trusts record sample and still flags a zero-game steal", () => {
+  const freshSteal = scoreTradeSide({
+    receivedNow: 9000,
+    sentNow: 1200,
+    received: [{ value: 9000, name: "Chase" }],
+    sent: [{ value: 1200, name: "Old WR" }],
+    since: { wins: 0, losses: 0, ties: 0, games: 0, winPct: 0.5 },
+  });
+  const agedWin = scoreTradeSide({
+    receivedNow: 4200,
+    sentNow: 2100,
+    received: [{ value: 4200, name: "Gibbs" }],
+    sent: [{ value: 2100, name: "Vet" }],
+    since: { wins: 12, losses: 4, ties: 0, games: 16, winPct: 0.75 },
+  });
+  assert.ok(freshSteal.fleece > agedWin.fleece);
+  assert.ok(agedWin.impact > freshSteal.impact);
+  assert.equal(freshSteal.games, 0);
+});
+
+test("trade recap names the record since and later finishes", () => {
+  const recap = buildTradeRecap({
+    managerName: "Niko",
+    partnerName: "Conor",
+    season: "2025",
+    week: 8,
+    received: [{ name: "Gibbs" }],
+    sent: [{ name: "Daniels" }],
+    delta: -1162,
+    since: { games: 12, label: "8-4", winPct: 8 / 12 },
+    grade: "C",
+    finishes: [{ season: "2025", label: "10th" }],
+  });
+  assert.match(recap, /8-4/);
+  assert.match(recap, /Gibbs/);
+  assert.match(recap, /10th/);
+  assert.match(recap, /Grade C/);
+});
+
+test("league trade awards split best, fleece, even, and heater", () => {
+  const sides = analyzeLeagueTradeSides({
+    nameOf: (key) => ({ a: "Niko", b: "Sam", c: "Lee" }[key]),
+    valueOf: (item) => item.value,
+    gamesByManager: new Map([
+      ["a", [{ season: "2025", week: 9, result: "W" }, { season: "2025", week: 10, result: "W" }, { season: "2025", week: 11, result: "W" }, { season: "2025", week: 12, result: "W" }, { season: "2025", week: 13, result: "W" }, { season: "2025", week: 14, result: "W" }]],
+      ["b", [{ season: "2025", week: 9, result: "L" }, { season: "2025", week: 10, result: "L" }, { season: "2025", week: 11, result: "L" }, { season: "2025", week: 12, result: "L" }, { season: "2025", week: 13, result: "L" }, { season: "2025", week: 14, result: "L" }]],
+      ["c", [{ season: "2025", week: 3, result: "W" }, { season: "2025", week: 4, result: "L" }, { season: "2025", week: 5, result: "W" }, { season: "2025", week: 6, result: "L" }, { season: "2025", week: 7, result: "W" }, { season: "2025", week: 8, result: "L" }]],
+    ]),
+    trades: [
+      {
+        id: "steal",
+        season: "2025",
+        week: 8,
+        movements: [
+          { fromRosterId: "b", toRosterId: "a", name: "Chase", value: 9000 },
+          { fromRosterId: "a", toRosterId: "b", name: "Dust", value: 800 },
+        ],
+      },
+      {
+        id: "even",
+        season: "2025",
+        week: 2,
+        movements: [
+          { fromRosterId: "c", toRosterId: "a", name: "WR1", value: 5000 },
+          { fromRosterId: "a", toRosterId: "c", name: "WR2", value: 4900 },
+        ],
+      },
+    ],
+  });
+  const awards = pickLeagueTradeAwards(sides);
+  assert.equal(awards.best.managerKey, "a");
+  assert.equal(awards.fleece.managerKey, "a");
+  assert.equal(awards.worst.managerKey, "b");
+  assert.equal(awards.even.id, "even");
+  assert.equal(awards.heater.managerKey, "a");
+  assert.ok(awards.heater.since.wins >= 6);
 });

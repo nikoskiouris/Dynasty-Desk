@@ -73,6 +73,8 @@ export function createState() {
     awardsWeek: null,
     recapWeek: null,
     recapTone: "desk",
+    selectedTradeId: "",
+    selectedTradeManagerKey: "",
     calc: {
       partnerRosterId: null,
       myAssetIds: new Set(),

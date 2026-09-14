@@ -81,6 +81,7 @@ import { buildRecapCardModel, drawRecapCard, renderRecapCardBlob, recapCardFilen
 import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber, clamp } from "./modules/html.js";
 import {
   analyzePastTrades,
+  analyzeLeagueTradeSides,
   biggestTradeMiss,
   buildHallRows,
   buildPlayerPassport,
@@ -90,6 +91,7 @@ import {
   ironRosterShare,
   loyaltyScore,
   newCorePlayers,
+  pickLeagueTradeAwards,
   summarizeCharms,
   winPctFromRecord,
 } from "./modules/loyalty.js";
@@ -269,6 +271,7 @@ let livePoller = null;
 let liveVisibilityBound = false;
 let userSearchPromise = null;
 let lastSimSignature = "";
+let leagueTradeSideCache = { key: "", sides: [] };
 
 function getAssetValue(asset, values = state.values) {
   return marketAssetValue(asset, values, {
@@ -1014,6 +1017,9 @@ async function runLeagueLoad(leagueId) {
     state.homeWeek = null;
     state.awardsWeek = null;
     state.recapWeek = null;
+    state.selectedTradeId = "";
+    state.selectedTradeManagerKey = "";
+    leagueTradeSideCache = { key: "", sides: [] };
     state.standingsView = "overall";
     resetCalculatorState({ keepPartner: false });
     if (el.playerSearch) el.playerSearch.value = "";
@@ -2806,29 +2812,33 @@ function managerGamesForAnalyzer(roster) {
   return games;
 }
 
-function toLoyaltyTrade(transaction, managerKey) {
+function toKeyedTrade(transaction, focusKey = null) {
   const sourceLeagueId = String(transaction?.sourceLeagueId || state.leagueId || "");
-  const movements = buildTradeMovements(transaction).map((movement) => ({
-    ...movement,
-    fromRosterId: getHistoryRosterInfo(sourceLeagueId, movement.fromRosterId)?.managerKey === managerKey ? "ME" : movement.fromRosterId,
-    toRosterId: getHistoryRosterInfo(sourceLeagueId, movement.toRosterId)?.managerKey === managerKey ? "ME" : movement.toRosterId,
-  }));
-  if (!movements.some((movement) => movement.fromRosterId === "ME" || movement.toRosterId === "ME")) return null;
-  const partnerIds = getTransactionParticipantIds(transaction)
-    .filter((id) => getHistoryRosterInfo(sourceLeagueId, id)?.managerKey !== managerKey);
+  const movements = buildTradeMovements(transaction).map((movement) => {
+    const fromInfo = getHistoryRosterInfo(sourceLeagueId, movement.fromRosterId);
+    const toInfo = getHistoryRosterInfo(sourceLeagueId, movement.toRosterId);
+    return {
+      ...movement,
+      fromRosterId: fromInfo?.managerKey || movement.fromRosterId,
+      toRosterId: toInfo?.managerKey || movement.toRosterId,
+      fromName: fromInfo?.managerName || "",
+      toName: toInfo?.managerName || "",
+    };
+  });
+  const participantKeys = [...new Set(movements
+    .flatMap((movement) => [movement.fromRosterId, movement.toRosterId])
+    .map(String)
+    .filter(Boolean))];
+  if (focusKey && !participantKeys.includes(String(focusKey))) return null;
+  const others = participantKeys.filter((key) => key !== String(focusKey || ""));
   return {
     id: String(transaction.transaction_id || `${transaction.sourceSeason}-${transaction.created}`),
     season: String(transaction.sourceSeason || state.league?.season || ""),
     week: Number(transaction.leg || transaction.week || 0),
-    partnerName: partnerIds
-      .map((id) => getHistoryRosterInfo(sourceLeagueId, id)?.managerName || getRosterManagerName(id))
-      .filter(Boolean)
-      .join(" / ") || "Rival",
+    partnerName: others.map((key) => managerNameByKey(key)).filter(Boolean).join(" / ") || "Rival",
     movements,
     created: Number(transaction.status_updated || transaction.created || 0),
-    participantKeys: getTransactionParticipantIds(transaction)
-      .map((id) => getHistoryRosterInfo(sourceLeagueId, id)?.managerKey)
-      .filter(Boolean),
+    participantKeys,
   };
 }
 
@@ -2836,8 +2846,123 @@ function loyaltyTradesForRoster(roster) {
   const managerKey = rosterManagerKey(roster);
   if (!managerKey) return [];
   return getArchiveTradeTransactions()
-    .map((transaction) => toLoyaltyTrade(transaction, managerKey))
+    .map((transaction) => toKeyedTrade(transaction, managerKey))
     .filter(Boolean);
+}
+
+function keyedArchiveTrades() {
+  const seen = new Set();
+  return getArchiveTradeTransactions()
+    .map((transaction) => toKeyedTrade(transaction))
+    .filter((trade) => {
+      if (!trade?.id || seen.has(trade.id)) return false;
+      seen.add(trade.id);
+      return trade.movements.length > 0;
+    });
+}
+
+function managerNameByKey(managerKey) {
+  const key = String(managerKey || "");
+  const live = state.normalizedRosters.find((roster) => rosterManagerKey(roster) === key);
+  if (live) return live.manager.displayName;
+  for (const entry of state.leagueHistory || []) {
+    for (const roster of entry.rosters || []) {
+      const info = getHistoryRosterInfo(entry.leagueId, roster.roster_id);
+      if (info?.managerKey === key) return info.managerName;
+    }
+  }
+  return "Manager";
+}
+
+function collectGamesByManager() {
+  const map = new Map();
+  const push = (managerKey, game) => {
+    const key = String(managerKey || "");
+    if (!key) return;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(game);
+  };
+  const model = getSeasonModel();
+  const currentSeason = String(model?.season || state.league?.season || "");
+  const rosterKey = new Map(state.normalizedRosters.map((roster) => [String(roster.rosterId), rosterManagerKey(roster)]));
+
+  (model?.weeks || []).forEach((week) => {
+    if (!week?.hasPoints) return;
+    (week.games || []).forEach((game) => {
+      const sides = game.sides || [];
+      if (sides.length !== 2) return;
+      const [left, right] = sides;
+      if (!(left.points > 0 || right.points > 0)) return;
+      const leftKey = rosterKey.get(String(left.rosterId));
+      const rightKey = rosterKey.get(String(right.rosterId));
+      push(leftKey, { season: currentSeason, week: week.week, result: gameResult(left.points, right.points) });
+      push(rightKey, { season: currentSeason, week: week.week, result: gameResult(right.points, left.points) });
+    });
+  });
+
+  (state.historyMatchups || []).forEach((matchup) => {
+    if (String(matchup.season) === currentSeason) return;
+    if (!matchup.left || !matchup.right) return;
+    push(matchup.left.managerKey, {
+      season: String(matchup.season),
+      week: Number(matchup.week) || 0,
+      result: gameResult(matchup.left.points, matchup.right.points),
+    });
+    push(matchup.right.managerKey, {
+      season: String(matchup.season),
+      week: Number(matchup.week) || 0,
+      result: gameResult(matchup.right.points, matchup.left.points),
+    });
+  });
+  return map;
+}
+
+function collectFinishesByManager() {
+  const map = new Map();
+  (state.leagueHistory || []).forEach((entry) => {
+    const snapshot = buildSeasonSnapshot(entry);
+    (snapshot?.standings || []).forEach((row) => {
+      if (!map.has(row.managerKey)) map.set(row.managerKey, []);
+      map.get(row.managerKey).push({
+        season: snapshot.season,
+        finishRank: row.finishRank,
+        playoffFinish: row.playoffFinish,
+        isCurrent: snapshot.isCurrent,
+        label: row.playoffFinish === 1 ? "champion" : row.finishRank ? ordinal(row.finishRank) : "—",
+      });
+    });
+  });
+  return map;
+}
+
+function assetValueOf(item) {
+  return Number(item?.value) || playerValueById(item?.assetId);
+}
+
+function leagueTradeSidesCacheKey() {
+  return [
+    state.leagueId,
+    state.historyTransactions.length,
+    state.transactions.length,
+    Object.keys(state.values || {}).length,
+    (state.historyMatchups || []).length,
+    (state.leagueHistory || []).length,
+    state.seasonLoaded ? "1" : "0",
+  ].join(":");
+}
+
+function leagueTradeSides() {
+  const key = leagueTradeSidesCacheKey();
+  if (leagueTradeSideCache.key === key) return leagueTradeSideCache.sides;
+  const sides = analyzeLeagueTradeSides({
+    trades: keyedArchiveTrades(),
+    gamesByManager: collectGamesByManager(),
+    finishesByManager: collectFinishesByManager(),
+    valueOf: assetValueOf,
+    nameOf: managerNameByKey,
+  });
+  leagueTradeSideCache = { key, sides };
+  return sides;
 }
 
 function managerCareerSummary(managerKey) {
@@ -2957,7 +3082,7 @@ function renderLoyaltyDashboard() {
   const charms = summarizeCharms(appearances, { teamWinPct: managerWinPct(roster), minGames: 3 });
   const trades = loyaltyTradesForRoster(roster);
   const miss = biggestTradeMiss(trades, {
-    myRosterId: "ME",
+    myRosterId: managerKey,
     valueOf: (item) => Number(item.value) || playerValueById(item.assetId),
   });
   const core = newCorePlayers(dna.added, { ageOf: playerAgeById, maxAge: 25 });
@@ -3031,6 +3156,75 @@ function renderLoyaltyDashboard() {
   `;
 }
 
+function renderTradeAssetLine(item) {
+  return `<li><span>${escapeHtml(item.name || "Asset")}</span><strong>${formatNumber(Math.round(item.value || 0))}</strong></li>`;
+}
+
+function renderResultPills(games = []) {
+  const recent = games.slice(-12);
+  if (!recent.length) return `<p class="muted small">No games after this deal yet.</p>`;
+  return `<div class="result-pills" aria-label="Results since the trade">${recent.map((game) => {
+    const mark = String(game.result || "").toUpperCase() || "T";
+    return `<span class="result-pill ${mark === "W" ? "win" : mark === "L" ? "loss" : "tie"}" title="${escapeHtml(`${game.season} W${game.week}`)}">${escapeHtml(mark)}</span>`;
+  }).join("")}</div>`;
+}
+
+function renderLaterFinishes(rows = []) {
+  return `
+    <div class="trade-later">
+      <span class="trade-later-label">Later finishes</span>
+      ${rows.length
+        ? `<div class="finish-chips" aria-label="Finishes after this trade">${rows.map((row) => `<span class="finish-chip">${escapeHtml(row.season)} ${escapeHtml(row.label)}</span>`).join("")}</div>`
+        : `<p class="muted small">No later finish locked yet.</p>`}
+    </div>
+  `;
+}
+
+function renderTradeDetail(row) {
+  return `
+    <section class="workspace-panel trade-file">
+      <div class="panel-heading">
+        <div>
+          <button type="button" class="ghost-btn" data-action="close-trade">All trades</button>
+          <span class="eyebrow">Trade file</span>
+          <h2>${escapeHtml(row.season)} Week ${row.week || "?"} vs ${escapeHtml(row.partnerName)}</h2>
+        </div>
+        <p class="section-copy">${escapeHtml(row.managerName)}'s side. Record, KTC, and later finishes from this week forward.</p>
+      </div>
+      <div class="trade-file-hero">
+        <div class="loyalty-card">
+          <span>Since</span>
+          <strong>${escapeHtml(row.since.label)}</strong>
+          <small>${row.since.games ? `${Math.round(row.since.winPct * 100)}% · ${row.since.games} games later` : "Still waiting on the next kickoff"}</small>
+        </div>
+        <div class="loyalty-card">
+          <span>KTC now</span>
+          <strong>${formatSignedNumber(Math.round(row.delta))}</strong>
+          <small>Got ${formatNumber(Math.round(row.receivedNow))} · sent ${formatNumber(Math.round(row.sentNow))}</small>
+        </div>
+        <div class="loyalty-card ${gradeClassName(row.grade)}">
+          <span>Grade</span>
+          <strong class="grade-pill">${escapeHtml(row.grade)}</strong>
+          <small>${row.verdict === "won" ? "Market win" : row.verdict === "lost" ? "Market loss" : "Even books"}</small>
+        </div>
+      </div>
+      ${renderResultPills(row.after || [])}
+      ${renderLaterFinishes(row.laterFinishes || [])}
+      <div class="dna-board trade-file-sides">
+        <article class="dna-col kept">
+          <h3>Got</h3>
+          <ul class="trade-asset-list">${row.received.map(renderTradeAssetLine).join("") || "<li class='muted'>Picks / nothing priced</li>"}</ul>
+        </article>
+        <article class="dna-col lost">
+          <h3>Sent</h3>
+          <ul class="trade-asset-list">${row.sent.map(renderTradeAssetLine).join("") || "<li class='muted'>Picks / nothing priced</li>"}</ul>
+        </article>
+      </div>
+      <p class="trade-recap">${escapeHtml(row.recap)}</p>
+    </section>
+  `;
+}
+
 function renderTradeHistoryDesk() {
   const host = el.tradeHistoryDashboard;
   if (!host) return;
@@ -3040,13 +3234,23 @@ function renderTradeHistoryDesk() {
     return;
   }
 
+  const managerKey = rosterManagerKey(roster);
   const trades = loyaltyTradesForRoster(roster);
   const analyzed = analyzePastTrades({
     trades,
-    myRosterId: "ME",
+    myRosterId: managerKey,
     games: managerGamesForAnalyzer(roster),
-    valueOf: (item) => Number(item.value) || playerValueById(item.assetId),
-  }).slice(0, 12);
+    valueOf: assetValueOf,
+    managerName: roster.manager.displayName,
+    finishes: collectFinishesByManager().get(managerKey) || [],
+  });
+  let selected = null;
+  if (state.selectedTradeId) {
+    const wantKey = state.selectedTradeManagerKey || managerKey;
+    selected = analyzed.find((row) => row.id === state.selectedTradeId && row.managerKey === wantKey)
+      || leagueTradeSides().find((row) => row.id === state.selectedTradeId && row.managerKey === wantKey)
+      || null;
+  }
   const passports = buildPassportBoard(roster, 12);
   const partnerId = Number(state.calc?.partnerRosterId || 0);
   const partner = partnerId ? findNormalizedRoster(partnerId) : null;
@@ -3056,25 +3260,27 @@ function renderTradeHistoryDesk() {
     : [];
 
   host.innerHTML = `
+    ${selected ? renderTradeDetail(selected) : `
     <section class="workspace-panel trade-analyzer">
       <div class="panel-heading">
         <div>
           <span class="eyebrow">Past trades</span>
-          <h2>Hindsight with current KTC</h2>
+          <h2>Your trade file</h2>
         </div>
-        <p class="section-copy">Record after the week of the deal. Grade mixes today’s value delta with wins since.</p>
+        <p class="section-copy">Tap a deal for the recap, record since that week, and today's KTC. ${analyzed.length} in the archive.</p>
       </div>
-      ${analyzed.map((row) => `
-        <article class="trade-grade ${gradeClassName(row.grade)} verdict-${escapeHtml(row.verdict)}">
-          <div>
-            <strong>${escapeHtml(row.season)} W${row.week || "?"} vs ${escapeHtml(row.partnerName)}</strong>
-            <span>${escapeHtml(row.received.map((item) => item.name).join(", ") || "picks")} ← ${escapeHtml(row.sent.map((item) => item.name).join(", ") || "picks")}</span>
-            <small>Since ${escapeHtml(row.since.label)} · now ${formatSignedNumber(Math.round(row.delta))}</small>
-          </div>
-          <span class="grade-pill">${escapeHtml(row.grade)}</span>
-        </article>
-      `).join("") || `<p class="muted">No completed trades in the loaded archive yet.</p>`}
+      <div class="trade-log">
+        ${analyzed.map((row) => `
+          <button type="button" class="trade-row ${gradeClassName(row.grade)} verdict-${escapeHtml(row.verdict)}" data-action="open-trade" data-trade-id="${escapeHtml(row.id)}" data-manager-key="${escapeHtml(managerKey)}">
+            <span class="trade-row-when">${escapeHtml(row.season)} W${row.week || "?"} · ${escapeHtml(row.partnerName)}</span>
+            <span class="trade-row-move">${escapeHtml(row.received.map((item) => item.name).join(", ") || "picks")} ← ${escapeHtml(row.sent.map((item) => item.name).join(", ") || "picks")}</span>
+            <span class="trade-row-since">${escapeHtml(row.since.games ? row.since.label : "—")}</span>
+            <span class="grade-pill">${escapeHtml(row.grade)}</span>
+          </button>
+        `).join("") || `<p class="muted">No completed trades in the loaded archive yet.</p>`}
+      </div>
     </section>
+    `}
     <div class="trade-side-stack">
       <section class="workspace-panel passport-card">
         <div class="panel-heading">
@@ -3102,7 +3308,7 @@ function renderTradeHistoryDesk() {
             </div>
           </div>
           ${pairRows.map((trade) => `
-            <p class="muted">${escapeHtml(trade.season)} W${trade.week || "?"} · ${escapeHtml(trade.movements.filter((item) => item.toRosterId === "ME").map((item) => item.name).join(", ") || "picks")} for ${escapeHtml(trade.movements.filter((item) => item.fromRosterId === "ME").map((item) => item.name).join(", ") || "picks")}</p>
+            <button type="button" class="linklike" data-action="open-trade" data-trade-id="${escapeHtml(trade.id)}" data-manager-key="${escapeHtml(managerKey)}">${escapeHtml(trade.season)} W${trade.week || "?"} · ${escapeHtml(trade.movements.filter((item) => item.toRosterId === managerKey).map((item) => item.name).join(", ") || "picks")} for ${escapeHtml(trade.movements.filter((item) => item.fromRosterId === managerKey).map((item) => item.name).join(", ") || "picks")}</button>
           `).join("")}
         </section>
       ` : ""}
@@ -3903,6 +4109,21 @@ function handleWorkspaceClick(event) {
       saveRecapCard();
       break;
     }
+    case "open-trade": {
+      state.selectedTradeId = String(target.dataset.tradeId || "");
+      state.selectedTradeManagerKey = String(target.dataset.managerKey || "");
+      if (!state.selectedTradeId) return;
+      if (state.activePage !== "trader") setActivePage("trader");
+      else renderTradeHistoryDesk();
+      el.tradeHistoryDashboard?.scrollIntoView({ behavior: "smooth", block: "start" });
+      break;
+    }
+    case "close-trade": {
+      state.selectedTradeId = "";
+      state.selectedTradeManagerKey = "";
+      renderTradeHistoryDesk();
+      break;
+    }
     case "calc-toggle": {
       const side = target.dataset.side === "their" ? "their" : "my";
       const ids = side === "my" ? state.calc.myAssetIds : state.calc.theirAssetIds;
@@ -4558,6 +4779,8 @@ function renderAnalyticsDashboard(model) {
     </div>
 
     ${renderHallBoard(history)}
+
+    ${renderTradeWireBoard()}
 
     ${renderHistoryComparisonPanel(history)}
 
@@ -5264,6 +5487,42 @@ function renderHallBoard(history) {
             <span>${formatNumber(row.dynastyScore)}</span>
           </div>
         `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderTradeAwardCard(title, blurb, side, tone = "") {
+  if (!side) return "";
+  return `
+    <button type="button" class="trade-award ${tone}" data-action="open-trade" data-trade-id="${escapeHtml(side.id)}" data-manager-key="${escapeHtml(side.managerKey)}">
+      <span>${escapeHtml(title)}</span>
+      <strong>${escapeHtml(side.managerName)}</strong>
+      <small>${escapeHtml(side.season)} W${side.week || "?"} vs ${escapeHtml(side.partnerName)}</small>
+      <em>Since ${escapeHtml(side.since.games ? side.since.label : "no games yet")} · now ${formatSignedNumber(Math.round(side.delta))}${side.laterFinishes?.length ? ` · later ${escapeHtml(side.laterFinishes.map((row) => `${row.season} ${row.label}`).join(", "))}` : ""}</em>
+      <p>${escapeHtml(blurb)}</p>
+    </button>
+  `;
+}
+
+function renderTradeWireBoard() {
+  const awards = pickLeagueTradeAwards(leagueTradeSides());
+  if (!awards.best && !awards.fleece && !awards.even) return "";
+  return `
+    <section class="workspace-panel trade-wire" id="league-wire">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Trade wire</span>
+          <h3>Best, fleece, even, heater</h3>
+        </div>
+        <p class="section-copy">Score mixes today's KTC swing, how lopsided the packages were, the star that moved, and the shrunk record since that week. Zero-game steals can still win fleece. Heaters need a real sample.</p>
+      </div>
+      <div class="trade-wire-grid">
+        ${renderTradeAwardCard("Best trade", "Value plus the wins that followed.", awards.best, "won")}
+        ${renderTradeAwardCard("Biggest fleece", "The steal on today's board, even if the record is still young.", awards.fleece, "won")}
+        ${renderTradeAwardCard("Got cooked", "Lost the market and the games after.", awards.worst, "lost")}
+        ${renderTradeAwardCard("Most even", "Big packages, tiny gap.", awards.even, "even")}
+        ${renderTradeAwardCard("Heater since", "Hottest desk after a deal. Record since that week, shrunk toward .500 so 2-0 does not beat 12-4.", awards.heater, "won")}
       </div>
     </section>
   `;

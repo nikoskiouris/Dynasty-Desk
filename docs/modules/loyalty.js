@@ -178,40 +178,215 @@ export function hindsightGrade(valueDelta = 0, winPct = 0.5) {
   return "F";
 }
 
+export function finishesAfterTrade(rows = [], trade = {}) {
+  return (rows || []).filter((row) => {
+    if (row.isCurrent) return false;
+    if (Number(row.season) > Number(trade.season)) return true;
+    if (String(row.season) !== String(trade.season)) return false;
+    const week = Number(trade.week || 0);
+    return week === 0 || week <= 14;
+  });
+}
+
+// Market swing, package lopsidedness, and the star that moved set fleece.
+// Impact waits on a real sample: record since the week is shrunk toward .500
+// so 2-0 cannot beat 12-4, then mixed in only as games pile up.
+export function scoreTradeSide({
+  receivedNow = 0,
+  sentNow = 0,
+  received = [],
+  sent = [],
+  since = {},
+} = {}) {
+  const got = Number(receivedNow) || 0;
+  const gave = Number(sentNow) || 0;
+  const delta = got - gave;
+  const dealSize = Math.max(got + gave, 1);
+  const rel = delta / dealSize;
+  const games = Number(since.games) || 0;
+  const wins = Number(since.wins) || 0;
+  const losses = Number(since.losses) || 0;
+  const ties = Number(since.ties) || 0;
+  const rawPct = games ? (wins + ties * 0.5) / games : 0.5;
+  const shrinkPct = (wins + ties * 0.5 + 3) / (games + 6);
+  const recordEdge = (shrinkPct - 0.5) * 100;
+  const valuePts = Math.max(-60, Math.min(60, delta / 70));
+  const relPts = Math.max(-40, Math.min(40, rel * 80));
+  const starGot = Math.max(0, ...received.map((item) => Number(item.value) || 0), 0);
+  const starLost = Math.max(0, ...sent.map((item) => Number(item.value) || 0), 0);
+  const starPts = Math.max(-30, Math.min(30, (starGot - starLost) / 280));
+  const sample = 1 - Math.exp(-games / 8);
+  const formPts = recordEdge * (0.35 + 0.65 * sample);
+  const marketPts = valuePts * 0.5 + relPts * 0.3 + starPts * 0.2;
+  const impact = marketPts * (0.25 + 0.75 * sample) + formPts * 0.9;
+  const fleece = marketPts;
+  const evenness = 1 - Math.min(1, Math.abs(rel) * 2.2 + Math.abs(starGot - starLost) / 12000);
+  return {
+    delta,
+    rel,
+    dealSize,
+    games,
+    winPct: rawPct,
+    shrinkPct,
+    sample,
+    impact,
+    fleece,
+    evenness,
+    starGot,
+    starLost,
+    losses,
+  };
+}
+
+export function buildTradeRecap({
+  managerName = "This desk",
+  partnerName = "them",
+  season = "",
+  week = 0,
+  received = [],
+  sent = [],
+  delta = 0,
+  since = {},
+  grade = "C",
+  finishes = [],
+} = {}) {
+  const got = received.map((item) => item.name).filter(Boolean).slice(0, 4).join(", ") || "picks";
+  const gave = sent.map((item) => item.name).filter(Boolean).slice(0, 4).join(", ") || "picks";
+  const when = Number(week) > 0 ? `${season} Week ${week}` : String(season || "That season");
+  const recordBit = Number(since.games) > 0
+    ? `Since the deal the desk is ${since.label} (${Math.round((Number(since.winPct) || 0) * 100)}%).`
+    : "No games have posted after this one yet, so the record is still blank.";
+  const marketBit = Math.abs(Number(delta) || 0) < 200
+    ? "Today's KTC still calls it even."
+    : Number(delta) > 0
+      ? `Today's KTC says ${managerName} is up ${Math.round(delta)}.`
+      : `Today's KTC says ${managerName} is down ${Math.round(Math.abs(delta))}.`;
+  const finishBit = finishes.length
+    ? ` Later finishes: ${finishes.map((row) => `${row.season} ${row.label}`).join(", ")}.`
+    : "";
+  return `${when} vs ${partnerName}. ${managerName} took ${got} for ${gave}. ${marketBit} ${recordBit} Grade ${grade}.${finishBit}`;
+}
+
 export function analyzePastTrades({
   trades = [],
   myRosterId,
   games = [],
   valueOf = () => 0,
+  managerName = "This desk",
+  finishes = [],
 } = {}) {
   const mine = String(myRosterId || "");
   return trades
     .map((trade) => {
-      const movements = Array.isArray(trade.movements) ? trade.movements : [];
+      const movements = Array.isArray(trade.movements)
+        ? trade.movements.map((item) => ({
+          ...item,
+          value: Number(valueOf(item)) || Number(item.value) || 0,
+        }))
+        : [];
       const received = movements.filter((item) => String(item.toRosterId) === mine);
       const sent = movements.filter((item) => String(item.fromRosterId) === mine);
       if (received.length === 0 && sent.length === 0) return null;
-      const receivedNow = received.reduce((sum, item) => sum + (Number(valueOf(item)) || 0), 0);
-      const sentNow = sent.reduce((sum, item) => sum + (Number(valueOf(item)) || 0), 0);
+      const receivedNow = received.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+      const sentNow = sent.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
       const delta = receivedNow - sentNow;
-      const since = recordFromResults(games.filter((game) => gameIsAfter(game, trade)));
+      const after = games.filter((game) => gameIsAfter(game, trade));
+      const since = recordFromResults(after);
+      const grade = hindsightGrade(delta, since.games ? since.winPct : 0.5);
+      const scored = scoreTradeSide({ receivedNow, sentNow, received, sent, since });
+      const laterFinishes = finishesAfterTrade(finishes, trade);
       return {
         id: trade.id || `${trade.season}-${trade.week}-${mine}`,
         season: String(trade.season || ""),
         week: Number(trade.week) || 0,
         partnerName: trade.partnerName || "Rival",
+        managerKey: mine,
+        managerName,
         received,
         sent,
         receivedNow,
         sentNow,
         delta,
         since,
-        grade: hindsightGrade(delta, since.games ? since.winPct : 0.5),
+        after,
+        laterFinishes,
+        grade,
         verdict: delta > 150 ? "won" : delta < -150 ? "lost" : "even",
+        ...scored,
+        recap: buildTradeRecap({
+          managerName,
+          partnerName: trade.partnerName || "Rival",
+          season: trade.season,
+          week: trade.week,
+          received,
+          sent,
+          delta,
+          since,
+          grade,
+          finishes: laterFinishes,
+        }),
       };
     })
     .filter(Boolean)
     .sort((a, b) => gameSortKey(b) - gameSortKey(a) || Math.abs(b.delta) - Math.abs(a.delta));
+}
+
+export function analyzeLeagueTradeSides({
+  trades = [],
+  gamesByManager = new Map(),
+  valueOf = () => 0,
+  nameOf = (key) => key,
+  finishesByManager = new Map(),
+} = {}) {
+  const sides = [];
+  trades.forEach((trade) => {
+    const keys = [...new Set((trade.movements || [])
+      .flatMap((item) => [item.fromRosterId, item.toRosterId])
+      .map(String)
+      .filter(Boolean))];
+    keys.forEach((managerKey) => {
+      const [row] = analyzePastTrades({
+        trades: [{
+          ...trade,
+          partnerName: keys
+            .filter((key) => key !== managerKey)
+            .map((key) => nameOf(key))
+            .filter(Boolean)
+            .join(" / ") || trade.partnerName || "Rival",
+        }],
+        myRosterId: managerKey,
+        games: gamesByManager.get(managerKey) || [],
+        valueOf,
+        managerName: nameOf(managerKey) || "Manager",
+        finishes: finishesByManager.get(managerKey) || [],
+      });
+      if (row) sides.push(row);
+    });
+  });
+  return sides;
+}
+
+export function pickLeagueTradeAwards(sides = []) {
+  const real = sides.filter((side) => Number(side.dealSize) >= 600);
+  if (!real.length) {
+    return { best: null, fleece: null, worst: null, even: null, heater: null };
+  }
+  const withSample = real.filter((side) => Number(side.games) >= 4);
+  const bestPool = withSample.length >= 3 ? withSample : real;
+  const best = [...bestPool].sort((a, b) => b.impact - a.impact)[0] || null;
+  const fleece = [...real].sort((a, b) => b.fleece - a.fleece)[0] || null;
+  const worst = [...bestPool].sort((a, b) => a.impact - b.impact)[0] || null;
+  const evenPool = [...new Map(real
+    .filter((side) => Number(side.dealSize) >= 1800)
+    .map((side) => [side.id, side]))
+    .values()];
+  const even = [...(evenPool.length ? evenPool : real)].sort((a, b) => {
+    const bump = (side) => (side.id === best?.id || side.id === fleece?.id ? 1 : 0);
+    return bump(a) - bump(b) || b.evenness - a.evenness;
+  })[0] || null;
+  const heaterPool = real.filter((side) => Number(side.games) >= 6);
+  const heater = [...(heaterPool.length ? heaterPool : withSample)].sort((a, b) => b.shrinkPct - a.shrinkPct || b.games - a.games)[0] || null;
+  return { best, fleece, worst, even, heater };
 }
 
 export function biggestTradeMiss(trades = [], { myRosterId, valueOf = () => 0 } = {}) {
