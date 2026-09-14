@@ -755,9 +755,13 @@ select.is-invalid {
   transform: translateY(0.1rem) rotate(225deg);
 }
 
+.page-tab-wrap.open {
+  z-index: 40;
+}
+
 .page-tab-menu {
   position: absolute;
-  top: calc(100% + 0.4rem);
+  top: calc(100% + 2px);
   left: 0;
   right: 0;
   z-index: 32;
@@ -765,10 +769,15 @@ select.is-invalid {
   gap: 0.2rem;
   min-width: 16rem;
   padding: 0.4rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
-  background: var(--panel);
+  background: var(--panel-solid);
   box-shadow: var(--shadow-soft);
+}
+
+body.trade-menu-open .workspace-tabs {
+  z-index: 40;
+  overflow: visible;
 }
 
 .page-tab-menu[hidden] {
@@ -783,7 +792,7 @@ select.is-invalid {
   padding: 0.65rem 0.75rem;
   border: 0;
   border-radius: 8px;
-  background: transparent;
+  background: var(--panel-solid);
   color: inherit;
   font-weight: 600;
   text-align: left;
@@ -794,18 +803,18 @@ select.is-invalid {
 .page-tab-menu button:focus-visible {
   transform: none;
   filter: none;
-  background: var(--panel-soft);
+  background: color-mix(in srgb, var(--text) 8%, var(--panel-solid));
   color: var(--text);
 }
 
 .page-tab-menu button.active {
-  background: var(--blue-soft);
+  background: color-mix(in srgb, var(--blue) 16%, var(--panel-solid));
   color: var(--blue);
 }
 
 .page-tab-menu button.active:hover,
 .page-tab-menu button.active:focus-visible {
-  background: var(--blue-soft);
+  background: color-mix(in srgb, var(--blue) 16%, var(--panel-solid));
   color: var(--blue);
 }
 
@@ -1042,6 +1051,8 @@ select.is-invalid {
 /* Ticker ------------------------------------------------------------------ */
 
 .ticker {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: stretch;
   overflow: hidden;
