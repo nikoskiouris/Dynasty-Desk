@@ -4505,19 +4505,6 @@ button.ghost-btn:hover {
 }
 
 @media (max-width: 860px) {
-  .app-frame {
-    grid-template-columns: 1fr;
-  }
-
-  .control-rail {
-    position: static;
-    min-height: auto;
-    max-height: none;
-    overflow: visible;
-    border-right: 0;
-    border-bottom: 1px solid var(--rail-line);
-  }
-
   .workspace-tabs {
     top: 0.5rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
