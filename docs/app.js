@@ -77,6 +77,12 @@ import { createLivePoller, shouldPollLive, shouldRefreshSim, weekRowsFingerprint
 import { buildRecapCardModel, drawRecapCard, renderRecapCardBlob, recapCardFilename } from "./modules/recap-card.js";
 import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber, clamp } from "./modules/html.js";
 import { renderLeaguePickerMarkup } from "./modules/league-search.js";
+import {
+  applyDocumentMeta,
+  buildDocumentTitle,
+  buildPageDescription,
+  STORAGE_NOTICE_KEY,
+} from "./modules/site.js";
 
 const OUTGOING_POOL_LIMIT = 18;
 const DEFAULT_MAX_OUTGOING_PACKAGE_SIZE = 5;
@@ -209,6 +215,16 @@ const el = {
   shareLinkFeedback: document.querySelector("#share-link-feedback"),
   landingDemoBtn: document.querySelector("#landing-demo-btn"),
   landingFocusBtn: document.querySelector("#landing-focus-btn"),
+  landingLoading: document.querySelector("#landing-loading"),
+  landingLoadingText: document.querySelector("#landing-loading-text"),
+  usernameError: document.querySelector("#username-error"),
+  leagueIdError: document.querySelector("#league-id-error"),
+  generateError: document.querySelector("#generate-error"),
+  stickyMobileCta: document.querySelector("#sticky-mobile-cta"),
+  stickyFindBtn: document.querySelector("#sticky-find-btn"),
+  stickyDemoBtn: document.querySelector("#sticky-demo-btn"),
+  storageNotice: document.querySelector("#storage-notice"),
+  storageNoticeDismiss: document.querySelector("#storage-notice-dismiss"),
   mobileChromeTitle: document.querySelector("#mobile-chrome-title"),
   mobileRailToggle: document.querySelector("#mobile-rail-toggle"),
   mobileRailClose: document.querySelector("#mobile-rail-close"),
@@ -305,14 +321,13 @@ window.matchMedia(PHONE_LAYOUT_QUERY).addEventListener("change", () => {
 el.shareLinkBtn?.addEventListener("click", copyShareLink);
 el.landingDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
 el.landingDemoBtn?.addEventListener("click", loadDemoLeague);
-el.landingFocusBtn?.addEventListener("click", () => {
-  if (isPhoneLayout()) {
-    setMobileRailOpen(true);
-  }
-  const target = el.sleeperUsername || el.leagueId;
-  target?.focus();
-  target?.scrollIntoView({ behavior: "smooth", block: "center" });
-});
+el.landingFocusBtn?.addEventListener("click", focusUsernameSearch);
+el.stickyFindBtn?.addEventListener("click", focusUsernameSearch);
+el.stickyDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
+el.stickyDemoBtn?.addEventListener("click", loadDemoLeague);
+el.storageNoticeDismiss?.addEventListener("click", dismissStorageNotice);
+el.sleeperUsername?.addEventListener("input", () => setFieldError(el.sleeperUsername, el.usernameError, ""));
+el.leagueId?.addEventListener("input", () => setFieldError(el.leagueId, el.leagueIdError, ""));
 el.workspace?.addEventListener("click", handleWorkspaceClick);
 el.workspace?.addEventListener("change", handleWorkspaceChange);
 el.workspace?.addEventListener("input", handleWorkspaceInput);
@@ -353,8 +368,11 @@ el.analyticsDashboard?.addEventListener("change", handleHistoryCompareChange);
 applyTheme(readStoredTheme(), { persist: false });
 renderSessionSnapshot();
 syncTradeModeUi();
+syncStorageNotice();
 bootFromUrl();
 if (isPhoneLayout()) setMobileRailOpen(false);
+syncDocumentMeta();
+syncSiteDock();
 
 function invalidateResults() {
   el.resultsSection.classList.add("hidden");
@@ -400,6 +418,7 @@ function setActivePage(page) {
   renderSessionSnapshot();
   renderActivePage();
   updateUrlState();
+  syncDocumentMeta();
 }
 
 function handlePageTabKeydown(event) {
@@ -656,6 +675,7 @@ function setMobileRailOpen(open) {
     el.controlRail.removeAttribute("aria-hidden");
     el.controlRail.removeAttribute("inert");
   }
+  syncSiteDock();
 }
 
 function scrollActiveTabIntoView() {
@@ -683,6 +703,8 @@ function renderSessionSnapshot() {
     el.chromeModeLabel.textContent = state.leagueId ? describeSeasonWeek() : "—";
   }
   renderLeagueHero();
+  syncDocumentMeta();
+  syncSiteDock();
 }
 
 function describeSeasonWeek() {
@@ -724,7 +746,7 @@ function renderLeagueHero() {
   el.heroLede.textContent = `${format}. ${status}${trophy ? ` Reigning champion banner: "${trophy}".` : ""}`;
   if (el.leagueAvatar) {
     el.leagueAvatar.innerHTML = league.avatar
-      ? `<img src="${SLEEPER_AVATAR_BASE}${escapeHtml(league.avatar)}" alt="" loading="lazy" />`
+      ? `<img src="${SLEEPER_AVATAR_BASE}${escapeHtml(league.avatar)}" alt="${escapeHtml(state.leagueName || "League")} logo" loading="lazy" />`
       : `<span>${escapeHtml(String(state.leagueName || "L").trim().charAt(0).toUpperCase())}</span>`;
   }
 }
@@ -805,7 +827,14 @@ function loadDemoLeague(event) {
 function requestLoadLeague(event) {
   event?.preventDefault?.();
   const classified = classifyLeagueInput(el.leagueId?.value || el.sleeperUsername?.value);
+  if (classified.kind === "empty") {
+    setFieldError(el.leagueId, el.leagueIdError, "Paste a Sleeper league ID or URL.");
+    setStatus("Paste a Sleeper league ID or URL.", { error: true });
+    el.leagueId?.focus();
+    return;
+  }
   if (classified.kind === "league") {
+    setFieldError(el.leagueId, el.leagueIdError, "");
     if (el.leagueId) el.leagueId.value = classified.leagueId;
     void loadLeagueById(classified.leagueId);
     return;
@@ -817,10 +846,12 @@ function requestFindLeagues(event) {
   event?.preventDefault?.();
   const classified = classifyLeagueInput(el.sleeperUsername?.value);
   if (classified.kind === "empty") {
-    setStatus("Type your Sleeper username, then press Find leagues.");
+    setFieldError(el.sleeperUsername, el.usernameError, "Type your Sleeper username, then press Find leagues.");
+    setStatus("Type your Sleeper username, then press Find leagues.", { error: true });
     el.sleeperUsername?.focus();
     return;
   }
+  setFieldError(el.sleeperUsername, el.usernameError, "");
   if (classified.kind === "league") {
     if (el.leagueId) el.leagueId.value = classified.leagueId;
     void loadLeagueById(classified.leagueId);
@@ -868,8 +899,10 @@ async function runUserLeagueSearch(username) {
     state.userLeagues = sortUserLeagues(leagues, season);
     rememberUsername(username);
     renderLeaguePicker(state.userLeagues, season);
+    setFieldError(el.sleeperUsername, el.usernameError, "");
     if (state.userLeagues.length === 0) {
-      setStatus(`Found ${user.display_name || username}, but no NFL leagues for ${season}/${Number(season) - 1}.`);
+      setStatus(`Found ${user.display_name || username}, but no NFL leagues for ${season}/${Number(season) - 1}.`, { error: true });
+      setFieldError(el.sleeperUsername, el.usernameError, `No NFL leagues for ${season}/${Number(season) - 1}.`);
       return;
     }
     if (state.userLeagues.length === 1) {
@@ -881,7 +914,9 @@ async function runUserLeagueSearch(username) {
     }
   } catch (err) {
     renderLeaguePicker([]);
-    setStatus(`Could not find that Sleeper user. ${err.message}`);
+    const message = `Could not find that Sleeper user. ${err.message}`;
+    setFieldError(el.sleeperUsername, el.usernameError, message);
+    setStatus(message, { error: true });
   } finally {
     stopFindLeaguesUi();
   }
@@ -913,6 +948,7 @@ function startFindLeaguesUi() {
     el.findLeaguesBtn.classList.add("loading");
     el.findLeaguesBtn.textContent = "Searching...";
   }
+  el.usernameSearchForm?.setAttribute("aria-busy", "true");
 }
 
 function stopFindLeaguesUi() {
@@ -920,6 +956,7 @@ function stopFindLeaguesUi() {
   el.findLeaguesBtn.disabled = false;
   el.findLeaguesBtn.classList.remove("loading");
   el.findLeaguesBtn.textContent = "Find leagues";
+  el.usernameSearchForm?.setAttribute("aria-busy", "false");
 }
 
 async function loadLeague() {
@@ -928,7 +965,8 @@ async function loadLeague() {
   const classified = classifyLeagueInput(el.leagueId?.value);
   const leagueId = classified.kind === "league" ? classified.leagueId : parseLeagueId(el.leagueId?.value);
   if (!leagueId) {
-    setStatus("Search your Sleeper username, or paste a league ID / URL.");
+    setFieldError(el.leagueId, el.leagueIdError, "Search your Sleeper username, or paste a league ID / URL.");
+    setStatus("Search your Sleeper username, or paste a league ID / URL.", { error: true });
     (el.sleeperUsername || el.leagueId)?.focus();
     return;
   }
@@ -1023,6 +1061,7 @@ async function runLeagueLoad(leagueId) {
     state.normalizedRosters = normalizeRosters(league, rosters, users, state.players, previousContext, tradedPicks, currentDraftContext);
 
     rememberLastLeague(leagueId);
+    setFieldError(el.leagueId, el.leagueIdError, "");
     if (state.userLeagues.length) {
       renderLeaguePicker(state.userLeagues, String(state.nflState?.league_season || state.nflState?.season || league?.season || ""));
     }
@@ -1083,7 +1122,9 @@ async function runLeagueLoad(leagueId) {
         );
       });
   } catch (err) {
-    setStatus(`Could not load league data. ${err.message}`);
+    const message = `Could not load league data. ${err.message}`;
+    setFieldError(el.leagueId, el.leagueIdError, message);
+    setStatus(message, { error: true });
   } finally {
     stopLeagueLoadingUi();
   }
@@ -6574,28 +6615,29 @@ function buildAssetPickerMarkup(asset, { values, contextLabel } = {}) {
 
 async function generateTradeIdeas() {
   if (!state.meRosterId) {
-    alert("Load a league first.");
+    setGenerateError("Load a league and choose your team first.");
     return;
   }
 
   const mode = getTradeMode();
   const meRoster = getMyRoster();
   if (!meRoster) {
-    alert("Could not resolve your roster.");
+    setGenerateError("Could not resolve your roster.");
     return;
   }
   if (mode === "acquire" && !state.targetAsset) {
-    alert("Select a target asset first.");
+    setGenerateError("Select a target asset first.");
     return;
   }
   if (mode === "shop" && !state.shopAsset) {
-    alert("Select one of your own assets to shop first.");
+    setGenerateError("Select one of your own assets to shop first.");
     return;
   }
 
   const fairnessPct = DEFAULT_FAIRNESS_PCT;
   const maxResults = DEFAULT_MAX_RESULTS;
   const tradeLab = getTradeLabSettings();
+  setGenerateError("");
 
   try {
     setButtonLoading(el.generateBtn, true, "Building trade ideas...");
@@ -6611,7 +6653,7 @@ async function generateTradeIdeas() {
     if (mode === "acquire") {
       const theirRoster = state.normalizedRosters.find((roster) => roster.rosterId === state.targetAsset.managerRosterId);
       if (!theirRoster) {
-        alert("Could not resolve the other roster.");
+        setGenerateError("Could not resolve the other roster.");
         return;
       }
       resultPayload = generateAcquisitionIdeaBuckets({
@@ -6664,7 +6706,7 @@ async function generateTradeIdeas() {
     el.resultsList.innerHTML = renderResultPayload(resultPayload, state.values);
     el.resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
-    alert(`Could not load valuation source. ${err.message}`);
+    setGenerateError(`Could not load valuation source. ${err.message}`);
   } finally {
     setButtonLoading(el.generateBtn, false);
     syncGenerateState();
@@ -12074,7 +12116,7 @@ function renderAvatar(manager, { size = "md", className = "" } = {}) {
   const avatar = manager?.avatar;
   const hue = hashHue(name);
   return avatar
-    ? `<span class="avatar avatar-${size} ${className}" style="--hue:${hue}"><img src="${avatarUrl(avatar)}" alt="" loading="lazy" /></span>`
+    ? `<span class="avatar avatar-${size} ${className}" style="--hue:${hue}"><img src="${avatarUrl(avatar)}" alt="${escapeHtml(name)}" loading="lazy" /></span>`
     : `<span class="avatar avatar-${size} ${className}" style="--hue:${hue}"><span>${escapeHtml(initial)}</span></span>`;
 }
 
@@ -12380,10 +12422,84 @@ function applyValuationBundle(bundle, { rerender = true } = {}) {
   };
 }
 
-function setStatus(message, { ok = false, loading = false } = {}) {
+function setStatus(message, { ok = false, loading = false, error = false } = {}) {
   if (el.leagueStatusText) el.leagueStatusText.textContent = message;
-  if (el.leagueStatus) el.leagueStatus.className = `status ${ok ? "ok" : loading ? "loading" : "muted"}`;
+  if (el.leagueStatus) {
+    const tone = error ? "error" : ok ? "ok" : loading ? "loading" : "muted";
+    el.leagueStatus.className = `status ${tone}`;
+  }
   el.leagueStatusLoader?.classList.toggle("hidden", !loading);
+}
+
+function setFieldError(input, errorEl, message) {
+  const invalid = Boolean(message);
+  if (input) {
+    input.classList.toggle("is-invalid", invalid);
+    input.setAttribute("aria-invalid", String(invalid));
+  }
+  if (!errorEl) return;
+  errorEl.textContent = message || "";
+  errorEl.hidden = !invalid;
+}
+
+function setGenerateError(message) {
+  if (el.generateError) {
+    el.generateError.textContent = message || "";
+    el.generateError.hidden = !message;
+  }
+}
+
+function focusUsernameSearch() {
+  if (isPhoneLayout()) setMobileRailOpen(true);
+  const target = el.sleeperUsername || el.leagueId;
+  target?.focus();
+  target?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function syncDocumentMeta() {
+  applyDocumentMeta(document, {
+    title: buildDocumentTitle({
+      page: state.leagueId ? state.activePage : "",
+      leagueName: state.leagueName,
+      loaded: Boolean(state.leagueId),
+    }),
+    description: buildPageDescription({
+      page: state.leagueId ? state.activePage : "",
+      leagueName: state.leagueName,
+      loaded: Boolean(state.leagueId),
+    }),
+  });
+}
+
+function hasDismissedStorageNotice() {
+  try {
+    return localStorage.getItem(STORAGE_NOTICE_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+function syncStorageNotice() {
+  if (!el.storageNotice) return;
+  el.storageNotice.hidden = hasDismissedStorageNotice();
+  syncSiteDock();
+}
+
+function dismissStorageNotice() {
+  try {
+    localStorage.setItem(STORAGE_NOTICE_KEY, "1");
+  } catch {
+    // Non-fatal.
+  }
+  if (el.storageNotice) el.storageNotice.hidden = true;
+  syncSiteDock();
+}
+
+function syncSiteDock() {
+  const stickyOpen = isPhoneLayout() && !state.leagueId && !document.body.classList.contains("rail-open");
+  if (el.stickyMobileCta) el.stickyMobileCta.hidden = !stickyOpen;
+  const noticeOpen = Boolean(el.storageNotice) && !el.storageNotice.hidden;
+  document.body.classList.toggle("dock-visible", stickyOpen || noticeOpen);
 }
 
 function startLeagueLoadingUi() {
@@ -12392,6 +12508,17 @@ function startLeagueLoadingUi() {
     el.loadLeagueBtn.classList.add("loading");
     el.loadLeagueBtn.textContent = "Loading...";
   }
+  el.leagueLoadForm?.setAttribute("aria-busy", "true");
+  document.body.classList.add("league-loading");
+  if (el.landingLoading) {
+    el.landingLoading.classList.remove("hidden");
+    if (el.landingLoadingText) el.landingLoadingText.textContent = "Opening league from Sleeper…";
+  }
+  if (el.stickyFindBtn) {
+    el.stickyFindBtn.disabled = true;
+    el.stickyFindBtn.textContent = "Opening…";
+  }
+  if (el.stickyDemoBtn) el.stickyDemoBtn.disabled = true;
 
   leagueLoadStartedAt = Date.now();
   setStatus("Loading Sleeper data...", { loading: true });
@@ -12400,12 +12527,21 @@ function startLeagueLoadingUi() {
   leagueLoadAnimationTimer = setInterval(() => {
     const elapsedSec = Math.floor((Date.now() - leagueLoadStartedAt) / 1000);
     setStatus(`Loading Sleeper data • ${elapsedSec}s`, { loading: true });
+    if (el.landingLoadingText) el.landingLoadingText.textContent = `Opening league from Sleeper… ${elapsedSec}s`;
   }, 850);
 }
 
 function stopLeagueLoadingUi() {
   clearInterval(leagueLoadAnimationTimer);
   leagueLoadAnimationTimer = null;
+  document.body.classList.remove("league-loading");
+  el.leagueLoadForm?.setAttribute("aria-busy", "false");
+  el.landingLoading?.classList.add("hidden");
+  if (el.stickyFindBtn) {
+    el.stickyFindBtn.disabled = false;
+    el.stickyFindBtn.textContent = "Find leagues";
+  }
+  if (el.stickyDemoBtn) el.stickyDemoBtn.disabled = false;
   if (!el.loadLeagueBtn) return;
   el.loadLeagueBtn.disabled = false;
   el.loadLeagueBtn.classList.remove("loading");
