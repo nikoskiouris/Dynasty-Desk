@@ -26,8 +26,16 @@ function readDocs(name) {
 test("document titles and descriptions change with tab and league", () => {
   assert.equal(buildDocumentTitle({}), DEFAULT_TITLE);
   assert.equal(
+    buildDocumentTitle({ page: "league", leagueName: "Try Hard or Die Hard", loaded: true }),
+    "League · Try Hard or Die Hard — Dynasty Desk"
+  );
+  assert.equal(
     buildDocumentTitle({ page: "recap", leagueName: "Try Hard or Die Hard", loaded: true }),
-    "Recap · Try Hard or Die Hard — Dynasty Desk"
+    "League · Try Hard or Die Hard — Dynasty Desk"
+  );
+  assert.equal(
+    buildDocumentTitle({ page: "team", leagueName: "Try Hard or Die Hard", loaded: true }),
+    "My Team · Try Hard or Die Hard — Dynasty Desk"
   );
   assert.match(
     buildPageDescription({ page: "home", leagueName: "Try Hard or Die Hard", loaded: true }),
@@ -88,6 +96,13 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /id="storage-notice"/);
   assert.match(index, /id="username-error"/);
   assert.match(index, /privacy\.html/);
+  assert.match(index, /data-theme="dark"/);
+  assert.match(index, /family=Inter:/);
+  assert.match(index, /data-page="team"/);
+  assert.match(index, /data-page="league"/);
+  assert.match(index, /data-page="trader"/);
+  assert.doesNotMatch(index, /data-page="home"/);
+  assert.doesNotMatch(index, /Plus Jakarta/);
 
   const usernameInput = index.match(/<input[^>]*id="sleeper-username"[^>]*>/)?.[0] || "";
   const leagueInput = index.match(/<input[^>]*id="league-id"[^>]*>/)?.[0] || "";

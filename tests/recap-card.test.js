@@ -15,7 +15,7 @@ test("recap card model keeps the headline games, MVP, and title favorite", () =>
       { id: "mvp", title: "Player of the Week (so far)", teamName: "Niko", valueLabel: "38.4" },
     ],
     favorite: { name: "Niko", detail: "41% title" },
-    url: "https://nikoskiouris.github.io/FantasyDynastyAnalyzer/?league=1&tab=recap&week=1",
+    url: "https://nikoskiouris.github.io/FantasyDynastyAnalyzer/?league=1&week=1",
   });
   assert.equal(model.kicker, "WEEK 1 · LIVE");
   assert.equal(model.games[0].leftName, "Niko");
@@ -61,12 +61,12 @@ test("drawRecapCard paints title, scores, and the free share URL", () => {
     games: [{ total: 200, sides: [{ name: "Niko", points: 120.4 }, { name: "Demetri", points: 80 }] }],
     awards: [{ id: "mvp", title: "Player of the Week", teamName: "Niko", valueLabel: "38.4" }],
     favorite: { name: "Niko", detail: "41% title" },
-    url: "https://example.com/?league=1&tab=recap&week=2",
+    url: "https://example.com/?league=1&week=2",
   });
   drawRecapCard(ctx, model);
   const painted = texts.join(" | ");
   assert.match(painted, /Try Hard or Die Hard/);
   assert.match(painted, /Niko/);
   assert.match(painted, /120\.4/);
-  assert.match(painted, /tab=recap/);
+  assert.match(painted, /week=2/);
 });

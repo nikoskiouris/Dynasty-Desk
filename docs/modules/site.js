@@ -12,28 +12,28 @@ export const DEFAULT_DESCRIPTION =
   "Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a group-chat recap for your league.";
 
 export const PAGE_META = {
-  home: {
-    title: "Command Center",
-    description: "Live scoreboard, standings, luck, and Monte Carlo playoff odds for your Sleeper dynasty league.",
+  league: {
+    title: "League",
+    description: "Live scores, standings, odds, awards, recap, and the all-time dynasty hall.",
   },
-  teams: {
-    title: "Teams",
-    description: "Scout any roster: optimal lineup, bench, pick vault, and dynasty power.",
-  },
-  awards: {
-    title: "Awards",
-    description: "Weekly honors, season superlatives, luck index, and the all-time record book.",
-  },
-  analytics: {
-    title: "History",
-    description: "Dynasty archive: champions, finish matrix, rivalries, and trade roads.",
+  team: {
+    title: "My Team",
+    description: "Your lineup, roster DNA, luck charms, tenure, and dynasty story.",
   },
   trader: {
-    title: "Trade Lab",
-    description: "Shop an asset, target a player, or grade a trade by hand with KeepTradeCut values.",
+    title: "Trades",
+    description: "Calculator, suggested deals, player passports, and a past-trade analyzer.",
+  },
+  home: {
+    title: "League",
+    description: "Live scores, standings, odds, awards, recap, and the all-time dynasty hall.",
+  },
+  teams: {
+    title: "My Team",
+    description: "Your lineup, roster DNA, luck charms, tenure, and dynasty story.",
   },
   recap: {
-    title: "Recap",
+    title: "League",
     description: "Group-chat recap of scores, awards, standings, and odds. Copy text or save an image card.",
   },
 };

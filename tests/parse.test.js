@@ -52,7 +52,7 @@ test("boot search fields stay blank unless the URL has a league", () => {
   });
 });
 
-test("share params round-trip week and recap tone", () => {
+test("share params map old recap/home tabs onto league", () => {
   const url = buildShareUrl({
     origin: "https://nikoskiouris.github.io",
     pathname: "/FantasyDynastyAnalyzer/",
@@ -62,12 +62,15 @@ test("share params round-trip week and recap tone", () => {
     week: 2,
     tone: "roast",
   });
-  assert.match(url, /tab=recap/);
+  assert.doesNotMatch(url, /tab=/);
   assert.match(url, /week=2/);
   assert.match(url, /tone=roast/);
   const parsed = parseShareParams(url.split("?")[1]);
-  assert.equal(parsed.tab, "recap");
+  assert.equal(parsed.tab, "");
   assert.equal(parsed.week, 2);
   assert.equal(parsed.tone, "roast");
   assert.equal(parsed.meRosterId, 3);
+  assert.equal(parseShareParams("league=1&tab=recap").tab, "league");
+  assert.equal(parseShareParams("league=1&tab=teams").tab, "team");
+  assert.equal(parseShareParams("league=1&tab=trader").tab, "trader");
 });

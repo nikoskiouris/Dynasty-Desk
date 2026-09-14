@@ -81,6 +81,23 @@ export function sortUserLeagues(leagues, currentSeason) {
   });
 }
 
+const TAB_ALIASES = {
+  home: "league",
+  teams: "team",
+  awards: "league",
+  analytics: "league",
+  recap: "league",
+  history: "league",
+  trade: "trader",
+  trades: "trader",
+};
+
+export function normalizeDeskTab(tab) {
+  const value = String(tab || "").trim().toLowerCase();
+  if (!value) return "";
+  return TAB_ALIASES[value] || value;
+}
+
 export function buildShareParams({
   leagueId,
   meRosterId = null,
@@ -91,7 +108,8 @@ export function buildShareParams({
   const params = new URLSearchParams();
   if (leagueId) params.set("league", String(leagueId));
   if (meRosterId) params.set("me", String(meRosterId));
-  if (tab && tab !== "home") params.set("tab", String(tab));
+  const deskTab = normalizeDeskTab(tab);
+  if (deskTab && deskTab !== "league") params.set("tab", deskTab);
   if (Number.isFinite(Number(week)) && Number(week) > 0) params.set("week", String(week));
   if (tone && tone !== "desk") params.set("tone", String(tone));
   return params;
@@ -101,13 +119,13 @@ export function parseShareParams(search) {
   const params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
   const league = String(params.get("league") || "").trim();
   const me = Number(params.get("me"));
-  const tab = String(params.get("tab") || "").trim();
+  const tab = normalizeDeskTab(params.get("tab") || "");
   const week = Number(params.get("week"));
   const tone = String(params.get("tone") || "").trim();
   return {
     leagueId: parseLeagueId(league) || league,
     meRosterId: Number.isFinite(me) && me > 0 ? me : null,
-    tab: tab || "",
+    tab,
     week: Number.isFinite(week) && week > 0 ? week : null,
     tone: tone || "",
   };
