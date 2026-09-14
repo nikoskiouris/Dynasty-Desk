@@ -86,7 +86,7 @@ export function createState() {
     pendingTab: null,
     pendingWeek: null,
     pendingTone: "",
-    theme: "dark",
+    theme: "light",
     sleeperUser: null,
     userLeagues: [],
     livePolling: false,

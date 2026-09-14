@@ -1,104 +1,127 @@
 /* ==========================================================================
-   Dynasty Desk — design tokens
+   Dynasty Desk — Ice Box
+   Glacier page, ice-blue chrome, frosted glass. Dark mode is night ice.
    ========================================================================== */
 
 :root {
-  color-scheme: dark;
-  --font-display: "Sora", "Inter", ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+  --font-display: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --bg: #070a12;
-  --bg-glow-1: rgba(56, 189, 248, 0.16);
-  --bg-glow-2: rgba(167, 139, 250, 0.14);
-  --bg-glow-3: rgba(52, 211, 153, 0.08);
+  --bg: #eef3f7;
+  --bg-glow-1: rgba(58, 160, 255, 0.22);
+  --bg-glow-2: rgba(147, 197, 253, 0.28);
+  --bg-glow-3: rgba(255, 255, 255, 0.85);
 
-  --rail: #090c15;
-  --rail-2: rgba(255, 255, 255, 0.045);
-  --rail-line: rgba(255, 255, 255, 0.09);
-  --rail-text: #eef2fa;
-  --rail-muted: rgba(238, 242, 250, 0.58);
+  --rail: rgba(255, 255, 255, 0.72);
+  --rail-2: rgba(255, 255, 255, 0.62);
+  --rail-line: rgba(21, 32, 43, 0.08);
+  --rail-text: #15202b;
+  --rail-muted: rgba(21, 32, 43, 0.52);
+  --rail-input: #ffffff;
+  --rail-placeholder: rgba(21, 32, 43, 0.38);
+  --backdrop: rgba(21, 32, 43, 0.32);
 
-  --panel: rgba(255, 255, 255, 0.035);
-  --panel-soft: rgba(255, 255, 255, 0.055);
-  --panel-tint: rgba(56, 189, 248, 0.09);
-  --panel-solid: #0f1420;
-  --line: rgba(255, 255, 255, 0.09);
-  --line-strong: rgba(255, 255, 255, 0.2);
+  --panel: rgba(255, 255, 255, 0.72);
+  --panel-soft: #ffffff;
+  --panel-tint: rgba(31, 134, 239, 0.08);
+  --panel-solid: #ffffff;
+  --line: rgba(21, 32, 43, 0.08);
+  --line-strong: rgba(21, 32, 43, 0.16);
+  --hover-fill: rgba(31, 134, 239, 0.06);
 
-  --text: #eef2fa;
-  --muted: #8f9bb3;
-  --muted-strong: #c3ccdd;
+  --text: #15202b;
+  --muted: #5b6b7c;
+  --muted-strong: #334155;
+  --on-accent: #ffffff;
+  --link: #1f86ef;
 
-  --blue: #38bdf8;
-  --blue-soft: rgba(56, 189, 248, 0.14);
-  --violet: #a78bfa;
-  --violet-soft: rgba(167, 139, 250, 0.16);
-  --green: #34d399;
-  --green-soft: rgba(52, 211, 153, 0.14);
-  --amber: #fbbf24;
-  --amber-soft: rgba(251, 191, 36, 0.14);
-  --red: #fb7185;
-  --red-soft: rgba(251, 113, 133, 0.14);
-  --teal: #2dd4bf;
-  --teal-soft: rgba(45, 212, 191, 0.14);
+  --blue: #1f86ef;
+  --blue-soft: rgba(31, 134, 239, 0.12);
+  --violet: #5c7cff;
+  --violet-soft: rgba(92, 124, 255, 0.14);
+  --green: #0f9d8a;
+  --green-soft: rgba(15, 157, 138, 0.14);
+  --amber: #c4840c;
+  --amber-soft: rgba(196, 132, 12, 0.14);
+  --red: #e25b73;
+  --red-soft: rgba(226, 91, 115, 0.12);
+  --teal: #2aa8b8;
+  --teal-soft: rgba(42, 168, 184, 0.14);
 
-  --team-a: #38bdf8;
-  --team-a-soft: rgba(56, 189, 248, 0.1);
-  --team-a-border: rgba(56, 189, 248, 0.38);
-  --team-b: #fb923c;
-  --team-b-soft: rgba(251, 146, 60, 0.1);
-  --team-b-border: rgba(251, 146, 60, 0.38);
+  --team-a: #1f86ef;
+  --team-a-soft: rgba(31, 134, 239, 0.1);
+  --team-a-border: rgba(31, 134, 239, 0.38);
+  --team-b: #5c7cff;
+  --team-b-soft: rgba(92, 124, 255, 0.1);
+  --team-b-border: rgba(92, 124, 255, 0.38);
 
-  --gradient: linear-gradient(135deg, #38bdf8 0%, #a78bfa 55%, #f472b6 100%);
-  --gradient-soft: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(167, 139, 250, 0.22));
-  --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.3);
-  --radius: 16px;
-  --radius-sm: 10px;
-  --focus: 0 0 0 3px rgba(56, 189, 248, 0.32);
+  --gradient: linear-gradient(135deg, #5eb6ff 0%, #1f86ef 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(94, 182, 255, 0.22), rgba(31, 134, 239, 0.16));
+  --shadow: 0 22px 50px rgba(21, 32, 43, 0.08);
+  --shadow-soft: 0 10px 28px rgba(21, 32, 43, 0.06);
+  --accent-glow: rgba(31, 134, 239, 0.28);
+  --radius: 22px;
+  --radius-sm: 14px;
+  --focus: 0 0 0 3px rgba(31, 134, 239, 0.28);
 }
 
-:root[data-theme="light"] {
-  color-scheme: light;
-  --bg: #eef1f6;
-  --bg-glow-1: rgba(56, 189, 248, 0.2);
-  --bg-glow-2: rgba(167, 139, 250, 0.16);
-  --bg-glow-3: rgba(52, 211, 153, 0.12);
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b141c;
+  --bg-glow-1: rgba(58, 160, 255, 0.18);
+  --bg-glow-2: rgba(94, 182, 255, 0.1);
+  --bg-glow-3: rgba(15, 157, 138, 0.08);
 
-  --panel: #ffffff;
-  --panel-soft: #f4f6fb;
-  --panel-tint: #e8f4fd;
-  --panel-solid: #ffffff;
-  --line: #dde3ec;
-  --line-strong: #b7c1d1;
+  --rail: rgba(12, 22, 32, 0.86);
+  --rail-2: rgba(255, 255, 255, 0.045);
+  --rail-line: rgba(255, 255, 255, 0.08);
+  --rail-text: #e8f1f8;
+  --rail-muted: rgba(232, 241, 248, 0.56);
+  --rail-input: rgba(255, 255, 255, 0.06);
+  --rail-placeholder: rgba(232, 241, 248, 0.35);
+  --backdrop: rgba(5, 8, 14, 0.62);
 
-  --text: #0f172a;
-  --muted: #64708a;
-  --muted-strong: #3b4557;
+  --panel: rgba(255, 255, 255, 0.045);
+  --panel-soft: rgba(255, 255, 255, 0.06);
+  --panel-tint: rgba(94, 182, 255, 0.1);
+  --panel-solid: #111c26;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --hover-fill: rgba(255, 255, 255, 0.04);
 
-  --blue: #0284c7;
-  --blue-soft: #e0f2fe;
-  --violet: #7c3aed;
-  --violet-soft: #ede9fe;
-  --green: #059669;
-  --green-soft: #d1fae5;
-  --amber: #b45309;
-  --amber-soft: #fef3c7;
-  --red: #be123c;
-  --red-soft: #ffe4e6;
-  --teal: #0f766e;
-  --teal-soft: #ccfbf1;
+  --text: #e8f1f8;
+  --muted: #8aa0b4;
+  --muted-strong: #c5d4e0;
+  --on-accent: #ffffff;
+  --link: #7ec8ff;
 
-  --team-a: #0284c7;
-  --team-a-soft: #e6f4fd;
-  --team-a-border: #93cdf3;
-  --team-b: #c2410c;
-  --team-b-soft: #fff1e8;
-  --team-b-border: #f5b58d;
+  --blue: #5eb6ff;
+  --blue-soft: rgba(94, 182, 255, 0.14);
+  --violet: #8aa4ff;
+  --violet-soft: rgba(138, 164, 255, 0.16);
+  --green: #3ecfbb;
+  --green-soft: rgba(62, 207, 187, 0.14);
+  --amber: #f5c14a;
+  --amber-soft: rgba(245, 193, 74, 0.14);
+  --red: #fb7a8d;
+  --red-soft: rgba(251, 122, 141, 0.14);
+  --teal: #4fd0dc;
+  --teal-soft: rgba(79, 208, 220, 0.14);
 
-  --shadow: 0 18px 44px rgba(15, 23, 42, 0.1);
-  --shadow-soft: 0 8px 22px rgba(15, 23, 42, 0.08);
-  --focus: 0 0 0 3px rgba(2, 132, 199, 0.22);
+  --team-a: #5eb6ff;
+  --team-a-soft: rgba(94, 182, 255, 0.1);
+  --team-a-border: rgba(94, 182, 255, 0.38);
+  --team-b: #8aa4ff;
+  --team-b-soft: rgba(138, 164, 255, 0.1);
+  --team-b-border: rgba(138, 164, 255, 0.38);
+
+  --gradient: linear-gradient(135deg, #7ec8ff 0%, #1f86ef 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(126, 200, 255, 0.2), rgba(31, 134, 239, 0.18));
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.3);
+  --accent-glow: rgba(94, 182, 255, 0.32);
+  --focus: 0 0 0 3px rgba(94, 182, 255, 0.32);
 }
 
 /* ==========================================================================
@@ -265,10 +288,12 @@ h5 {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 1rem;
+  padding: 1.15rem;
   background: var(--rail);
   border-right: 1px solid var(--rail-line);
   color: var(--rail-text);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
 }
 
 .brand-panel {
@@ -284,13 +309,13 @@ h5 {
   place-items: center;
   width: 2.4rem;
   aspect-ratio: 1;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   background: var(--gradient);
-  color: #070a12;
+  color: var(--on-accent);
   font-family: var(--font-display);
   font-size: 1.15rem;
   font-weight: 800;
-  box-shadow: 0 8px 20px rgba(56, 189, 248, 0.3);
+  box-shadow: 0 8px 20px var(--accent-glow);
 }
 
 .brand-panel .eyebrow {
@@ -462,14 +487,14 @@ h5 {
 
 .rail-module .step-badge {
   border-color: var(--rail-line);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--rail-2);
   color: var(--rail-text);
 }
 
 .step-badge.accent {
   border-color: transparent;
   background: var(--gradient);
-  color: #070a12;
+  color: var(--on-accent);
 }
 
 input,
@@ -531,7 +556,7 @@ summary:focus-visible,
 button {
   border-color: transparent;
   background: var(--gradient);
-  color: #070a12;
+  color: var(--on-accent);
   font-weight: 800;
 }
 
@@ -573,12 +598,12 @@ button.ghost-btn:hover {
 .rail-module input,
 .rail-module select {
   border-color: var(--rail-line);
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: var(--rail-input);
   color: var(--rail-text);
 }
 
 .rail-module input::placeholder {
-  color: rgba(238, 242, 250, 0.35);
+  color: var(--rail-placeholder);
 }
 
 .rail-module select {
@@ -599,7 +624,7 @@ button.ghost-btn:hover {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #8ed0ff;
+  color: var(--link);
   box-shadow: none;
   font: inherit;
   font-weight: 700;
@@ -645,7 +670,7 @@ button.ghost-btn:hover {
 }
 
 .status.ok {
-  color: #8de5bc;
+  color: var(--green);
 }
 
 .status-loader {
@@ -653,8 +678,8 @@ button.ghost-btn:hover {
   width: 0.9rem;
   height: 0.9rem;
   margin-top: 0.2rem;
-  border: 2px solid rgba(255, 255, 255, 0.16);
-  border-top-color: #fff;
+  border: 2px solid var(--rail-line);
+  border-top-color: var(--rail-text);
   border-radius: 999px;
   animation: spin 0.8s linear infinite;
 }
@@ -712,7 +737,7 @@ button.ghost-btn:hover {
   border-color: transparent;
   background: var(--gradient-soft);
   color: var(--text);
-  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 40%, transparent);
 }
 
 .tab-icon {
@@ -732,7 +757,7 @@ button.ghost-btn:hover {
 
 .page-tab.active .tab-icon {
   background: var(--gradient);
-  color: #070a12;
+  color: var(--on-accent);
 }
 
 .tab-copy {
@@ -775,25 +800,25 @@ button.ghost-btn:hover {
   margin-top: auto;
   padding-top: 0.65rem;
   border-top: 1px solid var(--rail-line);
-  background: var(--rail);
+  background: transparent;
 }
 
 .rail-footer .ghost-btn {
   border-color: var(--rail-line);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--rail-2);
   color: var(--rail-text);
 }
 
 .rail-footer .ghost-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover-fill);
 }
 
 .workspace {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1.1rem 1.25rem 2rem;
+  gap: 1.25rem;
+  padding: 1.35rem 1.6rem 2.4rem;
 }
 
 .workspace-header {
@@ -817,13 +842,13 @@ button.ghost-btn:hover {
   width: 4.4rem;
   height: 4.4rem;
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: 24px;
   background: var(--gradient);
-  color: #070a12;
+  color: var(--on-accent);
   font-family: var(--font-display);
   font-size: 1.9rem;
   font-weight: 800;
-  box-shadow: 0 14px 34px rgba(56, 189, 248, 0.28);
+  box-shadow: 0 14px 34px var(--accent-glow);
 }
 
 .league-avatar img {
@@ -902,7 +927,7 @@ button.ghost-btn:hover {
   flex: 0 0 auto;
   padding: 0.45rem 0.85rem;
   background: var(--gradient);
-  color: #070a12;
+  color: var(--on-accent);
   font-family: var(--font-display);
   font-size: 0.72rem;
   font-weight: 800;
@@ -995,7 +1020,8 @@ button.ghost-btn:hover {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   box-shadow: var(--shadow-soft);
 }
 
@@ -1006,8 +1032,8 @@ button.ghost-btn:hover {
 .landing-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 2rem;
-  padding: 2rem;
+  gap: 2.2rem;
+  padding: 2.25rem;
 }
 
 .landing-copy h2 {
@@ -1078,13 +1104,14 @@ button.ghost-btn:hover {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   box-shadow: var(--shadow-soft);
 }
 
 .workspace-panel,
 .analytics-panel {
-  padding: 1.1rem;
+  padding: 1.25rem;
 }
 
 .action-panel {
@@ -1300,7 +1327,7 @@ button.ghost-btn:hover {
 
 .you-chip {
   background: var(--gradient);
-  color: #070a12;
+  color: var(--on-accent);
 }
 
 .mini-chip {
@@ -1932,7 +1959,7 @@ button.ghost-btn:hover {
 .team-card-main:hover {
   transform: none;
   filter: none;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--hover-fill);
 }
 
 .team-card-copy {
@@ -2403,7 +2430,7 @@ button.ghost-btn:hover {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #070a12;
+  background: var(--bg);
 }
 
 .recap-card-preview canvas {
@@ -2569,7 +2596,7 @@ button.ghost-btn:hover {
 .selected-token-remove:hover {
   transform: none;
   filter: none;
-  background: rgba(56, 189, 248, 0.2);
+  background: var(--blue-soft);
 }
 
 .list,
@@ -4419,7 +4446,7 @@ button.ghost-btn:hover {
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(142, 208, 255, 0.5);
+  background: color-mix(in srgb, var(--blue) 42%, transparent);
 }
 
 @keyframes spin {
@@ -4822,7 +4849,7 @@ button.ghost-btn:hover {
     position: fixed;
     inset: 0;
     z-index: 40;
-    background: rgba(5, 8, 14, 0.62);
+    background: var(--backdrop);
   }
 
   .rail-backdrop.open {
@@ -4866,7 +4893,7 @@ button.ghost-btn:hover {
     padding: 0;
     border: 1px solid var(--rail-line);
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--rail-2);
     color: var(--rail-text);
     font-size: 1.35rem;
     line-height: 1;
@@ -4876,7 +4903,7 @@ button.ghost-btn:hover {
   .mobile-rail-close:hover {
     transform: none;
     filter: none;
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--hover-fill);
   }
 
   .brand-panel {
