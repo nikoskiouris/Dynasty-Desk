@@ -114,6 +114,7 @@ import {
   resolveFranchiseManagerKey,
   takeoverForRoster,
 } from "./modules/franchise.js";
+import { buildDeskHistorySnapshot, isSameDeskPlace } from "./modules/desk-history.js";
 import {
   formatPickWithSelection,
   indexDraftSelections,
@@ -308,6 +309,7 @@ let userSearchPromise = null;
 let lastSimSignature = "";
 let leagueTradeSideCache = { key: "", sides: [] };
 let takeoverIndexCache = { key: "", aliases: new Map(), takeovers: [] };
+let applyingHistory = false;
 
 function getAssetValue(asset, values = state.values) {
   return marketAssetValue(asset, values, {
@@ -362,7 +364,8 @@ el.pageTabButtons?.forEach((button) => {
       return;
     }
     closeTradeMenu();
-    setActivePage(button.dataset.page);
+    if (button.dataset.page === state.activePage) return;
+    setActivePage(button.dataset.page, { history: "push", scroll: "top" });
   });
 });
 el.traderMenu?.addEventListener("click", (event) => {
@@ -449,7 +452,7 @@ el.meSelect?.addEventListener("change", () => {
   syncTradeModeUi();
   renderActivePage();
   renderSessionSnapshot();
-  updateUrlState();
+  updateUrlState({ mode: "replace" });
 });
 el.generateBtn?.addEventListener("click", generateTradeIdeas);
 el.analyticsDashboard?.addEventListener("click", handleHistoryCompareClick);
@@ -460,6 +463,8 @@ renderSessionSnapshot();
 syncTradeModeUi();
 syncStorageNotice();
 bootFromUrl();
+if (typeof history.scrollRestoration === "string") history.scrollRestoration = "manual";
+window.addEventListener("popstate", (event) => applyDeskPopState(event.state));
 if (isPhoneLayout()) setMobileRailOpen(false);
 syncDocumentMeta();
 syncSiteDock();
@@ -496,8 +501,16 @@ function toggleTradeMenu() {
   else openTradeMenu();
 }
 
-function openTradeRoom(room) {
+function openTradeRoom(room, { history = "push", scroll = "top" } = {}) {
   const next = TRADE_ROOMS.includes(room) ? room : DEFAULT_TRADE_ROOM;
+  const samePlace = state.activePage === "trader"
+    && getTradeRoom() === next
+    && (next === "history" || !state.selectedTradeId);
+  if (samePlace && history === "push") {
+    closeTradeMenu();
+    return;
+  }
+  if (history === "push") prepareDeskPush();
   state.tradeRoom = next;
   if (next === "lab" && el.tradeModeSelect?.value === "calculator") {
     el.tradeModeSelect.value = "shop";
@@ -507,26 +520,29 @@ function openTradeRoom(room) {
     state.selectedTradeManagerKey = "";
   }
   closeTradeMenu();
-  if (state.activePage !== "trader") setActivePage("trader");
+  if (state.activePage !== "trader") setActivePage("trader", { history, scroll, prepared: true });
   else {
     renderActivePage();
-    updateUrlState();
+    if (scroll === "top") window.scrollTo(0, 0);
+    if (history !== "silent") updateUrlState({ mode: history });
     syncDocumentMeta();
   }
 }
 
-function openLeagueRoom(room) {
+function openLeagueRoom(room, { history = "push", scroll = "top" } = {}) {
   const next = LEAGUE_ROOMS.includes(room) ? room : DEFAULT_LEAGUE_ROOM;
+  if (state.activePage === "league" && getLeagueRoom() === next && history === "push") return;
+  if (history === "push") prepareDeskPush();
   state.leagueRoom = next;
   closeTradeMenu();
-  if (state.activePage !== "league") setActivePage("league");
+  if (state.activePage !== "league") setActivePage("league", { history, scroll, prepared: true });
   else {
     syncLeagueRoomUi();
     renderActivePage();
-    updateUrlState();
+    if (scroll === "top") window.scrollTo(0, 0);
+    if (history !== "silent") updateUrlState({ mode: history });
     syncDocumentMeta();
   }
-  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function invalidateResults() {
@@ -549,7 +565,7 @@ function showAppPages() {
   }
   state.pendingTradeRoom = null;
   state.pendingLeagueRoom = null;
-  setActivePage(requested);
+  setActivePage(requested, { history: "replace", scroll: "top" });
 }
 
 function hideAppPages() {
@@ -564,8 +580,9 @@ function hideAppPages() {
   });
 }
 
-function setActivePage(page) {
+function setActivePage(page, { history = "replace", scroll = "preserve", prepared = false } = {}) {
   const nextPage = PAGE_IDS.includes(page) ? page : DEFAULT_PAGE;
+  if (history === "push" && !prepared) prepareDeskPush();
   state.activePage = nextPage;
   if (nextPage !== "trader") closeTradeMenu();
 
@@ -584,7 +601,8 @@ function setActivePage(page) {
   scrollActiveTabIntoView();
   renderSessionSnapshot();
   renderActivePage();
-  updateUrlState();
+  if (scroll === "top") window.scrollTo(0, 0);
+  if (history !== "silent") updateUrlState({ mode: history });
   syncDocumentMeta();
 }
 
@@ -601,7 +619,12 @@ function handlePageTabKeydown(event) {
   event.preventDefault();
   const nextTab = tabs[nextIndex];
   nextTab.focus();
-  setActivePage(nextTab.dataset.page);
+  if (nextTab.dataset.page === "trader") {
+    toggleTradeMenu();
+    return;
+  }
+  if (nextTab.dataset.page === state.activePage) return;
+  setActivePage(nextTab.dataset.page, { history: "push", scroll: "top" });
 }
 
 function renderActivePage() {
@@ -687,12 +710,82 @@ function bootFromUrl() {
   }
 }
 
-function updateUrlState() {
-  if (!state.leagueId || typeof history?.replaceState !== "function") return;
+function activeDeskView() {
+  if (state.activePage === "trader") return getTradeRoom();
+  if (state.activePage === "league") return getLeagueRoom();
+  return "";
+}
+
+function currentDeskSnapshot() {
+  return buildDeskHistorySnapshot({
+    tab: state.activePage,
+    view: activeDeskView(),
+    selectedTradeId: state.selectedTradeId,
+    selectedTradeManagerKey: state.selectedTradeManagerKey,
+    scrollY: window.scrollY || 0,
+  });
+}
+
+function deskUrlPath() {
   const nextUrl = buildShareUrl();
-  const current = `${window.location.origin}${window.location.pathname}${window.location.search}`;
-  if (current !== nextUrl) {
-    history.replaceState(null, "", `${window.location.pathname}${nextUrl.includes("?") ? `?${nextUrl.split("?")[1]}` : ""}`);
+  return `${window.location.pathname}${nextUrl.includes("?") ? `?${nextUrl.split("?")[1]}` : ""}`;
+}
+
+function prepareDeskPush() {
+  if (applyingHistory || !state.leagueId) return;
+  if (typeof history?.replaceState !== "function") return;
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+  history.replaceState({
+    ...buildDeskHistorySnapshot(history.state || {}),
+    ...currentDeskSnapshot(),
+  }, "", currentPath);
+}
+
+function updateUrlState({ mode = "replace" } = {}) {
+  if (applyingHistory || !state.leagueId) return;
+  if (typeof history?.replaceState !== "function") return;
+  const path = deskUrlPath();
+  const snapshot = currentDeskSnapshot();
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+  if (mode === "push" && typeof history.pushState === "function") {
+    if (isSameDeskPlace(history.state || {}, snapshot) && currentPath === path) {
+      history.replaceState(snapshot, "", path);
+      return;
+    }
+    history.pushState(snapshot, "", path);
+    return;
+  }
+  history.replaceState(snapshot, "", path);
+}
+
+function applyDeskPopState(historyState) {
+  if (!state.leagueId) return;
+  const parsed = parseShareParams(window.location.search);
+  if (parsed.leagueId && parsed.leagueId !== state.leagueId) {
+    void loadLeagueById(parsed.leagueId);
+    return;
+  }
+  applyingHistory = true;
+  try {
+    const nextPage = PAGE_IDS.includes(parsed.tab) ? parsed.tab : DEFAULT_PAGE;
+    if (nextPage === "trader") {
+      state.tradeRoom = normalizeTradeRoom(parsed.view) || DEFAULT_TRADE_ROOM;
+    } else if (nextPage === "league") {
+      state.leagueRoom = normalizeLeagueRoom(parsed.view) || DEFAULT_LEAGUE_ROOM;
+    }
+    const snapshot = buildDeskHistorySnapshot(historyState || {});
+    state.selectedTradeId = snapshot.selectedTradeId;
+    state.selectedTradeManagerKey = snapshot.selectedTradeManagerKey;
+    setActivePage(nextPage, { history: "silent", scroll: "preserve" });
+    const scrollY = Number(snapshot.scrollY);
+    if (Number.isFinite(scrollY)) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+        requestAnimationFrame(() => window.scrollTo(0, scrollY));
+      });
+    }
+  } finally {
+    applyingHistory = false;
   }
 }
 
@@ -4364,7 +4457,7 @@ function handleWorkspaceClick(event) {
     }
     case "set-lens-teams": {
       state.lensRosterId = Number(target.dataset.rosterId);
-      setActivePage("team");
+      setActivePage("team", { history: "push", scroll: "top" });
       el.powerSection?.scrollIntoView({ behavior: "smooth", block: "start" });
       break;
     }
@@ -4380,7 +4473,7 @@ function handleWorkspaceClick(event) {
     case "recap-tone": {
       state.recapTone = target.dataset.tone || "desk";
       renderRecapPage();
-      updateUrlState();
+      updateUrlState({ mode: "replace" });
       break;
     }
     case "copy-recap": {
@@ -4396,24 +4489,30 @@ function handleWorkspaceClick(event) {
       break;
     }
     case "open-trade": {
+      if (!String(target.dataset.tradeId || "")) return;
+      prepareDeskPush();
       state.selectedTradeId = String(target.dataset.tradeId || "");
       state.selectedTradeManagerKey = String(target.dataset.managerKey || "");
-      if (!state.selectedTradeId) return;
       state.tradeRoom = "history";
       closeTradeMenu();
-      if (state.activePage !== "trader") setActivePage("trader");
+      if (state.activePage !== "trader") setActivePage("trader", { history: "push", scroll: "top", prepared: true });
       else {
         renderActivePage();
-        updateUrlState();
+        updateUrlState({ mode: "push" });
         syncDocumentMeta();
       }
       el.tradeHistoryDashboard?.scrollIntoView({ behavior: "smooth", block: "start" });
       break;
     }
     case "close-trade": {
+      if (typeof history.state?.selectedTradeId === "string" && history.state.selectedTradeId && typeof history.back === "function") {
+        history.back();
+        break;
+      }
       state.selectedTradeId = "";
       state.selectedTradeManagerKey = "";
       renderTradeHistoryDesk();
+      updateUrlState({ mode: "replace" });
       break;
     }
     case "calc-toggle": {
