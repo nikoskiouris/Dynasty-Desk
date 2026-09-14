@@ -1275,6 +1275,23 @@ async function loadLeagueCoreData(leagueId) {
   };
 }
 
+function rankDraftCandidateStatus(status) {
+  switch (normalizeDraftStatus(status)) {
+    case "drafting": return 0;
+    case "paused": return 1;
+    case "complete": return 2;
+    default: return 3;
+  }
+}
+
+function normalizeDraftStatus(status) {
+  return String(status || "").trim().toLowerCase();
+}
+
+function isCompleteDraftStatus(status) {
+  return normalizeDraftStatus(status) === "complete";
+}
+
 function buildCurrentDraftDetailCandidateIds(league, drafts = []) {
   const leagueSeason = String(league?.season || "").trim();
   const candidateIds = [];
@@ -1288,13 +1305,45 @@ function buildCurrentDraftDetailCandidateIds(league, drafts = []) {
 
   drafts
     .filter((draft) => String(draft?.season || "").trim() === leagueSeason)
+    .slice()
+    .sort((left, right) => {
+      const statusDiff = rankDraftCandidateStatus(left?.status) - rankDraftCandidateStatus(right?.status);
+      if (statusDiff !== 0) return statusDiff;
+      return Number(right?.last_picked || 0) - Number(left?.last_picked || 0);
+    })
     .forEach((draft) => push(draft?.draft_id));
 
   push(league?.draft_id);
   return candidateIds;
 }
 
-function buildCurrentDraftContext(league, rosters, draftDetails) {
+function buildUsedDraftPickIndex(draftDetails, draftPicks = []) {
+  const season = String(draftDetails?.season || "").trim();
+  const slotMap = draftDetails?.slot_to_roster_id && typeof draftDetails.slot_to_roster_id === "object"
+    ? draftDetails.slot_to_roster_id
+    : {};
+  const usedPickKeys = new Set();
+  const usedSlotKeys = new Set();
+
+  (Array.isArray(draftPicks) ? draftPicks : []).forEach((pick) => {
+    const playerId = String(pick?.player_id || "").trim();
+    const round = Number(pick?.round);
+    const slot = Number(pick?.draft_slot);
+    if (!playerId || !Number.isFinite(round)) return;
+
+    if (Number.isFinite(slot)) {
+      usedSlotKeys.add(`${round}:${slot}`);
+      const originalOwnerKey = normalizeRosterIdKey(slotMap[String(slot)] ?? slotMap[slot]);
+      if (season && originalOwnerKey) {
+        usedPickKeys.add(buildOwnedPickKey(season, round, originalOwnerKey));
+      }
+    }
+  });
+
+  return { usedPickKeys, usedSlotKeys };
+}
+
+function buildCurrentDraftContext(league, rosters, draftDetails, draftPicks = []) {
   const leagueSeason = String(league?.season || "").trim();
   const draftSeason = String(draftDetails?.season || "").trim();
   if (!leagueSeason || !draftSeason || draftSeason !== leagueSeason) return null;
@@ -1329,18 +1378,27 @@ function buildCurrentDraftContext(league, rosters, draftDetails) {
     });
   }
 
-  if (slotByRosterId.size === 0) return null;
+  const status = normalizeDraftStatus(draftDetails?.status);
+  const { usedPickKeys, usedSlotKeys } = buildUsedDraftPickIndex(draftDetails, draftPicks);
+  if (slotByRosterId.size === 0 && status !== "complete" && usedPickKeys.size === 0 && usedSlotKeys.size === 0) {
+    return null;
+  }
 
+  const slotValues = [...slotByRosterId.values()];
   return {
     draftId: String(draftDetails?.draft_id || ""),
     season: draftSeason,
+    status,
+    rounds: Number(draftDetails?.settings?.rounds) || 0,
     totalSlots: Math.max(
       Number(draftDetails?.settings?.teams) || 0,
       Number(league?.total_rosters) || 0,
       rosters.length,
-      ...slotByRosterId.values()
+      ...slotValues
     ),
     slotByRosterId,
+    usedPickKeys,
+    usedSlotKeys,
   };
 }
 
@@ -1348,8 +1406,16 @@ async function loadCurrentSeasonDraftContext(leagueId, league, rosters, drafts =
   const candidateIds = buildCurrentDraftDetailCandidateIds(league, drafts);
   for (const draftId of candidateIds) {
     try {
-      const draftDetails = await apiGetWithRetry(`/draft/${draftId}`, { timeoutMs: 12000, retries: 1 });
-      const context = buildCurrentDraftContext(league, rosters, draftDetails);
+      const [draftDetails, draftPicks] = await Promise.all([
+        apiGetWithRetry(`/draft/${draftId}`, { timeoutMs: 12000, retries: 1 }),
+        apiGetWithRetry(`/draft/${draftId}/picks`, { timeoutMs: 12000, retries: 1 }).catch(() => []),
+      ]);
+      const context = buildCurrentDraftContext(
+        league,
+        rosters,
+        draftDetails,
+        Array.isArray(draftPicks) ? draftPicks : []
+      );
       if (context) return context;
     } catch (err) {
       console.warn(`Could not load draft details for ${draftId}`, err);
@@ -11758,7 +11824,37 @@ function normalizeTradedPickRecord(pick) {
   };
 }
 
-function inferLeaguePickSeasons(league, rosters, tradedPicks = [], pickValueCatalog = state.pickValueCatalog) {
+function getMinOpenPickSeason(currentDraftContext) {
+  if (!isCompleteDraftStatus(currentDraftContext?.status)) return null;
+  const draftedSeason = Number(currentDraftContext?.season);
+  return Number.isFinite(draftedSeason) ? draftedSeason + 1 : null;
+}
+
+function isConsumedDraftPick(pick, currentDraftContext, assignedDraftSlot = null) {
+  if (!pick || !currentDraftContext) return false;
+
+  const pickSeason = String(pick.season || "");
+  const draftSeason = String(currentDraftContext.season || "");
+  if (!pickSeason || !draftSeason || pickSeason !== draftSeason) return false;
+  if (isCompleteDraftStatus(currentDraftContext.status)) return true;
+
+  const round = Number(pick.round);
+  const originalOwnerKey = normalizeRosterIdKey(pick.original_owner ?? pick.roster_id);
+  if (
+    originalOwnerKey
+    && Number.isFinite(round)
+    && currentDraftContext.usedPickKeys?.has(buildOwnedPickKey(pickSeason, round, originalOwnerKey))
+  ) {
+    return true;
+  }
+
+  const slot = Number(assignedDraftSlot?.slot ?? pick.assignedDraftSlot);
+  return Number.isFinite(round)
+    && Number.isFinite(slot)
+    && currentDraftContext.usedSlotKeys?.has(`${round}:${slot}`);
+}
+
+function inferLeaguePickSeasons(league, rosters, tradedPicks = [], pickValueCatalog = state.pickValueCatalog, currentDraftContext = null) {
   const explicitSeasons = rosters
     .flatMap((roster) => Array.isArray(roster?.picks) ? roster.picks : [])
     .map((pick) => Number(pick?.season))
@@ -11773,9 +11869,13 @@ function inferLeaguePickSeasons(league, rosters, tradedPicks = [], pickValueCata
   const configuredLeagueSeason = Number(league?.season);
   const baseSeason = Number.isFinite(configuredLeagueSeason) ? configuredLeagueSeason : new Date().getFullYear();
   const observedStartSeasons = [...explicitSeasons, ...tradedSeasons];
-  const startSeason = observedStartSeasons.length > 0
+  let startSeason = observedStartSeasons.length > 0
     ? Math.min(...observedStartSeasons)
     : baseSeason;
+  const minOpenSeason = getMinOpenPickSeason(currentDraftContext);
+  if (Number.isFinite(minOpenSeason) && startSeason < minOpenSeason) {
+    startSeason = minOpenSeason;
+  }
   const endSeason = Math.max(
     startSeason + (observedStartSeasons.length > 0 ? 1 : 2),
     ...[...explicitSeasons, ...tradedSeasons, ...catalogSeasons]
@@ -11809,7 +11909,7 @@ function buildOwnedPickKey(season, round, originalOwnerKey) {
   return `${season}:${round}:${originalOwnerKey}`;
 }
 
-function buildOwnedPicksByRoster(league, rosters, tradedPicks = [], pickValueCatalog = state.pickValueCatalog) {
+function buildOwnedPicksByRoster(league, rosters, tradedPicks = [], pickValueCatalog = state.pickValueCatalog, currentDraftContext = null) {
   const rosterKeys = rosters
     .map((roster) => normalizeRosterIdKey(roster.roster_id))
     .filter(Boolean);
@@ -11827,13 +11927,13 @@ function buildOwnedPicksByRoster(league, rosters, tradedPicks = [], pickValueCat
         rosterKey,
         (Array.isArray(roster.picks) ? roster.picks : [])
           .map((pick) => normalizeOwnedPickRecord(pick, roster.roster_id))
-          .filter(Boolean)
+          .filter((pick) => pick && !isConsumedDraftPick(pick, currentDraftContext))
       );
     });
     return ownedByRoster;
   }
 
-  const seasons = inferLeaguePickSeasons(league, rosters, tradedPicks, pickValueCatalog);
+  const seasons = inferLeaguePickSeasons(league, rosters, tradedPicks, pickValueCatalog, currentDraftContext);
   const draftRounds = inferLeagueDraftRounds(league, rosters, tradedPicks);
   if (seasons.length === 0 || draftRounds <= 0) return ownedByRoster;
 
@@ -11870,14 +11970,16 @@ function buildOwnedPicksByRoster(league, rosters, tradedPicks = [], pickValueCat
     if (!targetList) return;
 
     const [season, roundToken, originalOwnerKey] = ownershipKey.split(":");
-    targetList.push({
+    const pick = {
       season,
       round: Number(roundToken),
       roster_id: toNumericIfPossible(originalOwnerKey),
       original_owner: toNumericIfPossible(originalOwnerKey),
       owner_id: toNumericIfPossible(currentOwnerKey),
       previous_owner_id: toNumericIfPossible(currentOwnerKey),
-    });
+    };
+    if (isConsumedDraftPick(pick, currentDraftContext)) return;
+    targetList.push(pick);
   });
 
   ownedByRoster.forEach((picks) => {
@@ -11897,7 +11999,7 @@ function normalizeRosters(league, rosters, users, players, previousContext = { l
   const userById = new Map(users.map((u) => [String(u.user_id), u]));
   const rosterById = new Map(rosters.map((roster) => [String(roster.roster_id), roster]));
   const previousFinishLookup = buildPreviousFinishLookup(previousContext.league, previousContext.rosters);
-  const ownedPicksByRoster = buildOwnedPicksByRoster(league, rosters, tradedPicks);
+  const ownedPicksByRoster = buildOwnedPicksByRoster(league, rosters, tradedPicks, state.pickValueCatalog, currentDraftContext);
 
   return rosters.map((roster) => {
     const owner = userById.get(String(roster.owner_id)) || {};
@@ -11912,7 +12014,7 @@ function normalizeRosters(league, rosters, users, players, previousContext = { l
       };
     });
 
-    const pickAssets = (ownedPicksByRoster.get(String(roster.roster_id)) || []).map((pick) => {
+    const pickAssets = (ownedPicksByRoster.get(String(roster.roster_id)) || []).flatMap((pick) => {
       const finishInfo = resolvePreviousFinishInfo(pick.original_owner, rosterById, previousFinishLookup);
       const pickBucket = Number(pick.round) === 1 ? finishInfo?.bucket || "any" : "any";
       const assignedDraftSlot = resolveAssignedDraftSlot(
@@ -11921,7 +12023,8 @@ function normalizeRosters(league, rosters, users, players, previousContext = { l
         finishInfo,
         previousContext?.league
       );
-      return {
+      if (isConsumedDraftPick(pick, currentDraftContext, assignedDraftSlot)) return [];
+      return [{
         assetId: `pick:${pick.season}:r${pick.round}:${pick.original_owner || "any"}`,
         valueAssetId: buildPickValueAssetId(pick, pickBucket),
         valueBucket: pickBucket,
@@ -11934,7 +12037,7 @@ function normalizeRosters(league, rosters, users, players, previousContext = { l
           assignedDraftSlotLabel: assignedDraftSlot?.label ?? null,
           previousFinishLabel: finishInfo?.label || null,
         },
-      };
+      }];
     });
 
     const nicknames = {};
