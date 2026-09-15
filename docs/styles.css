@@ -730,6 +730,107 @@ select.is-invalid {
   }
 }
 
+.page-tab-wrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.page-tab-wrap .page-tab {
+  flex: 1;
+}
+
+.tab-caret {
+  flex: 0 0 auto;
+  width: 0.42rem;
+  height: 0.42rem;
+  margin-right: 0.55rem;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: translateY(-0.1rem) rotate(45deg);
+  opacity: 0.7;
+}
+
+.page-tab-wrap.open .tab-caret {
+  transform: translateY(0.1rem) rotate(225deg);
+}
+
+.page-tab-wrap.open {
+  z-index: 40;
+}
+
+.page-tab-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 32;
+  display: grid;
+  gap: 0.2rem;
+  min-width: 16rem;
+  padding: 0.4rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
+  box-shadow: var(--shadow-soft);
+}
+
+body.trade-menu-open .workspace-tabs {
+  z-index: 40;
+  overflow: visible;
+}
+
+.page-tab-menu[hidden] {
+  display: none;
+}
+
+.page-tab-menu button {
+  display: grid;
+  gap: 0.1rem;
+  width: 100%;
+  min-height: 0;
+  padding: 0.65rem 0.75rem;
+  border: 0;
+  border-radius: 8px;
+  background: var(--panel-solid);
+  color: inherit;
+  font-weight: 600;
+  text-align: left;
+  box-shadow: none;
+}
+
+.page-tab-menu button:hover,
+.page-tab-menu button:focus-visible {
+  transform: none;
+  filter: none;
+  background: color-mix(in srgb, var(--text) 8%, var(--panel-solid));
+  color: var(--text);
+}
+
+.page-tab-menu button.active {
+  background: color-mix(in srgb, var(--blue) 16%, var(--panel-solid));
+  color: var(--blue);
+}
+
+.page-tab-menu button.active:hover,
+.page-tab-menu button.active:focus-visible {
+  background: color-mix(in srgb, var(--blue) 16%, var(--panel-solid));
+  color: var(--blue);
+}
+
+.page-tab-menu strong {
+  font-size: 0.86rem;
+}
+
+.page-tab-menu small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.page-tab-menu button.active small {
+  color: var(--muted-strong);
+}
+
 .page-tab {
   display: flex;
   align-items: center;
@@ -950,6 +1051,8 @@ select.is-invalid {
 /* Ticker ------------------------------------------------------------------ */
 
 .ticker {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: stretch;
   overflow: hidden;
@@ -2520,7 +2623,7 @@ select.is-invalid {
 
 .mode-card-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.7rem;
   margin-bottom: 0.8rem;
 }
@@ -5059,7 +5162,25 @@ select.is-invalid {
 
   .page-tab[data-page="league"] { order: 1; }
   .page-tab[data-page="team"] { order: 2; }
+  .page-tab-wrap { order: 3; flex: 1 1 0; position: static; }
   .page-tab[data-page="trader"] { order: 3; }
+
+  .tab-caret {
+    display: none;
+  }
+
+  .page-tab-menu {
+    position: absolute;
+    top: auto;
+    right: 0.4rem;
+    bottom: calc(100% + 0.45rem);
+    left: 0.4rem;
+    min-width: 0;
+  }
+
+  body.trade-menu-open .workspace-tabs {
+    overflow: visible;
+  }
 
   .tab-icon {
     display: none;
@@ -5464,19 +5585,24 @@ body.dock-visible {
   margin: 0 0 1rem;
 }
 
-.league-jump a {
+.league-jump button {
   padding: 0.35rem 0.7rem;
   border: 1px solid var(--line);
   border-radius: 999px;
+  background: transparent;
   color: var(--muted-strong);
-  text-decoration: none;
   font-size: 0.78rem;
   font-weight: 700;
 }
 
-.league-jump a:hover {
+.league-jump button:hover,
+.league-jump button.active {
   color: var(--blue);
   border-color: var(--blue);
+}
+
+.league-jump button.active {
+  background: var(--blue-soft);
 }
 
 .loyalty-dashboard {
@@ -5498,6 +5624,10 @@ body.dock-visible {
 
 .loyalty-hero h3 {
   margin: 0.15rem 0 0.2rem;
+}
+
+.takeover-note {
+  margin: 0.25rem 0 0;
 }
 
 .loyalty-score {
@@ -5560,8 +5690,12 @@ body.dock-visible {
   overflow: hidden;
   color: var(--muted-strong);
   font-size: 0.8rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+}
+
+.pick-selection {
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .trade-file-hero {
@@ -5651,8 +5785,12 @@ body.dock-visible {
 
 .trade-wire-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.7rem;
+}
+
+.week-angles-panel .week-angles-grid {
+  margin-top: 0.15rem;
 }
 
 .trade-award {
@@ -5713,6 +5851,17 @@ body.dock-visible {
   .trade-file-hero {
     grid-template-columns: 1fr;
   }
+}
+
+.trade-room {
+  display: grid;
+  gap: 1rem;
+}
+
+.trade-passport-dashboard,
+.trade-history-dashboard {
+  display: grid;
+  gap: 1rem;
 }
 
 .trade-side-stack {

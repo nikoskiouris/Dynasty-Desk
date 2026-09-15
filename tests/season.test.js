@@ -10,6 +10,8 @@ import {
   seedTeams,
   formatRecord,
   blendSimPrior,
+  scoreUpcomingWeekAngles,
+  resolveUpcomingWeekEntry,
 } from "../docs/modules/season.js";
 
 function leagueFixture({
@@ -235,4 +237,57 @@ test("winProbability is symmetric and seed order prefers more wins", () => {
 
 test("formatRecord shows ties", () => {
   assert.equal(formatRecord({ wins: 2, losses: 1, ties: 1 }), "2-1-1");
+});
+
+test("upcoming week dark horses use scoring distributions, not a value check", () => {
+  const weekRows = new Map([
+    [1, [side(1, 1, 150), side(2, 1, 80), side(3, 2, 120), side(4, 2, 115)]],
+    [2, [side(1, 1, 0), side(4, 1, 0), side(2, 2, 0), side(3, 2, 0)]],
+    [3, [side(1, 1, 0), side(3, 1, 0), side(2, 2, 0), side(4, 2, 0)]],
+  ]);
+  const model = buildSeasonModel({
+    league: leagueFixture({ lastScored: 1, leg: 2, playoffTeams: 2 }),
+    rosters: rosters(),
+    users: users(),
+    weekRows,
+    nflState: { season: "2026", week: 2, season_type: "regular" },
+  });
+  assert.equal(resolveUpcomingWeekEntry(model)?.week, 2);
+
+  const distributions = new Map([
+    ["1", { mean: 145, std: 18 }],
+    ["2", { mean: 118, std: 32 }],
+    ["3", { mean: 132, std: 16 }],
+    ["4", { mean: 128, std: 18 }],
+  ]);
+  const simRow = (rosterId, projectedWins, playoffPct, titlePct) => ({
+    rosterId,
+    projectedWins,
+    playoffPct,
+    titlePct,
+  });
+  const results = [
+    simRow("1", 10.2, 92, 48),
+    simRow("3", 7.4, 58, 18),
+    simRow("4", 7.1, 47, 14),
+    simRow("2", 5.2, 22, 4),
+  ];
+  const sim = {
+    distributions,
+    results,
+    byRosterId: new Map(results.map((row) => [row.rosterId, row])),
+  };
+
+  const bravoWin = winProbability(distributions.get("2"), distributions.get("3"));
+  assert.ok(bravoWin > 0.18 && bravoWin < 0.42, `Bravo vs Charlie should be a live underdog, got ${bravoWin}`);
+
+  const angles = scoreUpcomingWeekAngles(model, sim);
+  assert.equal(angles.week, 2);
+  const horseNames = angles.darkHorses.map((card) => card.teamName);
+  assert.ok(horseNames.includes("Bravo"));
+  assert.ok(!horseNames.includes("Alpha"));
+  assert.ok(angles.cards.some((card) => card.kind === "dark-horse"));
+  assert.ok(angles.trapGames.some((card) => card.teamName === "Charlie" && card.opponentName === "Bravo"));
+  assert.match(angles.darkHorses[0].detail, /scoring-profile|boom tail/i);
+  assert.doesNotMatch(angles.darkHorses[0].detail, /KTC roster rank|raw KTC/i);
 });

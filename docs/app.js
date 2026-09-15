@@ -8,6 +8,7 @@ import {
   buildTeamDistributions,
   formatPoints,
   blendSimPrior,
+  scoreUpcomingWeekAngles,
 } from "./modules/season.js";
 import { buildRecap, RECAP_TONES, resolveSeasonStartDate, selectRecapTrades } from "./modules/recap.js";
 import {
@@ -17,6 +18,16 @@ import {
   PAGE_IDS,
   PAGE_LABELS,
   DEFAULT_PAGE,
+  TRADE_ROOMS,
+  DEFAULT_TRADE_ROOM,
+  TRADE_ROOM_LABELS,
+  TRADE_ROOM_HINTS,
+  TRADE_TAB_IDLE_HINT,
+  LEAGUE_ROOMS,
+  DEFAULT_LEAGUE_ROOM,
+  LEAGUE_ROOM_LABELS,
+  LEAGUE_ROOM_HINTS,
+  LEAGUE_TAB_IDLE_HINT,
   DEFAULT_FAIRNESS_PCT,
   DEFAULT_MAX_RESULTS,
   DEMO_LEAGUE_ID,
@@ -43,6 +54,8 @@ import {
   parseLeagueId,
   parseShareParams,
   normalizeDeskTab,
+  normalizeTradeRoom,
+  normalizeLeagueRoom,
   bootSearchFieldValues,
   buildShareUrl as buildShareUrlFromParts,
   uniqueSeasons,
@@ -96,6 +109,22 @@ import {
   winPctFromRecord,
 } from "./modules/loyalty.js";
 import { renderLeaguePickerMarkup } from "./modules/league-search.js";
+import {
+  personManagerKey,
+  buildTakeoverAliasMap,
+  resolveFranchiseManagerKey,
+  takeoverForRoster,
+} from "./modules/franchise.js";
+import { buildDeskHistorySnapshot, isSameDeskPlace } from "./modules/desk-history.js";
+import {
+  formatPickWithSelection,
+  indexDraftSelections,
+  lookupDraftedSelection,
+  mergeDraftSelectionIndex,
+  ownerKeyByRosterIdFromRosters,
+  slotToRosterIdFromDraft,
+  sortDraftsForSelectionIngest,
+} from "./modules/draft-picks.js";
 import {
   applyDocumentMeta,
   applyStorageNoticeHidden,
@@ -194,6 +223,12 @@ const el = {
   pageTabs: document.querySelector("#page-tabs"),
   analyticsTab: document.querySelector("#analytics-tab"),
   traderTab: document.querySelector("#trader-tab"),
+  traderTabWrap: document.querySelector("#trader-tab-wrap"),
+  traderMenu: document.querySelector("#trader-menu"),
+  traderTabHint: document.querySelector("#trader-tab-hint"),
+  leagueTabHint: document.querySelector("#league-tab-hint"),
+  leagueJump: document.querySelector("#league-jump"),
+  leagueRoomPanels: document.querySelectorAll("[data-league-room-panel]"),
   analyticsPage: document.querySelector("#analytics-page"),
   traderPage: document.querySelector("#trader-page"),
   powerSection: document.querySelector("#power-section"),
@@ -229,6 +264,8 @@ const el = {
   recapDashboard: document.querySelector("#recap-dashboard"),
   loyaltyDashboard: document.querySelector("#loyalty-dashboard"),
   tradeHistoryDashboard: document.querySelector("#trade-history-dashboard"),
+  tradePassportDashboard: document.querySelector("#trade-passport-dashboard"),
+  tradeRoomPanels: document.querySelectorAll("[data-trade-room-panel]"),
   ticker: document.querySelector("#ticker"),
   tickerTrack: document.querySelector("#ticker-track"),
   calculatorSection: document.querySelector("#calculator-section"),
@@ -272,6 +309,8 @@ let liveVisibilityBound = false;
 let userSearchPromise = null;
 let lastSimSignature = "";
 let leagueTradeSideCache = { key: "", sides: [] };
+let takeoverIndexCache = { key: "", aliases: new Map(), takeovers: [] };
+let applyingHistory = false;
 
 function getAssetValue(asset, values = state.values) {
   return marketAssetValue(asset, values, {
@@ -319,7 +358,28 @@ el.railDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
 el.railDemoBtn?.addEventListener("click", loadDemoLeague);
 el.copyLeagueIdBtn?.addEventListener("click", copyHelperLeagueId);
 el.pageTabButtons?.forEach((button) => {
-  button.addEventListener("click", () => setActivePage(button.dataset.page));
+  button.addEventListener("click", (event) => {
+    if (button.dataset.page === "trader") {
+      event.preventDefault();
+      toggleTradeMenu();
+      return;
+    }
+    closeTradeMenu();
+    if (button.dataset.page === state.activePage) return;
+    setActivePage(button.dataset.page, { history: "push", scroll: "top" });
+  });
+});
+el.traderMenu?.addEventListener("click", (event) => {
+  const item = event.target.closest("[data-trade-room]");
+  if (!item) return;
+  event.preventDefault();
+  openTradeRoom(item.dataset.tradeRoom);
+});
+el.leagueJump?.addEventListener("click", (event) => {
+  const item = event.target.closest("[data-league-room]");
+  if (!item) return;
+  event.preventDefault();
+  openLeagueRoom(item.dataset.leagueRoom);
 });
 el.pageTabs?.addEventListener("keydown", handlePageTabKeydown);
 el.themeToggleBtn?.addEventListener("click", () => applyTheme(state.theme === "dark" ? "light" : "dark"));
@@ -334,10 +394,20 @@ el.mobileRailToggle?.addEventListener("click", () => {
 el.mobileRailClose?.addEventListener("click", () => setMobileRailOpen(false));
 el.railBackdrop?.addEventListener("click", () => setMobileRailOpen(false));
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && isTradeMenuOpen()) {
+    closeTradeMenu();
+    el.traderTab?.focus();
+    return;
+  }
   if (event.key === "Escape" && document.body.classList.contains("rail-open")) {
     setMobileRailOpen(false);
     el.mobileRailToggle?.focus();
   }
+});
+document.addEventListener("click", (event) => {
+  if (!isTradeMenuOpen()) return;
+  if (el.traderTabWrap?.contains(event.target)) return;
+  closeTradeMenu();
 });
 window.matchMedia(PHONE_LAYOUT_QUERY).addEventListener("change", () => {
   setMobileRailOpen(false);
@@ -383,7 +453,7 @@ el.meSelect?.addEventListener("change", () => {
   syncTradeModeUi();
   renderActivePage();
   renderSessionSnapshot();
-  updateUrlState();
+  updateUrlState({ mode: "replace" });
 });
 el.generateBtn?.addEventListener("click", generateTradeIdeas);
 el.analyticsDashboard?.addEventListener("click", handleHistoryCompareClick);
@@ -394,9 +464,87 @@ renderSessionSnapshot();
 syncTradeModeUi();
 syncStorageNotice();
 bootFromUrl();
+if (typeof history.scrollRestoration === "string") history.scrollRestoration = "manual";
+window.addEventListener("popstate", (event) => applyDeskPopState(event.state));
 if (isPhoneLayout()) setMobileRailOpen(false);
 syncDocumentMeta();
 syncSiteDock();
+
+function getTradeRoom() {
+  return TRADE_ROOMS.includes(state.tradeRoom) ? state.tradeRoom : DEFAULT_TRADE_ROOM;
+}
+
+function getLeagueRoom() {
+  return LEAGUE_ROOMS.includes(state.leagueRoom) ? state.leagueRoom : DEFAULT_LEAGUE_ROOM;
+}
+
+function isTradeMenuOpen() {
+  return Boolean(el.traderTabWrap?.classList.contains("open"));
+}
+
+function closeTradeMenu() {
+  el.traderTabWrap?.classList.remove("open");
+  document.body.classList.remove("trade-menu-open");
+  if (el.traderMenu) el.traderMenu.hidden = true;
+  el.traderTab?.setAttribute("aria-expanded", "false");
+}
+
+function openTradeMenu() {
+  el.traderTabWrap?.classList.add("open");
+  document.body.classList.add("trade-menu-open");
+  if (el.traderMenu) el.traderMenu.hidden = false;
+  el.traderTab?.setAttribute("aria-expanded", "true");
+  syncTradeRoomUi();
+}
+
+function toggleTradeMenu() {
+  if (isTradeMenuOpen()) closeTradeMenu();
+  else openTradeMenu();
+}
+
+function openTradeRoom(room, { history = "push", scroll = "top" } = {}) {
+  const next = TRADE_ROOMS.includes(room) ? room : DEFAULT_TRADE_ROOM;
+  const samePlace = state.activePage === "trader"
+    && getTradeRoom() === next
+    && (next === "history" || !state.selectedTradeId);
+  if (samePlace && history === "push") {
+    closeTradeMenu();
+    return;
+  }
+  if (history === "push") prepareDeskPush();
+  state.tradeRoom = next;
+  if (next === "lab" && el.tradeModeSelect?.value === "calculator") {
+    el.tradeModeSelect.value = "shop";
+  }
+  if (next !== "history") {
+    state.selectedTradeId = "";
+    state.selectedTradeManagerKey = "";
+  }
+  closeTradeMenu();
+  if (state.activePage !== "trader") setActivePage("trader", { history, scroll, prepared: true });
+  else {
+    renderActivePage();
+    if (scroll === "top") window.scrollTo(0, 0);
+    if (history !== "silent") updateUrlState({ mode: history });
+    syncDocumentMeta();
+  }
+}
+
+function openLeagueRoom(room, { history = "push", scroll = "top" } = {}) {
+  const next = LEAGUE_ROOMS.includes(room) ? room : DEFAULT_LEAGUE_ROOM;
+  if (state.activePage === "league" && getLeagueRoom() === next && history === "push") return;
+  if (history === "push") prepareDeskPush();
+  state.leagueRoom = next;
+  closeTradeMenu();
+  if (state.activePage !== "league") setActivePage("league", { history, scroll, prepared: true });
+  else {
+    syncLeagueRoomUi();
+    renderActivePage();
+    if (scroll === "top") window.scrollTo(0, 0);
+    if (history !== "silent") updateUrlState({ mode: history });
+    syncDocumentMeta();
+  }
+}
 
 function invalidateResults() {
   el.resultsSection.classList.add("hidden");
@@ -408,13 +556,24 @@ function showAppPages() {
   el.shareLinkBtn?.classList.remove("hidden");
   const requested = state.pendingTab && PAGE_IDS.includes(state.pendingTab) ? state.pendingTab : state.activePage || DEFAULT_PAGE;
   state.pendingTab = null;
-  setActivePage(requested);
+  if (requested === "trader") {
+    const pendingRoom = normalizeTradeRoom(state.pendingTradeRoom);
+    state.tradeRoom = pendingRoom || getTradeRoom();
+  }
+  if (requested === "league") {
+    const pendingRoom = normalizeLeagueRoom(state.pendingLeagueRoom);
+    state.leagueRoom = pendingRoom || getLeagueRoom();
+  }
+  state.pendingTradeRoom = null;
+  state.pendingLeagueRoom = null;
+  setActivePage(requested, { history: "replace", scroll: "top" });
 }
 
 function hideAppPages() {
   el.pageTabs?.classList.add("hidden");
   el.shareLinkBtn?.classList.add("hidden");
   el.ticker?.classList.add("hidden");
+  closeTradeMenu();
   PAGE_IDS.forEach((page) => {
     const pageEl = el.pages[page];
     pageEl?.classList.add("hidden");
@@ -422,9 +581,11 @@ function hideAppPages() {
   });
 }
 
-function setActivePage(page) {
+function setActivePage(page, { history = "replace", scroll = "preserve", prepared = false } = {}) {
   const nextPage = PAGE_IDS.includes(page) ? page : DEFAULT_PAGE;
+  if (history === "push" && !prepared) prepareDeskPush();
   state.activePage = nextPage;
+  if (nextPage !== "trader") closeTradeMenu();
 
   PAGE_IDS.forEach((pageId) => {
     const pageEl = el.pages[pageId];
@@ -441,7 +602,8 @@ function setActivePage(page) {
   scrollActiveTabIntoView();
   renderSessionSnapshot();
   renderActivePage();
-  updateUrlState();
+  if (scroll === "top") window.scrollTo(0, 0);
+  if (history !== "silent") updateUrlState({ mode: history });
   syncDocumentMeta();
 }
 
@@ -458,11 +620,18 @@ function handlePageTabKeydown(event) {
   event.preventDefault();
   const nextTab = tabs[nextIndex];
   nextTab.focus();
-  setActivePage(nextTab.dataset.page);
+  if (nextTab.dataset.page === "trader") {
+    toggleTradeMenu();
+    return;
+  }
+  if (nextTab.dataset.page === state.activePage) return;
+  setActivePage(nextTab.dataset.page, { history: "push", scroll: "top" });
 }
 
 function renderActivePage() {
   if (!state.leagueId) return;
+  syncTradeRoomUi();
+  syncLeagueRoomUi();
   switch (state.activePage) {
     case "team":
       renderTeamPage();
@@ -473,6 +642,7 @@ function renderActivePage() {
     case "trader":
       syncTradeModeUi();
       renderTradeHistoryDesk();
+      renderPassportDesk();
       break;
     default:
       renderLeaguePage();
@@ -521,6 +691,14 @@ function bootFromUrl() {
   if (parsed.meRosterId) state.pendingMeRosterId = parsed.meRosterId;
   const requestedTab = normalizeDeskTab(parsed.tab);
   if (PAGE_IDS.includes(requestedTab)) state.pendingTab = requestedTab;
+  if (requestedTab === "trader") {
+    state.pendingTradeRoom = parsed.view || DEFAULT_TRADE_ROOM;
+  } else if (requestedTab === "league" || !requestedTab) {
+    const hashToken = String(window.location.hash || "").replace(/^#league-/, "").replace(/^#/, "");
+    state.pendingLeagueRoom = parsed.view
+      || normalizeLeagueRoom(hashToken)
+      || DEFAULT_LEAGUE_ROOM;
+  }
   if (parsed.week) state.pendingWeek = parsed.week;
   if (parsed.tone) state.pendingTone = parsed.tone;
 
@@ -533,12 +711,82 @@ function bootFromUrl() {
   }
 }
 
-function updateUrlState() {
-  if (!state.leagueId || typeof history?.replaceState !== "function") return;
+function activeDeskView() {
+  if (state.activePage === "trader") return getTradeRoom();
+  if (state.activePage === "league") return getLeagueRoom();
+  return "";
+}
+
+function currentDeskSnapshot() {
+  return buildDeskHistorySnapshot({
+    tab: state.activePage,
+    view: activeDeskView(),
+    selectedTradeId: state.selectedTradeId,
+    selectedTradeManagerKey: state.selectedTradeManagerKey,
+    scrollY: window.scrollY || 0,
+  });
+}
+
+function deskUrlPath() {
   const nextUrl = buildShareUrl();
-  const current = `${window.location.origin}${window.location.pathname}${window.location.search}`;
-  if (current !== nextUrl) {
-    history.replaceState(null, "", `${window.location.pathname}${nextUrl.includes("?") ? `?${nextUrl.split("?")[1]}` : ""}`);
+  return `${window.location.pathname}${nextUrl.includes("?") ? `?${nextUrl.split("?")[1]}` : ""}`;
+}
+
+function prepareDeskPush() {
+  if (applyingHistory || !state.leagueId) return;
+  if (typeof history?.replaceState !== "function") return;
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+  history.replaceState({
+    ...buildDeskHistorySnapshot(history.state || {}),
+    ...currentDeskSnapshot(),
+  }, "", currentPath);
+}
+
+function updateUrlState({ mode = "replace" } = {}) {
+  if (applyingHistory || !state.leagueId) return;
+  if (typeof history?.replaceState !== "function") return;
+  const path = deskUrlPath();
+  const snapshot = currentDeskSnapshot();
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+  if (mode === "push" && typeof history.pushState === "function") {
+    if (isSameDeskPlace(history.state || {}, snapshot) && currentPath === path) {
+      history.replaceState(snapshot, "", path);
+      return;
+    }
+    history.pushState(snapshot, "", path);
+    return;
+  }
+  history.replaceState(snapshot, "", path);
+}
+
+function applyDeskPopState(historyState) {
+  if (!state.leagueId) return;
+  const parsed = parseShareParams(window.location.search);
+  if (parsed.leagueId && parsed.leagueId !== state.leagueId) {
+    void loadLeagueById(parsed.leagueId);
+    return;
+  }
+  applyingHistory = true;
+  try {
+    const nextPage = PAGE_IDS.includes(parsed.tab) ? parsed.tab : DEFAULT_PAGE;
+    if (nextPage === "trader") {
+      state.tradeRoom = normalizeTradeRoom(parsed.view) || DEFAULT_TRADE_ROOM;
+    } else if (nextPage === "league") {
+      state.leagueRoom = normalizeLeagueRoom(parsed.view) || DEFAULT_LEAGUE_ROOM;
+    }
+    const snapshot = buildDeskHistorySnapshot(historyState || {});
+    state.selectedTradeId = snapshot.selectedTradeId;
+    state.selectedTradeManagerKey = snapshot.selectedTradeManagerKey;
+    setActivePage(nextPage, { history: "silent", scroll: "preserve" });
+    const scrollY = Number(snapshot.scrollY);
+    if (Number.isFinite(scrollY)) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+        requestAnimationFrame(() => window.scrollTo(0, scrollY));
+      });
+    }
+  } finally {
+    applyingHistory = false;
   }
 }
 
@@ -549,6 +797,13 @@ function buildShareUrl(overrides = {}) {
     leagueId: state.leagueId,
     meRosterId: state.meRosterId,
     tab: overrides.tab || state.activePage,
+    view: overrides.view || (
+      state.activePage === "trader"
+        ? getTradeRoom()
+        : state.activePage === "league"
+          ? getLeagueRoom()
+          : ""
+    ),
     week: overrides.week ?? (state.activePage === "league" ? state.recapWeek || state.homeWeek : state.homeWeek),
     tone: overrides.tone || state.recapTone || "",
   });
@@ -565,7 +820,9 @@ async function copyShareLink() {
 }
 
 function getTradeMode() {
-  return el.tradeModeSelect?.value || "shop";
+  const mode = el.tradeModeSelect?.value || "shop";
+  if (mode === "acquire" || mode === "surprise") return mode;
+  return "shop";
 }
 
 function getTradeTier() {
@@ -763,10 +1020,48 @@ function scrollLoadedWorkspaceIntoView() {
   });
 }
 
+function syncTradeRoomUi() {
+  const room = getTradeRoom();
+  el.tradeRoomPanels?.forEach((panel) => {
+    const isActive = panel.dataset.tradeRoomPanel === room;
+    panel.classList.toggle("hidden", !isActive);
+  });
+  el.traderMenu?.querySelectorAll("[data-trade-room]")?.forEach((button) => {
+    const isActive = button.dataset.tradeRoom === room && state.activePage === "trader";
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-current", isActive ? "page" : "false");
+  });
+  if (el.traderTabHint) {
+    el.traderTabHint.textContent = state.activePage === "trader"
+      ? (TRADE_ROOM_HINTS[room] || TRADE_ROOM_LABELS[room] || "Pick a desk")
+      : TRADE_TAB_IDLE_HINT;
+  }
+}
+
+function syncLeagueRoomUi() {
+  const room = getLeagueRoom();
+  el.leagueRoomPanels?.forEach((panel) => {
+    const isActive = panel.dataset.leagueRoomPanel === room;
+    panel.classList.toggle("hidden", !isActive);
+  });
+  el.leagueJump?.querySelectorAll("[data-league-room]")?.forEach((button) => {
+    const isActive = button.dataset.leagueRoom === room && state.activePage === "league";
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-current", isActive ? "page" : "false");
+  });
+  if (el.leagueTabHint) {
+    el.leagueTabHint.textContent = state.activePage === "league"
+      ? (LEAGUE_ROOM_HINTS[room] || LEAGUE_ROOM_LABELS[room] || LEAGUE_TAB_IDLE_HINT)
+      : LEAGUE_TAB_IDLE_HINT;
+  }
+}
+
 function syncTradeModeUi() {
+  const room = getTradeRoom();
   const mode = getTradeMode();
-  const isCalculator = mode === "calculator";
-  const searchEnabled = mode !== "surprise" && !isCalculator;
+  const isLab = room === "lab" && state.activePage === "trader";
+  const isCalculatorRoom = room === "calculator" && state.activePage === "trader";
+  const searchEnabled = isLab && mode !== "surprise";
   const selectedAsset = getCurrentPrimaryAsset();
   const copyByMode = {
     acquire: {
@@ -781,11 +1076,9 @@ function syncTradeModeUi() {
       help: "No player search needed. The app will pick teams and build a multi-team blockbuster.",
       label: "Surprise blockbuster",
     },
-    calculator: {
-      help: "Choose a trade partner, tap assets on both sides, and the desk grades the deal instantly.",
-      label: "Trade calculator",
-    },
   };
+
+  syncTradeRoomUi();
 
   el.modeCards?.forEach((button) => {
     const isActive = button.dataset.tradeMode === mode;
@@ -796,9 +1089,6 @@ function syncTradeModeUi() {
   el.playerSearchLabel?.classList.toggle("hidden", !searchEnabled);
   el.targetSearchShell?.classList.toggle("hidden", !searchEnabled);
   el.playerResults?.classList.toggle("hidden", !searchEnabled);
-  el.calculatorSection?.classList.toggle("hidden", !isCalculator || !state.leagueId);
-  el.settingsSection?.classList.toggle("hidden", isCalculator || !state.leagueId);
-  if (isCalculator) el.resultsSection?.classList.add("hidden");
 
   if (el.tradeModeHelp) el.tradeModeHelp.textContent = copyByMode[mode]?.help || "";
   if (el.playerSearchLabel) el.playerSearchLabel.textContent = copyByMode[mode]?.label || "Search player or pick";
@@ -813,7 +1103,7 @@ function syncTradeModeUi() {
     }
     renderPlayerSearch();
   }
-  if (isCalculator && state.leagueId) {
+  if (isCalculatorRoom && state.leagueId) {
     renderCalculator();
   }
   syncGenerateState();
@@ -994,12 +1284,16 @@ async function runLeagueLoad(leagueId) {
     state.customParticipantRosterIds = [];
     state.tradedPicks = [];
     state.currentDraftContext = null;
+    state.draftedPickByKey = new Map();
     state.trendingAdds = [];
     state.trendingDrops = [];
     state.trendingLoaded = false;
     state.playerMetadataLoaded = false;
     state.playerMetadataFailed = false;
     state.activePage = DEFAULT_PAGE;
+    state.tradeRoom = DEFAULT_TRADE_ROOM;
+    state.leagueRoom = DEFAULT_LEAGUE_ROOM;
+    takeoverIndexCache = { key: "", aliases: new Map(), takeovers: [] };
     state.transactions = [];
     state.transactionsLoaded = false;
     state.transactionsFailed = false;
@@ -1070,8 +1364,6 @@ async function runLeagueLoad(leagueId) {
     el.identitySection?.classList.remove("hidden");
     el.powerSection?.classList.remove("hidden");
     el.analyticsSection?.classList.remove("hidden");
-    el.playerSection?.classList.remove("hidden");
-    el.settingsSection?.classList.remove("hidden");
     if (state.pendingWeek) {
       state.homeWeek = state.pendingWeek;
       state.awardsWeek = state.pendingWeek;
@@ -1091,6 +1383,7 @@ async function runLeagueLoad(leagueId) {
     loadLeagueTransactions(leagueId, league);
     loadLeagueHistoryTransactions(leagueHistory);
     loadLeagueHistoryMatchups(leagueHistory);
+    loadDraftSelectionIndex(leagueHistory);
     startLivePolling();
 
     loadPlayersWithCache()
@@ -1436,6 +1729,73 @@ function buildCurrentDraftContext(league, rosters, draftDetails, draftPicks = []
   };
 }
 
+function ingestDraftSelections(season, draftDetails, draftPicks, rosters = []) {
+  if (!(state.draftedPickByKey instanceof Map)) state.draftedPickByKey = new Map();
+  const indexed = indexDraftSelections({
+    season: String(season || draftDetails?.season || ""),
+    slotToRosterId: slotToRosterIdFromDraft(draftDetails, rosters),
+    ownerKeyByRosterId: ownerKeyByRosterIdFromRosters(rosters),
+    picks: Array.isArray(draftPicks) ? draftPicks : [],
+  });
+  mergeDraftSelectionIndex(state.draftedPickByKey, indexed);
+}
+
+function collectDraftIngestJobs(historyEntries = []) {
+  const jobs = [];
+  const seenDraftIds = new Set();
+  (Array.isArray(historyEntries) ? historyEntries : []).forEach((entry) => {
+    const draftIds = [];
+    const drafts = [...(Array.isArray(entry?.drafts) ? entry.drafts : [])];
+    const leagueDraftId = String(entry?.league?.draft_id || "").trim();
+    if (leagueDraftId && !drafts.some((draft) => String(draft?.draft_id || "") === leagueDraftId)) {
+      drafts.push({ draft_id: leagueDraftId, settings: { rounds: 0 } });
+    }
+    sortDraftsForSelectionIngest(drafts).forEach((draft) => {
+      const draftId = String(draft?.draft_id || "").trim();
+      if (!draftId || seenDraftIds.has(draftId)) return;
+      seenDraftIds.add(draftId);
+      draftIds.push(draftId);
+    });
+    draftIds.forEach((draftId) => {
+      jobs.push({
+        draftId,
+        seasonHint: String(entry?.season || ""),
+        rosters: Array.isArray(entry?.rosters) ? entry.rosters : [],
+      });
+    });
+  });
+  return jobs;
+}
+
+async function loadDraftSelectionIndex(historyEntries = []) {
+  const activeLeagueId = state.leagueId;
+  const jobs = collectDraftIngestJobs(historyEntries);
+  if (!jobs.length) return;
+
+  const settled = await mapInChunks(jobs, MATCHUP_FETCH_CHUNK, async (job) => {
+    const [draftDetails, draftPicks] = await Promise.all([
+      apiGetWithRetry(`/draft/${job.draftId}`, { timeoutMs: 12000, retries: 1 }),
+      apiGetWithRetry(`/draft/${job.draftId}/picks`, { timeoutMs: 12000, retries: 1 }).catch(() => []),
+    ]);
+    return {
+      job,
+      draftDetails,
+      draftPicks: Array.isArray(draftPicks) ? draftPicks : [],
+    };
+  });
+
+  if (state.leagueId !== activeLeagueId) return;
+
+  settled.forEach((result) => {
+    if (result.status !== "fulfilled") return;
+    const { job, draftDetails, draftPicks } = result.value;
+    ingestDraftSelections(draftDetails?.season || job.seasonHint, draftDetails, draftPicks, job.rosters);
+  });
+
+  leagueTradeSideCache = { key: "", sides: [] };
+  renderActivePage();
+}
+
 async function loadCurrentSeasonDraftContext(leagueId, league, rosters, drafts = []) {
   const candidateIds = buildCurrentDraftDetailCandidateIds(league, drafts);
   for (const draftId of candidateIds) {
@@ -1444,12 +1804,9 @@ async function loadCurrentSeasonDraftContext(leagueId, league, rosters, drafts =
         apiGetWithRetry(`/draft/${draftId}`, { timeoutMs: 12000, retries: 1 }),
         apiGetWithRetry(`/draft/${draftId}/picks`, { timeoutMs: 12000, retries: 1 }).catch(() => []),
       ]);
-      const context = buildCurrentDraftContext(
-        league,
-        rosters,
-        draftDetails,
-        Array.isArray(draftPicks) ? draftPicks : []
-      );
+      const picks = Array.isArray(draftPicks) ? draftPicks : [];
+      ingestDraftSelections(draftDetails?.season || league?.season, draftDetails, picks, rosters);
+      const context = buildCurrentDraftContext(league, rosters, draftDetails, picks);
       if (context) return context;
     } catch (err) {
       console.warn(`Could not load draft details for ${draftId}`, err);
@@ -2258,6 +2615,7 @@ function renderHomePage() {
   el.homeDashboard.innerHTML = `
     ${renderPulseStrip(model, sim, profiles)}
     ${renderScoreboardPanel(model, sim)}
+    ${renderWeekAnglesPanel(model, sim)}
     <div class="home-two-col">
       ${renderStandingsPanel(model, sim)}
       ${renderPlayoffOddsPanel(model, sim)}
@@ -2267,6 +2625,7 @@ function renderHomePage() {
 }
 
 function renderLeaguePage() {
+  syncLeagueRoomUi();
   renderHomePage();
   renderAwardsPage();
   renderRecapPage();
@@ -2406,6 +2765,25 @@ function renderScoreboardPanel(model, sim) {
             <span class="muted small">Bye week</span>
           </article>
         `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderWeekAnglesPanel(model, sim) {
+  const angles = scoreUpcomingWeekAngles(model, sim);
+  if (!angles.cards.length) return "";
+  return `
+    <section class="workspace-panel week-angles-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Upcoming week</span>
+          <h2>${escapeHtml(angles.label || "This week")} · dark horses</h2>
+        </div>
+        <p class="section-copy">Win% from the scoring-profile sim (empirical-Bayes mean/std, Gaussian matchup CDF, Monte Carlo playoff bubble). Not a KTC roster check.</p>
+      </div>
+      <div class="award-grid week-angles-grid">
+        ${angles.cards.map(renderAwardCard).join("")}
       </div>
     </section>
   `;
@@ -2947,6 +3325,7 @@ function leagueTradeSidesCacheKey() {
     Object.keys(state.values || {}).length,
     (state.historyMatchups || []).length,
     (state.leagueHistory || []).length,
+    state.draftedPickByKey?.size || 0,
     state.seasonLoaded ? "1" : "0",
   ].join(":");
 }
@@ -3065,6 +3444,7 @@ function renderLoyaltyDashboard() {
 
   const currentIds = playerIdsFromRoster(roster);
   const managerKey = rosterManagerKey(roster);
+  const takeover = getRosterTakeover(roster.rosterId);
   const seasons = seasonPlayerSetsForManager(managerKey);
   const dna = buildRosterDna({
     currentIds,
@@ -3097,6 +3477,7 @@ function renderLoyaltyDashboard() {
         <span class="eyebrow">Loyalty</span>
         <h3>${escapeHtml(roster.manager.displayName)}</h3>
         <p class="muted">${loyaltyTierLabel(score)} desk · iron share ${iron}%${longest ? ` · ${escapeHtml(longest.name)} ${longest.consecutiveSeasons} szn` : ""}</p>
+        ${takeover ? `<p class="muted small takeover-note">Took over from ${escapeHtml(takeover.fromName)}.</p>` : ""}
       </div>
       <div class="loyalty-score">
         <span>Score</span>
@@ -3157,7 +3538,15 @@ function renderLoyaltyDashboard() {
 }
 
 function renderTradeAssetLine(item) {
-  return `<li><span>${escapeHtml(item.name || "Asset")}</span><strong>${formatNumber(Math.round(item.value || 0))}</strong></li>`;
+  const valueLabel = formatNumber(Math.round(item.value || 0));
+  if (item.draftedPlayerName) {
+    const pickLabel = escapeHtml(item.pickLabel || item.name || "Pick");
+    const extraValue = Number(item.draftedPlayerValue) > 0
+      ? `, ${formatNumber(Math.round(item.draftedPlayerValue))}`
+      : "";
+    return `<li><span>${pickLabel} <span class="pick-selection">(${escapeHtml(item.draftedPlayerName)}${extraValue})</span></span><strong>${valueLabel}</strong></li>`;
+  }
+  return `<li><span>${escapeHtml(item.name || "Asset")}</span><strong>${valueLabel}</strong></li>`;
 }
 
 function renderResultPills(games = []) {
@@ -3231,7 +3620,7 @@ function renderTradeHistoryDesk() {
   if (!host) return;
   const roster = getMyRoster() || getLensRoster();
   if (!roster) {
-    host.innerHTML = `<p class="muted">Choose your team to grade past trades and open passports.</p>`;
+    host.innerHTML = `<p class="muted">Choose your team to grade past trades.</p>`;
     return;
   }
 
@@ -3252,16 +3641,8 @@ function renderTradeHistoryDesk() {
       || leagueTradeSides().find((row) => row.id === state.selectedTradeId && row.managerKey === wantKey)
       || null;
   }
-  const passports = buildPassportBoard(roster, 12);
-  const partnerId = Number(state.calc?.partnerRosterId || 0);
-  const partner = partnerId ? findNormalizedRoster(partnerId) : null;
-  const partnerKey = partner ? rosterManagerKey(partner) : "";
-  const pairRows = partnerKey
-    ? trades.filter((trade) => trade.participantKeys.includes(partnerKey)).slice(0, 8)
-    : [];
 
-  host.innerHTML = `
-    ${selected ? renderTradeDetail(selected) : `
+  host.innerHTML = selected ? renderTradeDetail(selected) : `
     <section class="workspace-panel trade-analyzer">
       <div class="panel-heading">
         <div>
@@ -3281,39 +3662,59 @@ function renderTradeHistoryDesk() {
         `).join("") || `<p class="muted">No completed trades in the loaded archive yet.</p>`}
       </div>
     </section>
-    `}
-    <div class="trade-side-stack">
-      <section class="workspace-panel passport-card">
+  `;
+}
+
+function renderPassportDesk() {
+  const host = el.tradePassportDashboard;
+  if (!host) return;
+  const roster = getMyRoster() || getLensRoster();
+  if (!roster) {
+    host.innerHTML = `<p class="muted">Choose your team to stamp player passports.</p>`;
+    return;
+  }
+
+  const managerKey = rosterManagerKey(roster);
+  const trades = loyaltyTradesForRoster(roster);
+  const passports = buildPassportBoard(roster, 12);
+  const partnerId = Number(state.calc?.partnerRosterId || 0);
+  const partner = partnerId ? findNormalizedRoster(partnerId) : null;
+  const partnerKey = partner ? rosterManagerKey(partner) : "";
+  const pairRows = partnerKey
+    ? trades.filter((trade) => trade.participantKeys.includes(partnerKey)).slice(0, 8)
+    : [];
+
+  host.innerHTML = `
+    <section class="workspace-panel passport-card">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Player passport</span>
+          <h2>Who held whom</h2>
+        </div>
+        <p class="section-copy">Ownership by season from the archive plus the current boards.</p>
+      </div>
+      ${passports.map((row) => `
+        <article class="passport-block">
+          <strong>${escapeHtml(row.name)}</strong>
+          <div class="passport-stops">
+            ${row.stops.map((stop) => `<span class="passport-stop">${escapeHtml(stop.managerName)} ${escapeHtml(stop.fromSeason)}${stop.toSeason !== stop.fromSeason ? `–${escapeHtml(stop.toSeason)}` : ""}</span>`).join("")}
+          </div>
+        </article>
+      `).join("") || `<p class="muted small">Need roster history to stamp passports.</p>`}
+    </section>
+    ${partner && pairRows.length ? `
+      <section class="workspace-panel pair-history">
         <div class="panel-heading">
           <div>
-            <span class="eyebrow">Player passport</span>
-            <h2>Who held whom</h2>
+            <span class="eyebrow">Vs this desk</span>
+            <h2>${escapeHtml(partner.manager.displayName)}</h2>
           </div>
-          <p class="section-copy">Ownership by season from the archive plus the current boards.</p>
         </div>
-        ${passports.map((row) => `
-          <article class="passport-block">
-            <strong>${escapeHtml(row.name)}</strong>
-            <div class="passport-stops">
-              ${row.stops.map((stop) => `<span class="passport-stop">${escapeHtml(stop.managerName)} ${escapeHtml(stop.fromSeason)}${stop.toSeason !== stop.fromSeason ? `–${escapeHtml(stop.toSeason)}` : ""}</span>`).join("")}
-            </div>
-          </article>
-        `).join("") || `<p class="muted small">Need roster history to stamp passports.</p>`}
+        ${pairRows.map((trade) => `
+          <button type="button" class="linklike" data-action="open-trade" data-trade-id="${escapeHtml(trade.id)}" data-manager-key="${escapeHtml(managerKey)}">${escapeHtml(trade.season)} W${trade.week || "?"} · ${escapeHtml(trade.movements.filter((item) => item.toRosterId === managerKey).map((item) => item.name).join(", ") || "picks")} for ${escapeHtml(trade.movements.filter((item) => item.fromRosterId === managerKey).map((item) => item.name).join(", ") || "picks")}</button>
+        `).join("")}
       </section>
-      ${partner && pairRows.length ? `
-        <section class="workspace-panel pair-history">
-          <div class="panel-heading">
-            <div>
-              <span class="eyebrow">Vs this desk</span>
-              <h2>${escapeHtml(partner.manager.displayName)}</h2>
-            </div>
-          </div>
-          ${pairRows.map((trade) => `
-            <button type="button" class="linklike" data-action="open-trade" data-trade-id="${escapeHtml(trade.id)}" data-manager-key="${escapeHtml(managerKey)}">${escapeHtml(trade.season)} W${trade.week || "?"} · ${escapeHtml(trade.movements.filter((item) => item.toRosterId === managerKey).map((item) => item.name).join(", ") || "picks")} for ${escapeHtml(trade.movements.filter((item) => item.fromRosterId === managerKey).map((item) => item.name).join(", ") || "picks")}</button>
-          `).join("")}
-        </section>
-      ` : ""}
-    </div>
+    ` : ""}
   `;
 }
 
@@ -3998,10 +4399,8 @@ function refreshCalculatorLists() {
 function openCalculatorWith(rosterId) {
   state.calc.partnerRosterId = Number(rosterId);
   resetCalculatorState({ keepPartner: true });
-  if (el.tradeModeSelect) el.tradeModeSelect.value = "calculator";
   invalidateResults();
-  setActivePage("trader");
-  syncTradeModeUi();
+  openTradeRoom("calculator");
   el.calculatorSection?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -4079,7 +4478,7 @@ function handleWorkspaceClick(event) {
     }
     case "set-lens-teams": {
       state.lensRosterId = Number(target.dataset.rosterId);
-      setActivePage("team");
+      setActivePage("team", { history: "push", scroll: "top" });
       el.powerSection?.scrollIntoView({ behavior: "smooth", block: "start" });
       break;
     }
@@ -4095,7 +4494,7 @@ function handleWorkspaceClick(event) {
     case "recap-tone": {
       state.recapTone = target.dataset.tone || "desk";
       renderRecapPage();
-      updateUrlState();
+      updateUrlState({ mode: "replace" });
       break;
     }
     case "copy-recap": {
@@ -4111,18 +4510,30 @@ function handleWorkspaceClick(event) {
       break;
     }
     case "open-trade": {
+      if (!String(target.dataset.tradeId || "")) return;
+      prepareDeskPush();
       state.selectedTradeId = String(target.dataset.tradeId || "");
       state.selectedTradeManagerKey = String(target.dataset.managerKey || "");
-      if (!state.selectedTradeId) return;
-      if (state.activePage !== "trader") setActivePage("trader");
-      else renderTradeHistoryDesk();
+      state.tradeRoom = "history";
+      closeTradeMenu();
+      if (state.activePage !== "trader") setActivePage("trader", { history: "push", scroll: "top", prepared: true });
+      else {
+        renderActivePage();
+        updateUrlState({ mode: "push" });
+        syncDocumentMeta();
+      }
       el.tradeHistoryDashboard?.scrollIntoView({ behavior: "smooth", block: "start" });
       break;
     }
     case "close-trade": {
+      if (typeof history.state?.selectedTradeId === "string" && history.state.selectedTradeId && typeof history.back === "function") {
+        history.back();
+        break;
+      }
       state.selectedTradeId = "";
       state.selectedTradeManagerKey = "";
       renderTradeHistoryDesk();
+      updateUrlState({ mode: "replace" });
       break;
     }
     case "calc-toggle": {
@@ -4173,7 +4584,6 @@ function handleWorkspaceChange(event) {
       state.calc.partnerRosterId = Number(target.value);
       resetCalculatorState({ keepPartner: true });
       renderCalculator();
-      renderTradeHistoryDesk();
       break;
     }
     case "recap-week": {
@@ -5508,22 +5918,19 @@ function renderTradeAwardCard(title, blurb, side, tone = "") {
 
 function renderTradeWireBoard() {
   const awards = pickLeagueTradeAwards(leagueTradeSides());
-  if (!awards.best && !awards.fleece && !awards.even) return "";
+  if (!awards.fleece && !awards.heater) return "";
   return `
     <section class="workspace-panel trade-wire" id="league-wire">
       <div class="panel-heading">
         <div>
           <span class="eyebrow">Trade wire</span>
-          <h3>Best, fleece, even, heater</h3>
+          <h3>Hottest since and biggest fleece</h3>
         </div>
-        <p class="section-copy">Score mixes today's KTC swing, how lopsided the packages were, the star that moved, and the shrunk record since that week. Zero-game steals can still win fleece. Heaters need a real sample.</p>
+        <p class="section-copy">Hottest since is the Bayesian-shrunk record after the deal, with a Wilson floor so 2-0 cannot beat a real sample. Fleece is log-ratio plus package lopsidedness plus the star that moved — not a raw KTC dump.</p>
       </div>
       <div class="trade-wire-grid">
-        ${renderTradeAwardCard("Best trade", "Value plus the wins that followed.", awards.best, "won")}
-        ${renderTradeAwardCard("Biggest fleece", "The steal on today's board, even if the record is still young.", awards.fleece, "won")}
-        ${renderTradeAwardCard("Got cooked", "Lost the market and the games after.", awards.worst, "lost")}
-        ${renderTradeAwardCard("Most even", "Big packages, tiny gap.", awards.even, "even")}
-        ${renderTradeAwardCard("Heater since", "Hottest record after a deal. Sample required.", awards.heater, "won")}
+        ${renderTradeAwardCard("Hottest since", "Best shrunk record after the deal. Wilson sample required.", awards.heater, "won")}
+        ${renderTradeAwardCard("Biggest fleece", "Log-ratio steal on today's board, even if games have not posted yet.", awards.fleece, "won")}
       </div>
     </section>
   `;
@@ -5840,10 +6247,38 @@ function getHistoryRosterInfo(leagueId, rosterId) {
   };
 }
 
+function takeoverCacheKey() {
+  return [
+    state.leagueId,
+    (state.rosters || []).map((roster) => `${roster.roster_id}:${roster.owner_id}`).join(","),
+    (state.leagueHistory || []).map((entry) => (
+      `${entry.leagueId}:${(entry.rosters || []).map((roster) => `${roster.roster_id}:${roster.owner_id}`).join("-")}`
+    )).join("|"),
+  ].join("::");
+}
+
+function getTakeoverIndex() {
+  const key = takeoverCacheKey();
+  if (takeoverIndexCache.key === key) return takeoverIndexCache;
+  const users = [
+    ...(state.users || []),
+    ...(state.leagueHistory || []).flatMap((entry) => entry.users || []),
+  ];
+  const index = buildTakeoverAliasMap({
+    currentRosters: state.rosters,
+    historyEntries: state.leagueHistory,
+    users,
+  });
+  takeoverIndexCache = { key, aliases: index.aliases, takeovers: index.takeovers };
+  return takeoverIndexCache;
+}
+
+function getRosterTakeover(rosterId) {
+  return takeoverForRoster(getTakeoverIndex().takeovers, rosterId);
+}
+
 function buildManagerKey(userId, leagueId, rosterId) {
-  const normalizedUserId = String(userId || "").trim();
-  if (normalizedUserId && normalizedUserId !== "unknown") return `user:${normalizedUserId}`;
-  return `roster:${leagueId || "league"}:${rosterId || "unknown"}`;
+  return resolveFranchiseManagerKey(userId, leagueId, rosterId, getTakeoverIndex().aliases);
 }
 
 function extractRosterDecimalStat(roster, wholeKey, decimalKey) {
@@ -6637,12 +7072,18 @@ function buildTradeMovements(transaction) {
     const fromRosterId = pick?.previous_owner_id;
     const toRosterId = pick?.owner_id;
     if (fromRosterId == null || toRosterId == null || String(fromRosterId) === String(toRosterId)) return;
-    const asset = buildTransactionPickAsset(pick);
-    const value = getAssetValue(asset, state.values);
+    const asset = buildTransactionPickAsset(pick, transaction);
+    const pickValue = getAssetValue(asset, state.values);
+    const value = Number(asset.draftedPlayerValue) > 0
+      ? asset.draftedPlayerValue
+      : (Number.isFinite(pickValue) ? pickValue : 0);
     movements.push({
       assetId: asset.assetId,
       assetType: "pick",
       name: asset.name,
+      pickLabel: asset.pickLabel,
+      draftedPlayerName: asset.draftedPlayerName,
+      draftedPlayerValue: asset.draftedPlayerValue,
       fromRosterId: normalizeRosterIdKey(fromRosterId),
       toRosterId: normalizeRosterIdKey(toRosterId),
       value: Number.isFinite(value) ? value : 0,
@@ -6673,7 +7114,31 @@ function buildTransactionPlayerAsset(playerId) {
   };
 }
 
-function buildTransactionPickAsset(pick) {
+function resolveDraftedPlayerName(selection) {
+  if (!selection) return "";
+  const mapped = selection.playerId ? playerNameById(selection.playerId) : "";
+  if (mapped && !/^Player\s/i.test(mapped)) return mapped;
+  return String(selection.metaName || "").trim() || mapped;
+}
+
+function lookupTradePickSelection(pick, transaction = null) {
+  const season = pick?.season != null ? String(pick.season) : "";
+  const round = Number(pick?.round);
+  const originalRosterId = pick?.roster_id ?? pick?.original_owner;
+  if (!season || !Number.isFinite(round) || originalRosterId == null || originalRosterId === "any") {
+    return null;
+  }
+  const sourceLeagueId = transaction?.sourceLeagueId || state.leagueId;
+  const ownerInfo = getHistoryRosterInfo(sourceLeagueId, originalRosterId);
+  return lookupDraftedSelection(state.draftedPickByKey, {
+    season,
+    round,
+    originalRosterId,
+    ownerKey: personManagerKey(ownerInfo?.userId, sourceLeagueId, originalRosterId),
+  });
+}
+
+function buildTransactionPickAsset(pick, transaction = null) {
   const season = pick?.season != null ? String(pick.season) : "";
   const round = Number(pick?.round);
   const originalOwner = pick?.roster_id ?? pick?.original_owner ?? "any";
@@ -6681,7 +7146,11 @@ function buildTransactionPickAsset(pick) {
   const rosterById = new Map(state.rosters.map((roster) => [String(roster.roster_id), roster]));
   const ownerName = resolvePickOwnerName(originalOwner, rosterById, userById);
   const roundLabel = Number.isFinite(round) ? ordinal(round) : "pick";
-  const name = `${season} ${roundLabel}${ownerName ? ` from ${ownerName}` : ""}`;
+  const pickLabel = `${season} ${roundLabel}${ownerName ? ` from ${ownerName}` : ""}`.trim();
+  const selection = lookupTradePickSelection(pick, transaction);
+  const draftedPlayerName = resolveDraftedPlayerName(selection);
+  const draftedPlayerValue = selection?.playerId ? playerValueById(selection.playerId) : 0;
+  const name = formatPickWithSelection(pickLabel, draftedPlayerName, draftedPlayerValue, formatNumber);
   const normalizedPick = {
     ...pick,
     season,
@@ -6695,6 +7164,9 @@ function buildTransactionPickAsset(pick) {
     valueAssetId: `pick:${season}:r${round}:any`,
     valueBucket: "any",
     name,
+    pickLabel,
+    draftedPlayerName,
+    draftedPlayerValue,
     assetType: "pick",
     raw: normalizedPick,
   };
@@ -13226,16 +13698,25 @@ function focusUsernameSearch() {
 }
 
 function syncDocumentMeta() {
+  const room = state.leagueId
+    ? (state.activePage === "trader"
+      ? getTradeRoom()
+      : state.activePage === "league"
+        ? getLeagueRoom()
+        : "")
+    : "";
   applyDocumentMeta(document, {
     title: buildDocumentTitle({
       page: state.leagueId ? state.activePage : "",
       leagueName: state.leagueName,
       loaded: Boolean(state.leagueId),
+      room,
     }),
     description: buildPageDescription({
       page: state.leagueId ? state.activePage : "",
       leagueName: state.leagueName,
       loaded: Boolean(state.leagueId),
+      room,
     }),
   });
 }

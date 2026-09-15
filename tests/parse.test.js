@@ -63,14 +63,50 @@ test("share params map old recap/home tabs onto league", () => {
     tone: "roast",
   });
   assert.doesNotMatch(url, /tab=/);
+  assert.match(url, /view=recap/);
   assert.match(url, /week=2/);
   assert.match(url, /tone=roast/);
   const parsed = parseShareParams(url.split("?")[1]);
   assert.equal(parsed.tab, "");
+  assert.equal(parsed.view, "recap");
   assert.equal(parsed.week, 2);
   assert.equal(parsed.tone, "roast");
   assert.equal(parsed.meRosterId, 3);
   assert.equal(parseShareParams("league=1&tab=recap").tab, "league");
   assert.equal(parseShareParams("league=1&tab=teams").tab, "team");
   assert.equal(parseShareParams("league=1&tab=trader").tab, "trader");
+  assert.equal(parseShareParams("league=1&tab=trader").view, "history");
+});
+
+test("share params keep trade rooms on the trades tab", () => {
+  const passportUrl = buildShareUrl({
+    origin: "https://nikoskiouris.github.io",
+    pathname: "/FantasyDynastyAnalyzer/",
+    leagueId: "1315165104303513600",
+    tab: "trader",
+    view: "passport",
+  });
+  assert.match(passportUrl, /tab=trader/);
+  assert.match(passportUrl, /view=passport/);
+  assert.equal(parseShareParams(passportUrl.split("?")[1]).view, "passport");
+
+  const historyUrl = buildShareUrl({
+    origin: "https://nikoskiouris.github.io",
+    pathname: "/FantasyDynastyAnalyzer/",
+    leagueId: "1",
+    tab: "trader",
+    view: "history",
+  });
+  assert.match(historyUrl, /tab=trader/);
+  assert.doesNotMatch(historyUrl, /view=/);
+
+  assert.equal(parseShareParams("league=1&tab=calculator").tab, "trader");
+  assert.equal(parseShareParams("league=1&tab=calculator").view, "calculator");
+  assert.equal(parseShareParams("league=1&tab=generator").view, "lab");
+  assert.equal(parseShareParams("league=1&tab=history").tab, "league");
+  assert.equal(parseShareParams("league=1&tab=history").view, "hall");
+  assert.equal(parseShareParams("league=1&tab=awards").view, "awards");
+  assert.equal(parseShareParams("league=1&tab=analytics").view, "hall");
+  assert.equal(parseShareParams("league=1&view=hall").view, "hall");
+  assert.equal(parseShareParams("league=1").view, "now");
 });

@@ -165,6 +165,22 @@ test("passport collapses consecutive seasons with the same manager", () => {
   assert.equal(passport.stops[1].managerName, "Nikoball");
 });
 
+test("passport keeps a takeover stop when the name on the desk changes", () => {
+  const passport = buildPlayerPassport({
+    playerId: "chase",
+    name: "Ja'Marr Chase",
+    seasons: [
+      { season: "2024", managerKey: "user:juan", managerName: "Gus K" },
+      { season: "2025", managerKey: "user:juan", managerName: "Gus K" },
+      { season: "2026", managerKey: "user:juan", managerName: "Juan Platanis" },
+    ],
+  });
+  assert.equal(passport.stops.length, 2);
+  assert.equal(passport.stops[0].managerName, "Gus K");
+  assert.equal(passport.stops[0].toSeason, "2025");
+  assert.equal(passport.stops[1].managerName, "Juan Platanis");
+});
+
 test("hall rows rank titles then wins", () => {
   const rows = buildHallRows([
     { managerName: "Niko", titles: 1, totalWins: 40, totalLosses: 20, records: [{ finishRank: 2 }, { playoffFinish: 1 }] },
@@ -227,7 +243,34 @@ test("trade recap names the record since and later finishes", () => {
   assert.match(recap, /Grade C/);
 });
 
-test("league trade awards split best, fleece, even, and heater", () => {
+test("heater score trusts Wilson sample so 6-0 beats 12-4 and 2-0 cannot", () => {
+  const hot = scoreTradeSide({
+    receivedNow: 4000,
+    sentNow: 3800,
+    received: [{ value: 4000 }],
+    sent: [{ value: 3800 }],
+    since: { wins: 6, losses: 0, ties: 0, games: 6, winPct: 1 },
+  });
+  const solid = scoreTradeSide({
+    receivedNow: 4000,
+    sentNow: 3800,
+    received: [{ value: 4000 }],
+    sent: [{ value: 3800 }],
+    since: { wins: 12, losses: 4, ties: 0, games: 16, winPct: 0.75 },
+  });
+  const tiny = scoreTradeSide({
+    receivedNow: 4000,
+    sentNow: 3800,
+    received: [{ value: 4000 }],
+    sent: [{ value: 3800 }],
+    since: { wins: 2, losses: 0, ties: 0, games: 2, winPct: 1 },
+  });
+  assert.ok(hot.heaterScore > solid.heaterScore);
+  assert.ok(solid.heaterScore > tiny.heaterScore);
+  assert.ok(tiny.wilsonPct < solid.wilsonPct);
+});
+
+test("league trade awards keep hottest-since and fleece only", () => {
   const sides = analyzeLeagueTradeSides({
     nameOf: (key) => ({ a: "Niko", b: "Sam", c: "Lee" }[key]),
     valueOf: (item) => item.value,
@@ -258,10 +301,10 @@ test("league trade awards split best, fleece, even, and heater", () => {
     ],
   });
   const awards = pickLeagueTradeAwards(sides);
-  assert.equal(awards.best.managerKey, "a");
   assert.equal(awards.fleece.managerKey, "a");
-  assert.equal(awards.worst.managerKey, "b");
-  assert.equal(awards.even.id, "even");
   assert.equal(awards.heater.managerKey, "a");
   assert.ok(awards.heater.since.wins >= 6);
+  assert.equal(awards.best, undefined);
+  assert.equal(awards.even, undefined);
+  assert.equal(awards.worst, undefined);
 });
