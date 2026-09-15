@@ -423,6 +423,7 @@ el.storageNoticeDismiss?.addEventListener("click", dismissStorageNotice);
 el.sleeperUsername?.addEventListener("input", () => setFieldError(el.sleeperUsername, el.usernameError, ""));
 el.leagueId?.addEventListener("input", () => setFieldError(el.leagueId, el.leagueIdError, ""));
 el.workspace?.addEventListener("click", handleWorkspaceClick);
+el.workspace?.addEventListener("keydown", handleWorkspaceKeydown);
 el.workspace?.addEventListener("change", handleWorkspaceChange);
 el.workspace?.addEventListener("input", handleWorkspaceInput);
 el.playerSearch?.addEventListener("input", () => {
@@ -3646,8 +3647,8 @@ function renderTradeHistoryDesk() {
       </div>
       <div class="trade-log">
         ${analyzed.map((row) => `
-          <button type="button" class="trade-row ${gradeClassName(row.grade)} verdict-${escapeHtml(row.verdict)}" data-action="open-trade" data-trade-id="${escapeHtml(row.id)}" data-manager-key="${escapeHtml(managerKey)}">
-            <span class="trade-row-inner">
+          <div class="trade-row ${gradeClassName(row.grade)} verdict-${escapeHtml(row.verdict)}" role="button" tabindex="0" data-action="open-trade" data-trade-id="${escapeHtml(row.id)}" data-manager-key="${escapeHtml(managerKey)}">
+            <div class="trade-row-inner">
               <span class="trade-row-when">
                 <span class="trade-row-week">${escapeHtml(row.season)} W${row.week || "?"}</span>
                 <span class="trade-row-partner">${escapeHtml(row.partnerName)}</span>
@@ -3655,8 +3656,8 @@ function renderTradeHistoryDesk() {
               ${renderTradeMove(row)}
               <span class="trade-row-since">${escapeHtml(row.since.games ? row.since.label : "—")}</span>
               <span class="grade-pill">${escapeHtml(row.grade)}</span>
-            </span>
-          </button>
+            </div>
+          </div>
         `).join("") || `<p class="muted">No completed trades in the loaded archive yet.</p>`}
       </div>
     </section>
@@ -4452,6 +4453,14 @@ function renderTicker() {
 // ---------------------------------------------------------------------------
 // Workspace event delegation
 // ---------------------------------------------------------------------------
+
+function handleWorkspaceKeydown(event) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const target = event.target.closest("[data-action][role='button']");
+  if (!target || event.target !== target || !el.workspace?.contains(target)) return;
+  event.preventDefault();
+  target.click();
+}
 
 function handleWorkspaceClick(event) {
   const target = event.target.closest("[data-action]");

@@ -5658,7 +5658,7 @@ body.dock-visible {
 .trade-row {
   display: block;
   width: 100%;
-  min-height: 0;
+  margin: 0;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -5667,10 +5667,18 @@ body.dock-visible {
   font-weight: 650;
   text-align: left;
   white-space: normal;
+  cursor: pointer;
 }
 
 .trade-row:hover {
   border-color: var(--blue);
+  transform: translateY(-1px);
+}
+
+.trade-row:focus-visible {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: var(--focus);
 }
 
 .trade-row-inner {
