@@ -5656,16 +5656,10 @@ body.dock-visible {
 }
 
 .trade-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  grid-template-areas:
-    "when since grade"
-    "move move grade";
-  column-gap: 0.9rem;
-  row-gap: 0.45rem;
-  align-items: start;
+  display: block;
   width: 100%;
-  padding: 0.85rem 1rem;
+  min-height: 0;
+  padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--panel-soft);
@@ -5677,6 +5671,19 @@ body.dock-visible {
 
 .trade-row:hover {
   border-color: var(--blue);
+}
+
+.trade-row-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "when since grade"
+    "move move move";
+  column-gap: 0.9rem;
+  row-gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.85rem 1rem;
 }
 
 .trade-row-when {
@@ -5713,7 +5720,6 @@ body.dock-visible {
 
 .trade-row .grade-pill {
   grid-area: grade;
-  align-self: center;
 }
 
 .trade-row-move {
@@ -5744,9 +5750,9 @@ body.dock-visible {
   display: inline-block;
   max-width: 100%;
   padding: 0.22rem 0.55rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: 999px;
-  background: var(--panel);
+  background: var(--panel-solid);
   overflow-wrap: break-word;
   word-break: normal;
   white-space: normal;
@@ -5906,7 +5912,7 @@ body.dock-visible {
   .trade-file-hero {
     grid-template-columns: 1fr 1fr;
   }
-  .trade-row {
+  .trade-row-inner {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "when grade"

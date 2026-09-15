@@ -3647,13 +3647,15 @@ function renderTradeHistoryDesk() {
       <div class="trade-log">
         ${analyzed.map((row) => `
           <button type="button" class="trade-row ${gradeClassName(row.grade)} verdict-${escapeHtml(row.verdict)}" data-action="open-trade" data-trade-id="${escapeHtml(row.id)}" data-manager-key="${escapeHtml(managerKey)}">
-            <span class="trade-row-when">
-              <span class="trade-row-week">${escapeHtml(row.season)} W${row.week || "?"}</span>
-              <span class="trade-row-partner">${escapeHtml(row.partnerName)}</span>
+            <span class="trade-row-inner">
+              <span class="trade-row-when">
+                <span class="trade-row-week">${escapeHtml(row.season)} W${row.week || "?"}</span>
+                <span class="trade-row-partner">${escapeHtml(row.partnerName)}</span>
+              </span>
+              ${renderTradeMove(row)}
+              <span class="trade-row-since">${escapeHtml(row.since.games ? row.since.label : "—")}</span>
+              <span class="grade-pill">${escapeHtml(row.grade)}</span>
             </span>
-            ${renderTradeMove(row)}
-            <span class="trade-row-since">${escapeHtml(row.since.games ? row.since.label : "—")}</span>
-            <span class="grade-pill">${escapeHtml(row.grade)}</span>
           </button>
         `).join("") || `<p class="muted">No completed trades in the loaded archive yet.</p>`}
       </div>
