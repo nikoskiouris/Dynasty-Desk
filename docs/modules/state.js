@@ -1,5 +1,5 @@
 import { sleeperClient } from "./sleeper.js";
-import { PAGE_IDS } from "./constants.js";
+import { PAGE_IDS, DEFAULT_PAGE, DEFAULT_ROOMS } from "./constants.js";
 
 export const THEME_STORAGE_KEY = "dynasty_desk_theme";
 export const PLAYERS_CACHE_KEY = "fda_players_nfl_cache_v1";
@@ -39,9 +39,9 @@ export function createState() {
     trendingLoaded: false,
     playerMetadataLoaded: false,
     playerMetadataFailed: false,
-    activePage: "league",
-    tradeRoom: "history",
-    leagueRoom: "now",
+    activePage: DEFAULT_PAGE,
+    // Active room per page, so switching pages remembers where you were.
+    rooms: { ...DEFAULT_ROOMS },
     transactions: [],
     transactionsLoaded: false,
     transactionsFailed: false,
@@ -86,9 +86,8 @@ export function createState() {
       theirQuery: "",
     },
     pendingMeRosterId: null,
-    pendingTab: null,
-    pendingTradeRoom: null,
-    pendingLeagueRoom: null,
+    // { page, room } parsed from the URL before the league finishes loading.
+    pendingPlace: null,
     pendingWeek: null,
     pendingTone: "",
     theme: "dark",

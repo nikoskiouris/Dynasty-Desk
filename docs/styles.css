@@ -707,14 +707,12 @@ select.is-invalid {
   animation: spin 0.8s linear infinite;
 }
 
-.workspace-tabs {
+.desk-nav {
   position: sticky;
   top: 0;
   z-index: 8;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.4rem;
-  padding: 0.4rem;
+  gap: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg);
@@ -722,113 +720,69 @@ select.is-invalid {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow: var(--shadow-soft);
+  overflow: hidden;
 }
 
-@media (min-width: 1500px) {
-  .workspace-tabs {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.page-tab-wrap {
-  position: relative;
-  display: flex;
-  min-width: 0;
-}
-
-.page-tab-wrap .page-tab {
-  flex: 1;
-}
-
-.tab-caret {
-  flex: 0 0 auto;
-  width: 0.42rem;
-  height: 0.42rem;
-  margin-right: 0.55rem;
-  border-right: 1.6px solid currentColor;
-  border-bottom: 1.6px solid currentColor;
-  transform: translateY(-0.1rem) rotate(45deg);
-  opacity: 0.7;
-}
-
-.page-tab-wrap.open .tab-caret {
-  transform: translateY(0.1rem) rotate(225deg);
-}
-
-.page-tab-wrap.open {
-  z-index: 40;
-}
-
-.page-tab-menu {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 0;
-  right: 0;
-  z-index: 32;
+.workspace-tabs {
   display: grid;
-  gap: 0.2rem;
-  min-width: 16rem;
-  padding: 0.4rem;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--panel-solid);
-  box-shadow: var(--shadow-soft);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  padding: 0 0.4rem;
 }
 
-body.trade-menu-open .workspace-tabs {
-  z-index: 40;
-  overflow: visible;
+.room-nav {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  padding: 0.45rem 0.55rem 0.55rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
 }
 
-.page-tab-menu[hidden] {
+.room-nav::-webkit-scrollbar {
   display: none;
 }
 
-.page-tab-menu button {
-  display: grid;
-  gap: 0.1rem;
-  width: 100%;
+.room-nav:empty {
+  display: none;
+}
+
+.room-tab {
+  flex: 0 0 auto;
+  width: auto;
   min-height: 0;
-  padding: 0.65rem 0.75rem;
-  border: 0;
-  border-radius: 8px;
-  background: var(--panel-solid);
-  color: inherit;
+  padding: 0.38rem 0.8rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
   font-weight: 600;
-  text-align: left;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
   box-shadow: none;
 }
 
-.page-tab-menu button:hover,
-.page-tab-menu button:focus-visible {
+.room-tab:hover {
   transform: none;
   filter: none;
-  background: color-mix(in srgb, var(--text) 8%, var(--panel-solid));
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   color: var(--text);
 }
 
-.page-tab-menu button.active {
-  background: color-mix(in srgb, var(--blue) 16%, var(--panel-solid));
-  color: var(--blue);
+.room-tab.active,
+.room-tab.active:hover {
+  border-color: transparent;
+  background: var(--gradient);
+  color: var(--on-accent);
 }
 
-.page-tab-menu button.active:hover,
-.page-tab-menu button.active:focus-visible {
-  background: color-mix(in srgb, var(--blue) 16%, var(--panel-solid));
-  color: var(--blue);
-}
-
-.page-tab-menu strong {
-  font-size: 0.86rem;
-}
-
-.page-tab-menu small {
-  color: var(--muted);
-  font-size: 0.72rem;
-}
-
-.page-tab-menu button.active small {
-  color: var(--muted-strong);
+.room-tab:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
 }
 
 .page-tab {
@@ -861,26 +815,6 @@ body.trade-menu-open .workspace-tabs {
   box-shadow: inset 0 -2px 0 var(--blue);
 }
 
-.tab-icon {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 1.85rem;
-  height: 1.85rem;
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--muted-strong);
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-}
-
-.page-tab.active .tab-icon {
-  background: var(--gradient);
-  color: var(--on-accent);
-}
-
 .tab-copy {
   display: grid;
   gap: 0.02rem;
@@ -902,10 +836,6 @@ body.trade-menu-open .workspace-tabs {
   font-size: 0.68rem;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.tab-label-short {
-  display: none;
 }
 
 .page-tab.active .tab-copy small {
@@ -1325,10 +1255,8 @@ body.trade-menu-open .workspace-tabs {
 }
 
 .power-dashboard,
-.analytics-dashboard,
-.home-dashboard,
-.awards-dashboard,
-.recap-dashboard,
+.room,
+.dashboard,
 #results-list {
   display: grid;
   gap: 1rem;
@@ -1624,12 +1552,28 @@ body.trade-menu-open .workspace-tabs {
   display: grid;
   gap: 0.15rem;
   min-width: 0;
+  min-height: 0;
   padding: 0.85rem 0.95rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--panel);
   backdrop-filter: blur(10px);
   border-top: 3px solid var(--blue);
+  color: inherit;
+  text-align: left;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.pulse-tile:hover {
+  transform: translateY(-1px);
+  filter: none;
+  background: var(--panel-tint);
+}
+
+.pulse-tile:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
 }
 
 .pulse-tile.gold {
@@ -3561,8 +3505,7 @@ body.trade-menu-open .workspace-tabs {
   grid-template-columns: minmax(0, 1fr) 170px;
 }
 
-.power-score-ring,
-.dna-score-ring {
+.power-score-ring {
   --score: 70;
   display: grid;
   place-items: center;
@@ -3730,10 +3673,7 @@ body.trade-menu-open .workspace-tabs {
 
 .position-meter-list,
 .insight-list,
-.analytics-progress-list,
-.mini-scout-list,
 .analytics-list,
-.quest-list,
 .recent-trade-list,
 .manager-heat-list {
   display: grid;
@@ -3760,7 +3700,6 @@ body.trade-menu-open .workspace-tabs {
 }
 
 .position-meter-top span,
-.analytics-progress-row span,
 .analytics-row span,
 .recent-trade span,
 .manager-heat-row span {
@@ -3770,9 +3709,6 @@ body.trade-menu-open .workspace-tabs {
 }
 
 .insight-item,
-.mini-scout,
-.spotlight-row,
-.quest-item,
 .recent-trade,
 .storyline-card {
   padding: 0.68rem 0.72rem;
@@ -3782,16 +3718,12 @@ body.trade-menu-open .workspace-tabs {
 }
 
 .insight-item strong,
-.mini-scout strong,
-.quest-item strong,
 .recent-trade strong,
 .storyline-card strong {
   font-size: 0.84rem;
 }
 
 .insight-item span,
-.mini-scout span,
-.quest-item span,
 .storyline-card span {
   color: var(--muted);
   font-size: 0.8rem;
@@ -3821,7 +3753,6 @@ body.trade-menu-open .workspace-tabs {
   grid-column: 1 / -1;
 }
 
-.gm-level-panel,
 .trophy-panel,
 .manager-score {
   display: grid;
@@ -3833,8 +3764,6 @@ body.trade-menu-open .workspace-tabs {
   text-align: center;
 }
 
-.gm-level-panel span,
-.gm-level-panel small,
 .trophy-panel span,
 .trophy-panel small,
 .manager-score span,
@@ -3844,7 +3773,6 @@ body.trade-menu-open .workspace-tabs {
   font-weight: 800;
 }
 
-.gm-level-panel strong,
 .trophy-panel strong,
 .manager-score strong {
   color: var(--blue);
@@ -3865,7 +3793,6 @@ body.trade-menu-open .workspace-tabs {
 }
 
 .season-ledger,
-.dynasty-table,
 .storyline-list,
 .mini-season-list {
   display: grid;
@@ -3927,36 +3854,9 @@ body.trade-menu-open .workspace-tabs {
   line-height: 1.12;
 }
 
-.dynasty-row {
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr) minmax(70px, 0.45fr) minmax(86px, 0.55fr) 4rem;
-  gap: 0.65rem;
-  align-items: center;
-  padding: 0.65rem 0.72rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel-soft);
-}
-
-.dynasty-row.selected,
 .finish-matrix-name.selected {
   border-color: var(--team-a-border);
   background: var(--team-a-soft);
-}
-
-.dynasty-row div {
-  min-width: 0;
-}
-
-.dynasty-row span {
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.dynasty-row > strong {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 
 .manager-lens-panel {
@@ -4395,77 +4295,12 @@ body.trade-menu-open .workspace-tabs {
   padding: 0.72rem;
 }
 
-.dna-grid,
-.economy-grid,
-.market-split-grid {
-  display: grid;
-  gap: 0.65rem;
-  margin-bottom: 0.8rem;
-}
-
-.dna-grid,
-.economy-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.market-split-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.dna-cell,
-.economy-cell,
-.market-split {
-  display: grid;
-  gap: 0.25rem;
-  min-width: 0;
-  padding: 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel-soft);
-}
-
-.dna-cell {
-  justify-items: center;
-  text-align: center;
-}
-
-.dna-score-ring {
-  width: 3.55rem;
-}
-
-.dna-score-ring strong,
-.economy-cell strong,
-.market-split strong {
-  font-size: 1rem;
-  line-height: 1.05;
-}
-
-.dna-cell span,
-.economy-cell span,
-.market-split span {
-  color: var(--text);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.dna-cell small,
-.economy-cell small {
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 600;
-}
-
-.analytics-progress-row,
 .analytics-row,
 .manager-heat-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 96px auto;
   gap: 0.65rem;
   align-items: center;
-}
-
-.analytics-progress-row {
-  grid-template-columns: minmax(0, 1fr) 112px;
 }
 
 .analytics-row {
@@ -4478,93 +4313,10 @@ body.trade-menu-open .workspace-tabs {
   padding-top: 0;
 }
 
-.analytics-row em,
-.quest-item em {
+.analytics-row em {
   color: var(--muted-strong);
   font-style: normal;
   font-weight: 800;
-}
-
-.timeline-bars {
-  display: flex;
-  align-items: end;
-  gap: 0.25rem;
-  min-height: 6.3rem;
-  margin-top: 0.85rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--line);
-}
-
-.timeline-bar {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 0.28rem;
-  align-items: end;
-  flex: 1 1 0;
-  height: 5.75rem;
-}
-
-.timeline-bar span {
-  display: block;
-  width: 100%;
-  min-height: 0.25rem;
-  border-radius: 999px 999px 0 0;
-  background: var(--green);
-}
-
-.timeline-bar small {
-  color: var(--muted);
-  font-size: 0.62rem;
-  font-weight: 800;
-  text-align: center;
-}
-
-.spotlight-row,
-.quest-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.7rem;
-}
-
-.quest-item div {
-  display: grid;
-  gap: 0.18rem;
-}
-
-.power-rank-table {
-  display: grid;
-  gap: 0.42rem;
-}
-
-.power-rank-row {
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1.25fr) minmax(96px, 0.7fr) minmax(84px, 0.62fr) 3rem;
-  gap: 0.7rem;
-  align-items: center;
-  padding: 0.65rem 0.72rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel-soft);
-}
-
-.power-rank-row.you {
-  border-color: var(--team-a-border);
-  background: var(--team-a-soft);
-}
-
-.power-rank-row div {
-  min-width: 0;
-}
-
-.power-rank-row span {
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.power-rank-row > strong {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 
 .recent-trade {
@@ -4664,10 +4416,6 @@ body.trade-menu-open .workspace-tabs {
     grid-template-columns: 270px minmax(0, 1fr);
   }
 
-  .workspace-tabs {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .workspace-header {
     grid-template-columns: 1fr;
   }
@@ -4694,11 +4442,6 @@ body.trade-menu-open .workspace-tabs {
 }
 
 @media (max-width: 860px) {
-  .workspace-tabs {
-    top: 0.5rem;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .page-tab {
     min-height: 2.7rem;
   }
@@ -4725,9 +4468,6 @@ body.trade-menu-open .workspace-tabs {
   .impact-overview,
   .lineup-comparison-grid,
   .power-progress-pair,
-  .dna-grid,
-  .economy-grid,
-  .market-split-grid,
   .season-card,
   .compare-side-grid,
   .roster-delta-grid,
@@ -4741,18 +4481,6 @@ body.trade-menu-open .workspace-tabs {
   .league-archive-hero,
   .manager-lens-hero {
     grid-template-columns: 1fr;
-  }
-
-  .power-rank-row,
-  .dynasty-row {
-    grid-template-columns: 2rem minmax(0, 1fr) 3rem;
-  }
-
-  .power-rank-row > span:nth-of-type(2),
-  .power-rank-row > span:nth-of-type(3),
-  .dynasty-row > span:nth-of-type(2),
-  .dynasty-row > span:nth-of-type(3) {
-    display: none;
   }
 
   .power-board-row {
@@ -4813,7 +4541,7 @@ body.trade-menu-open .workspace-tabs {
   }
 
   .workspace-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.2rem;
   }
 
   .page-tab {
@@ -4821,10 +4549,6 @@ body.trade-menu-open .workspace-tabs {
     gap: 0.4rem;
     min-height: 2.45rem;
     padding: 0.4rem 0.5rem;
-  }
-
-  .tab-icon {
-    display: none;
   }
 
   .state-grid,
@@ -4844,8 +4568,6 @@ body.trade-menu-open .workspace-tabs {
   }
 
   .game-impact-main,
-  .spotlight-row,
-  .quest-item,
   .recent-trade div,
   .asset-row-top,
   .asset-item {
@@ -4853,7 +4575,6 @@ body.trade-menu-open .workspace-tabs {
     flex-direction: column;
   }
 
-  .analytics-progress-row,
   .analytics-row,
   .manager-heat-row,
   .lineup-slot-item,
@@ -5006,6 +4727,47 @@ body.trade-menu-open .workspace-tabs {
     box-shadow: inset 0.28rem -0.18rem 0 0 currentColor;
   }
 
+  .mobile-chrome-actions {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  /* Chain-link glyph: two offset rings. */
+  .share-glyph {
+    position: relative;
+    display: block;
+    width: 1.1rem;
+    height: 0.6rem;
+  }
+
+  .share-glyph::before,
+  .share-glyph::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 0.62rem;
+    height: 0.6rem;
+    border: 2px solid currentColor;
+    border-radius: 999px;
+    box-sizing: border-box;
+  }
+
+  .share-glyph::before {
+    left: 0;
+  }
+
+  .share-glyph::after {
+    right: 0;
+  }
+
+  .mobile-share-feedback {
+    position: absolute;
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: -1.5rem;
+    z-index: 21;
+  }
+
   .rail-backdrop {
     display: none;
     position: fixed;
@@ -5119,6 +4881,17 @@ body.trade-menu-open .workspace-tabs {
     font-size: 0.78rem;
   }
 
+  /* The desk nav splits on phones: page tabs pin to the bottom edge, the
+     room strip stays at the top of the workspace. display: contents drops
+     the sticky/backdrop box so the fixed tab bar is not trapped inside it. */
+  .desk-nav {
+    display: contents;
+  }
+
+  .desk-nav.hidden {
+    display: none !important;
+  }
+
   .workspace-tabs {
     position: fixed;
     top: auto;
@@ -5148,6 +4921,25 @@ body.trade-menu-open .workspace-tabs {
     display: none;
   }
 
+  .room-nav {
+    position: sticky;
+    top: calc(3.15rem + max(0.45rem, env(safe-area-inset-top)));
+    z-index: 12;
+    margin: -0.35rem 0 0;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .room-tab {
+    padding: 0.42rem 0.85rem;
+    font-size: 0.8rem;
+  }
+
   .page-tab {
     flex: 1 1 0;
     flex-direction: column;
@@ -5160,30 +4952,8 @@ body.trade-menu-open .workspace-tabs {
     border-radius: 10px;
   }
 
-  .page-tab[data-page="league"] { order: 1; }
-  .page-tab[data-page="team"] { order: 2; }
-  .page-tab-wrap { order: 3; flex: 1 1 0; position: static; }
-  .page-tab[data-page="trader"] { order: 3; }
-
-  .tab-caret {
-    display: none;
-  }
-
-  .page-tab-menu {
-    position: absolute;
-    top: auto;
-    right: 0.4rem;
-    bottom: calc(100% + 0.45rem);
-    left: 0.4rem;
-    min-width: 0;
-  }
-
-  body.trade-menu-open .workspace-tabs {
-    overflow: visible;
-  }
-
-  .tab-icon {
-    display: none;
+  .page-tab.active {
+    box-shadow: inset 0 2px 0 var(--blue);
   }
 
   .tab-copy {
@@ -5201,14 +4971,6 @@ body.trade-menu-open .workspace-tabs {
     font-size: 0.68rem;
     line-height: 1.15;
     white-space: nowrap;
-  }
-
-  .tab-label-full {
-    display: none;
-  }
-
-  .tab-label-short {
-    display: inline;
   }
 
   .ticker-label {
@@ -5568,43 +5330,6 @@ body.dock-visible {
   }
 }
 
-.workspace-tabs {
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
-  gap: 0;
-}
-
-.league-jump {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin: 0 0 1rem;
-}
-
-.league-jump button {
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted-strong);
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.league-jump button:hover,
-.league-jump button.active {
-  color: var(--blue);
-  border-color: var(--blue);
-}
-
-.league-jump button.active {
-  background: var(--blue-soft);
-}
-
 .loyalty-dashboard {
   display: grid;
   gap: 1rem;
@@ -5651,8 +5376,6 @@ body.dock-visible {
 .trade-log {
   display: grid;
   gap: 0.6rem;
-  max-height: 38rem;
-  overflow: auto;
 }
 
 .trade-row {
@@ -5910,11 +5633,6 @@ body.dock-visible {
 .trade-award.won { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); }
 .trade-award.lost { border-color: color-mix(in srgb, var(--red) 45%, var(--line)); }
 
-.pair-history .linklike {
-  display: block;
-  margin: 0.35rem 0;
-}
-
 @media (max-width: 1100px) {
   .trade-wire-grid,
   .trade-file-hero {
@@ -5937,22 +5655,6 @@ body.dock-visible {
   .trade-file-hero {
     grid-template-columns: 1fr;
   }
-}
-
-.trade-room {
-  display: grid;
-  gap: 1rem;
-}
-
-.trade-passport-dashboard,
-.trade-history-dashboard {
-  display: grid;
-  gap: 1rem;
-}
-
-.trade-side-stack {
-  display: grid;
-  gap: 1rem;
 }
 
 .passport-page {
@@ -6119,24 +5821,8 @@ body.dock-visible {
   color: var(--blue);
 }
 
-.trade-grade.grade-Aplus,
-.trade-grade.grade-A {
-  border-color: color-mix(in srgb, var(--green) 50%, var(--line));
-}
-
-.trade-grade.grade-D,
-.trade-grade.grade-F {
-  border-color: color-mix(in srgb, var(--red) 50%, var(--line));
-}
-
 .hall-board {
   margin-bottom: 1rem;
-}
-
-@media (max-width: 980px) {
-  .trade-history-dashboard {
-    grid-template-columns: 1fr;
-  }
 }
 
 .loyalty-grid {
@@ -6148,7 +5834,6 @@ body.dock-visible {
 .loyalty-card,
 .dna-col,
 .charm-row,
-.trade-grade,
 .passport-card,
 .hall-table {
   border: 1px solid var(--line);
@@ -6195,8 +5880,7 @@ body.dock-visible {
 .dna-col.added { border-color: color-mix(in srgb, var(--blue) 45%, var(--line)); }
 
 .dna-chip,
-.charm-row,
-.trade-grade {
+.charm-row {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
@@ -6217,8 +5901,100 @@ body.dock-visible {
   gap: 0.35rem;
 }
 
-.charm-row,
-.trade-grade {
+/* Room toolbar: the "Viewing" lens picker shown at the top of lens-aware rooms. */
+.room-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.room-toolbar .ghost-btn {
+  width: auto;
+  min-height: 0;
+  padding: 0.42rem 0.8rem;
+  font-size: 0.8rem;
+}
+
+.lens-picker {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0;
+  padding: 0.3rem 0.4rem 0.3rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.lens-picker select {
+  width: auto;
+  min-width: 10rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0.3rem 1.8rem 0.3rem 0.6rem;
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Cross-room pointers shown where a feature used to live. */
+.room-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.6rem;
+}
+
+.room-link {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  min-height: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+
+.room-link:hover {
+  transform: none;
+  filter: none;
+  border-style: solid;
+  background: var(--hover-fill);
+}
+
+.room-link strong {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+}
+
+.room-link strong::after {
+  content: " →";
+  color: var(--blue);
+}
+
+.room-link span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.record-list-wide {
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 0.6rem;
+}
+
+.charm-row {
   padding: 0.7rem 0.85rem;
 }
 
