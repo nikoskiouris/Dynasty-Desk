@@ -1,10 +1,11 @@
 import {
-  DEFAULT_LEAGUE_ROOM,
-  DEFAULT_TRADE_ROOM,
-  LEAGUE_ROOM_ALIASES,
-  LEAGUE_ROOMS,
-  TRADE_ROOM_ALIASES,
-  TRADE_ROOMS,
+  DEFAULT_PAGE,
+  DEFAULT_ROOMS,
+  PAGE_ALIASES,
+  PAGE_IDS,
+  PAGE_ROOMS,
+  PLACE_ALIASES,
+  SCOPED_ROOM_ALIASES,
 } from "./constants.js";
 
 const SLEEPER_LEAGUE_PATH = /leagues\/(\d+)/i;
@@ -90,40 +91,80 @@ export function sortUserLeagues(leagues, currentSeason) {
   });
 }
 
-const TAB_ALIASES = {
-  home: "league",
-  teams: "team",
-  awards: "league",
-  analytics: "league",
-  recap: "league",
-  history: "league",
-  trade: "trader",
-  trades: "trader",
-  calculator: "trader",
-  calc: "trader",
-  passport: "trader",
-  lab: "trader",
-  generator: "trader",
-};
+function cleanToken(value) {
+  return String(value || "").trim().toLowerCase().replace(/^#/, "").replace(/^league-/, "");
+}
 
+export function isDeskPage(page) {
+  return PAGE_IDS.includes(page);
+}
+
+export function defaultRoomFor(page) {
+  return DEFAULT_ROOMS[page] || DEFAULT_ROOMS[DEFAULT_PAGE];
+}
+
+export function isRoomOf(page, room) {
+  return Boolean(room) && (PAGE_ROOMS[page] || []).includes(room);
+}
+
+/**
+ * Turn a tab token (from a URL, a hash, or old share links) into a page id.
+ * Tokens that used to be tabs but are now rooms (e.g. `recap`, `calculator`)
+ * resolve to the page that owns that room.
+ */
 export function normalizeDeskTab(tab) {
-  const value = String(tab || "").trim().toLowerCase();
+  const value = cleanToken(tab);
   if (!value) return "";
-  return TAB_ALIASES[value] || value;
+  if (PAGE_ALIASES[value]) return PAGE_ALIASES[value];
+  if (PLACE_ALIASES[value]) return PLACE_ALIASES[value].page;
+  return isDeskPage(value) ? value : "";
 }
 
-export function normalizeTradeRoom(value) {
-  const key = String(value || "").trim().toLowerCase();
-  if (!key) return "";
-  const aliased = TRADE_ROOM_ALIASES[key] || key;
-  return TRADE_ROOMS.includes(aliased) ? aliased : "";
+/**
+ * Turn a room token into a room id for the given page. Returns "" when the
+ * token does not belong to that page (callers may then try resolveDeskPlace).
+ */
+export function normalizeRoom(page, view) {
+  const value = cleanToken(view);
+  if (!value || !isDeskPage(page)) return "";
+  const scoped = SCOPED_ROOM_ALIASES[page]?.[value];
+  if (scoped && isRoomOf(page, scoped)) return scoped;
+  if (isRoomOf(page, value)) return value;
+  const place = PLACE_ALIASES[value];
+  if (place && place.page === page && isRoomOf(page, place.room)) return place.room;
+  return "";
 }
 
-export function normalizeLeagueRoom(value) {
-  const key = String(value || "").trim().toLowerCase();
-  if (!key) return "";
-  const aliased = LEAGUE_ROOM_ALIASES[key] || key;
-  return LEAGUE_ROOMS.includes(aliased) ? aliased : "";
+/**
+ * Resolve any combination of tab + view tokens to a concrete desk place.
+ * Cross-page room tokens win over the tab (e.g. `tab=league&view=hall` opens
+ * History → Hall because the Hall moved), so every historical link lands
+ * on the content it used to point at.
+ */
+export function resolveDeskPlace({ tab = "", view = "" } = {}) {
+  const page = normalizeDeskTab(tab);
+  const viewToken = cleanToken(view);
+  const tabToken = cleanToken(tab);
+
+  if (page && viewToken) {
+    const room = normalizeRoom(page, viewToken);
+    if (room) return { page, room };
+    const place = PLACE_ALIASES[viewToken];
+    if (place) return { page: place.page, room: place.room };
+    return { page, room: defaultRoomFor(page) };
+  }
+  if (page) {
+    // The tab token itself may name a room (old `tab=recap` links).
+    const roomFromTab = normalizeRoom(page, tabToken);
+    return { page, room: roomFromTab || defaultRoomFor(page) };
+  }
+  if (viewToken) {
+    const place = PLACE_ALIASES[viewToken];
+    if (place) return { page: place.page, room: place.room };
+    const leagueRoom = normalizeRoom(DEFAULT_PAGE, viewToken);
+    return { page: DEFAULT_PAGE, room: leagueRoom || defaultRoomFor(DEFAULT_PAGE) };
+  }
+  return { page: DEFAULT_PAGE, room: defaultRoomFor(DEFAULT_PAGE) };
 }
 
 export function buildShareParams({
@@ -137,15 +178,9 @@ export function buildShareParams({
   const params = new URLSearchParams();
   if (leagueId) params.set("league", String(leagueId));
   if (meRosterId) params.set("me", String(meRosterId));
-  const deskTab = normalizeDeskTab(tab);
-  if (deskTab && deskTab !== "league") params.set("tab", deskTab);
-  if (deskTab === "trader") {
-    const room = normalizeTradeRoom(view) || normalizeTradeRoom(tab) || DEFAULT_TRADE_ROOM;
-    if (room !== DEFAULT_TRADE_ROOM) params.set("view", room);
-  } else if (!deskTab || deskTab === "league") {
-    const room = normalizeLeagueRoom(view) || normalizeLeagueRoom(tab) || DEFAULT_LEAGUE_ROOM;
-    if (room !== DEFAULT_LEAGUE_ROOM) params.set("view", room);
-  }
+  const place = resolveDeskPlace({ tab, view });
+  if (place.page !== DEFAULT_PAGE) params.set("tab", place.page);
+  if (place.room !== defaultRoomFor(place.page)) params.set("view", place.room);
   if (Number.isFinite(Number(week)) && Number(week) > 0) params.set("week", String(week));
   if (tone && tone !== "desk") params.set("tone", String(tone));
   return params;
@@ -156,20 +191,18 @@ export function parseShareParams(search) {
   const league = String(params.get("league") || "").trim();
   const me = Number(params.get("me"));
   const rawTab = params.get("tab") || "";
-  const tab = normalizeDeskTab(rawTab);
+  const rawView = params.get("view") || "";
   const week = Number(params.get("week"));
   const tone = String(params.get("tone") || "").trim();
-  const rawView = params.get("view") || "";
-  const view = tab === "trader"
-    ? (normalizeTradeRoom(rawView) || normalizeTradeRoom(rawTab) || DEFAULT_TRADE_ROOM)
-    : (tab === "league" || !tab)
-      ? (normalizeLeagueRoom(rawView) || normalizeLeagueRoom(rawTab) || DEFAULT_LEAGUE_ROOM)
-      : "";
+  const hasPlace = Boolean(cleanToken(rawTab) || cleanToken(rawView));
+  const place = resolveDeskPlace({ tab: rawTab, view: rawView });
   return {
     leagueId: parseLeagueId(league) || league,
     meRosterId: Number.isFinite(me) && me > 0 ? me : null,
-    tab,
-    view,
+    // `tab` stays "" when the URL did not ask for a place, so boot can fall
+    // back to the hash or the default without treating it as a request.
+    tab: hasPlace ? place.page : "",
+    view: place.room,
     week: Number.isFinite(week) && week > 0 ? week : null,
     tone: tone || "",
   };

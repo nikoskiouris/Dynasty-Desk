@@ -9,6 +9,11 @@ import {
   parseShareParams,
   buildShareUrl,
   bootSearchFieldValues,
+  resolveDeskPlace,
+  normalizeDeskTab,
+  normalizeRoom,
+  defaultRoomFor,
+  isRoomOf,
 } from "../docs/modules/parse.js";
 
 test("parseLeagueId reads snowflake, path, and embedded URL", () => {
@@ -67,18 +72,23 @@ test("share params map old recap/home tabs onto league", () => {
   assert.match(url, /week=2/);
   assert.match(url, /tone=roast/);
   const parsed = parseShareParams(url.split("?")[1]);
-  assert.equal(parsed.tab, "");
+  assert.equal(parsed.tab, "league");
   assert.equal(parsed.view, "recap");
   assert.equal(parsed.week, 2);
   assert.equal(parsed.tone, "roast");
   assert.equal(parsed.meRosterId, 3);
+  assert.equal(parseShareParams("league=1").tab, "");
+  assert.equal(parseShareParams("league=1").view, "scores");
   assert.equal(parseShareParams("league=1&tab=recap").tab, "league");
-  assert.equal(parseShareParams("league=1&tab=teams").tab, "team");
-  assert.equal(parseShareParams("league=1&tab=trader").tab, "trader");
-  assert.equal(parseShareParams("league=1&tab=trader").view, "history");
+  assert.equal(parseShareParams("league=1&tab=league&view=now").view, "scores");
+  assert.equal(parseShareParams("league=1&tab=home").tab, "league");
+  assert.equal(parseShareParams("league=1&tab=team").tab, "teams");
+  assert.equal(parseShareParams("league=1&tab=teams").view, "roster");
+  assert.equal(parseShareParams("league=1&tab=trader").tab, "trades");
+  assert.equal(parseShareParams("league=1&tab=trader").view, "log");
 });
 
-test("share params keep trade rooms on the trades tab", () => {
+test("share params move old trade rooms to their new pages", () => {
   const passportUrl = buildShareUrl({
     origin: "https://nikoskiouris.github.io",
     pathname: "/FantasyDynastyAnalyzer/",
@@ -86,27 +96,55 @@ test("share params keep trade rooms on the trades tab", () => {
     tab: "trader",
     view: "passport",
   });
-  assert.match(passportUrl, /tab=trader/);
-  assert.match(passportUrl, /view=passport/);
-  assert.equal(parseShareParams(passportUrl.split("?")[1]).view, "passport");
+  assert.match(passportUrl, /tab=teams/);
+  assert.match(passportUrl, /view=passports/);
+  assert.equal(parseShareParams(passportUrl.split("?")[1]).view, "passports");
 
-  const historyUrl = buildShareUrl({
+  const logUrl = buildShareUrl({
     origin: "https://nikoskiouris.github.io",
     pathname: "/FantasyDynastyAnalyzer/",
     leagueId: "1",
     tab: "trader",
     view: "history",
   });
-  assert.match(historyUrl, /tab=trader/);
-  assert.doesNotMatch(historyUrl, /view=/);
+  assert.match(logUrl, /tab=trades/);
+  assert.doesNotMatch(logUrl, /view=/);
 
-  assert.equal(parseShareParams("league=1&tab=calculator").tab, "trader");
+  assert.equal(parseShareParams("league=1&tab=calculator").tab, "trades");
   assert.equal(parseShareParams("league=1&tab=calculator").view, "calculator");
   assert.equal(parseShareParams("league=1&tab=generator").view, "lab");
-  assert.equal(parseShareParams("league=1&tab=history").tab, "league");
-  assert.equal(parseShareParams("league=1&tab=history").view, "hall");
+  assert.equal(parseShareParams("league=1&tab=trades&view=shop").view, "lab");
   assert.equal(parseShareParams("league=1&tab=awards").view, "awards");
-  assert.equal(parseShareParams("league=1&tab=analytics").view, "hall");
-  assert.equal(parseShareParams("league=1&view=hall").view, "hall");
-  assert.equal(parseShareParams("league=1").view, "now");
+});
+
+test("share params move hall, analytics, and records to History", () => {
+  assert.deepEqual(resolveDeskPlace({ tab: "history" }), { page: "history", room: "hall" });
+  assert.deepEqual(resolveDeskPlace({ tab: "analytics" }), { page: "history", room: "hall" });
+  assert.deepEqual(resolveDeskPlace({ tab: "league", view: "hall" }), { page: "history", room: "hall" });
+  assert.deepEqual(resolveDeskPlace({ view: "league-hall" }), { page: "history", room: "hall" });
+  assert.deepEqual(resolveDeskPlace({ tab: "history", view: "history" }), { page: "history", room: "hall" });
+  assert.deepEqual(resolveDeskPlace({ tab: "trades", view: "history" }), { page: "trades", room: "log" });
+  assert.deepEqual(resolveDeskPlace({ view: "records" }), { page: "history", room: "records" });
+  assert.deepEqual(resolveDeskPlace({ view: "archive" }), { page: "history", room: "seasons" });
+  assert.deepEqual(resolveDeskPlace({ tab: "nonsense", view: "nonsense" }), { page: "league", room: "scores" });
+  assert.deepEqual(resolveDeskPlace({ tab: "teams", view: "hall" }), { page: "history", room: "hall" });
+  assert.equal(parseShareParams("league=1&tab=history").tab, "history");
+  assert.equal(parseShareParams("league=1&view=hall").tab, "history");
+
+  const url = buildShareUrl({ origin: "", pathname: "/", leagueId: "1", tab: "history", view: "records" });
+  assert.equal(url, "/?league=1&tab=history&view=records");
+  assert.equal(buildShareUrl({ origin: "", pathname: "/", leagueId: "1", tab: "history", view: "hall" }), "/?league=1&tab=history");
+});
+
+test("desk place helpers know pages and rooms", () => {
+  assert.equal(normalizeDeskTab("#trader"), "trades");
+  assert.equal(normalizeDeskTab("Passport"), "teams");
+  assert.equal(normalizeDeskTab("garbage"), "");
+  assert.equal(normalizeRoom("trades", "calc"), "calculator");
+  assert.equal(normalizeRoom("trades", "hall"), "");
+  assert.equal(normalizeRoom("league", "home"), "scores");
+  assert.equal(defaultRoomFor("trades"), "log");
+  assert.equal(defaultRoomFor("nope"), "scores");
+  assert.equal(isRoomOf("teams", "loyalty"), true);
+  assert.equal(isRoomOf("teams", "log"), false);
 });

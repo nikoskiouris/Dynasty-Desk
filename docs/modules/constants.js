@@ -3,89 +3,151 @@ export const SLEEPER_AVATAR_BASE = "https://sleepercdn.com/avatars/thumbs/";
 export const SAMPLE_VALUES_PATH = "./data/ktc_values_sample.csv";
 export const PLAYERS_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 export const SIM_ITERATIONS = 4000;
-export const PAGE_IDS = ["team", "league", "trader"];
+// Desk hierarchy: four top-level pages, each with a row of rooms.
+// Every room is a URL-addressable place (`?tab=<page>&view=<room>`).
+export const PAGE_IDS = ["league", "teams", "trades", "history"];
 export const DEFAULT_PAGE = "league";
 export const PAGE_LABELS = {
-  team: "My Team",
   league: "League",
-  trader: "Trades",
-  home: "League",
-  teams: "My Team",
-  awards: "League",
-  analytics: "League",
-  recap: "League",
+  teams: "Teams",
+  trades: "Trades",
+  history: "History",
 };
-export const PAGE_ALIASES = {
-  home: "league",
-  teams: "team",
-  awards: "league",
-  analytics: "league",
-  recap: "league",
-  history: "league",
-  trade: "trader",
-  trades: "trader",
-  calculator: "trader",
-  calc: "trader",
-  passport: "trader",
-  lab: "trader",
-  generator: "trader",
+export const PAGE_HINTS = {
+  league: "Scores, standings, awards",
+  teams: "Rosters, loyalty, passports",
+  trades: "Log, calculator, find deals",
+  history: "Hall, seasons, records",
 };
-export const TRADE_ROOMS = ["history", "calculator", "passport", "lab"];
-export const DEFAULT_TRADE_ROOM = "history";
-export const TRADE_ROOM_LABELS = {
-  history: "Trade History",
-  calculator: "Calculator",
-  passport: "Passport",
-  lab: "Find deals",
+export const PAGE_ROOMS = {
+  league: ["scores", "standings", "power", "awards", "recap"],
+  teams: ["roster", "loyalty", "passports"],
+  trades: ["log", "calculator", "lab"],
+  history: ["hall", "seasons", "records"],
 };
-export const TRADE_ROOM_HINTS = {
-  history: "Past deals and grades",
-  calculator: "Build both sides",
-  passport: "Career stamps",
-  lab: "Shop, acquire, blockbuster",
-};
-export const TRADE_TAB_IDLE_HINT = "History, calculator, find deals";
-export const TRADE_ROOM_ALIASES = {
-  history: "history",
-  file: "history",
-  tradehistory: "history",
-  calculator: "calculator",
-  calc: "calculator",
-  passport: "passport",
-  lab: "lab",
-  generator: "lab",
-  shop: "lab",
-  acquire: "lab",
-  blockbuster: "lab",
-};
-export const LEAGUE_ROOMS = ["now", "awards", "recap", "hall"];
-export const DEFAULT_LEAGUE_ROOM = "now";
-export const LEAGUE_ROOM_LABELS = {
-  now: "Now",
-  awards: "Awards",
-  recap: "Recap",
-  hall: "Hall",
-};
-export const LEAGUE_ROOM_HINTS = {
-  now: "Scores, standings, odds",
-  awards: "Weekly honors",
-  recap: "Group chat recap",
-  hall: "All-time archive",
-};
-export const LEAGUE_TAB_IDLE_HINT = "Now, awards, recap, hall";
-export const LEAGUE_ROOM_ALIASES = {
-  now: "now",
-  home: "now",
-  scores: "now",
-  standings: "now",
-  awards: "awards",
-  recap: "recap",
-  hall: "hall",
-  analytics: "hall",
+export const DEFAULT_ROOMS = {
+  league: "scores",
+  teams: "roster",
+  trades: "log",
   history: "hall",
-  wire: "hall",
 };
-export const PHONE_PAGE_ORDER = ["league", "team", "trader"];
+export const ROOM_LABELS = {
+  league: {
+    scores: "Scores",
+    standings: "Standings",
+    power: "Power",
+    awards: "Awards",
+    recap: "Recap",
+  },
+  teams: {
+    roster: "Roster",
+    loyalty: "Loyalty",
+    passports: "Passports",
+  },
+  trades: {
+    log: "Log",
+    calculator: "Calculator",
+    lab: "Find deals",
+  },
+  history: {
+    hall: "Hall",
+    seasons: "Seasons",
+    records: "Records",
+  },
+};
+export const ROOM_HINTS = {
+  league: {
+    scores: "This week's matchups and win odds",
+    standings: "Table, playoff odds, luck",
+    power: "Dynasty value rankings",
+    awards: "Weekly honors and superlatives",
+    recap: "Group-chat recap and image card",
+  },
+  teams: {
+    roster: "Scout card, lineup, bench, picks",
+    loyalty: "Roster DNA, ironmen, charms",
+    passports: "Who owned each player, season by season",
+  },
+  trades: {
+    log: "Graded past deals and the league wire",
+    calculator: "Build both sides and get a verdict",
+    lab: "Shop an asset, acquire a target, blockbuster",
+  },
+  history: {
+    hall: "Titles, career records, finish matrix",
+    seasons: "Season ledger and comparisons",
+    records: "All-time record book",
+  },
+};
+
+// Backward-compatible aliases. Old links used other tab names and room names;
+// each alias resolves to a { page, room } place. A null room means "page default".
+export const PAGE_ALIASES = {
+  league: "league",
+  home: "league",
+  now: "league",
+  teams: "teams",
+  team: "teams",
+  myteam: "teams",
+  "my-team": "teams",
+  trades: "trades",
+  trader: "trades",
+  trade: "trades",
+  history: "history",
+  hall: "history",
+  analytics: "history",
+  archive: "history",
+};
+export const PLACE_ALIASES = {
+  // League rooms.
+  scores: { page: "league", room: "scores" },
+  scoreboard: { page: "league", room: "scores" },
+  matchups: { page: "league", room: "scores" },
+  standings: { page: "league", room: "standings" },
+  odds: { page: "league", room: "standings" },
+  playoffs: { page: "league", room: "standings" },
+  luck: { page: "league", room: "standings" },
+  power: { page: "league", room: "power" },
+  rankings: { page: "league", room: "power" },
+  awards: { page: "league", room: "awards" },
+  recap: { page: "league", room: "recap" },
+  // Teams rooms.
+  roster: { page: "teams", room: "roster" },
+  lineup: { page: "teams", room: "roster" },
+  scout: { page: "teams", room: "roster" },
+  loyalty: { page: "teams", room: "loyalty" },
+  dna: { page: "teams", room: "loyalty" },
+  charms: { page: "teams", room: "loyalty" },
+  passports: { page: "teams", room: "passports" },
+  passport: { page: "teams", room: "passports" },
+  // Trades rooms.
+  log: { page: "trades", room: "log" },
+  tradelog: { page: "trades", room: "log" },
+  tradehistory: { page: "trades", room: "log" },
+  file: { page: "trades", room: "log" },
+  wire: { page: "trades", room: "log" },
+  calculator: { page: "trades", room: "calculator" },
+  calc: { page: "trades", room: "calculator" },
+  lab: { page: "trades", room: "lab" },
+  generator: { page: "trades", room: "lab" },
+  shop: { page: "trades", room: "lab" },
+  acquire: { page: "trades", room: "lab" },
+  blockbuster: { page: "trades", room: "lab" },
+  finddeals: { page: "trades", room: "lab" },
+  // History rooms.
+  hall: { page: "history", room: "hall" },
+  seasons: { page: "history", room: "seasons" },
+  archive: { page: "history", room: "seasons" },
+  compare: { page: "history", room: "seasons" },
+  records: { page: "history", room: "records" },
+  recordbook: { page: "history", room: "records" },
+};
+// Room words whose meaning depends on the page they were attached to.
+export const SCOPED_ROOM_ALIASES = {
+  league: { now: "scores", home: "scores" },
+  trades: { history: "log" },
+  history: { history: "hall", analytics: "hall" },
+};
 export const DEFAULT_FAIRNESS_PCT = 20;
 export const DEFAULT_MAX_RESULTS = 3;
 export const DEMO_LEAGUE_ID = "1315165104303513600";
@@ -95,7 +157,6 @@ export const AUTOSELECT_MANAGER_BY_LEAGUE = {
 export const TRANSACTION_WEEK_START = 1;
 export const TRANSACTION_WEEK_FALLBACK_END = 18;
 export const ANALYTICS_RECENT_TRADE_LIMIT = 6;
-export const ANALYTICS_POWER_RANK_LIMIT = 12;
 export const ANALYTICS_ASSET_LEADER_LIMIT = 8;
 export const MAX_HISTORY_SEASONS = 6;
 export const HISTORY_TRANSACTION_SEASON_LIMIT = 4;
