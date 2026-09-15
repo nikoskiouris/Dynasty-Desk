@@ -5955,13 +5955,158 @@ body.dock-visible {
   gap: 1rem;
 }
 
-.passport-block {
-  padding: 0.55rem 0;
+.passport-page {
+  padding: 0.85rem 0 0.95rem;
   border-top: 1px solid var(--line);
 }
 
-.passport-block:first-of-type {
+.passport-page:first-of-type {
   border-top: 0;
+  padding-top: 0.15rem;
+}
+
+.passport-page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.7rem;
+}
+
+.passport-page-head div {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.passport-page-head strong {
+  font-size: 1rem;
+}
+
+.passport-page-head span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.passport-page-value {
+  flex: 0 0 auto;
+  color: var(--blue);
+  font-size: 1.05rem;
+  font-style: normal;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.passport-timeline {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(8.4rem, 1fr);
+  margin: 0;
+  padding: 0.1rem 0 0;
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.passport-timeline::before {
+  content: "";
+  position: absolute;
+  top: 0.52rem;
+  left: 1.05rem;
+  right: 1.05rem;
+  height: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--amber) 55%, var(--line)), var(--blue));
+  pointer-events: none;
+}
+
+.passport-timeline[data-stops="1"] {
+  grid-auto-columns: minmax(8.4rem, 16rem);
+  max-width: 18rem;
+}
+
+.passport-timeline[data-stops="1"]::before {
+  display: none;
+}
+
+.passport-stamp {
+  position: relative;
+  min-width: 0;
+  padding: 0 0.65rem 0.15rem;
+}
+
+.passport-stamp-dot {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-bottom: 0.55rem;
+  border: 2px solid hsl(var(--stamp-hue, 168), 62%, 52%);
+  border-radius: 50%;
+  background: var(--panel-solid);
+  box-shadow: 0 0 0 3px var(--panel-soft);
+}
+
+.passport-stamp.origin .passport-stamp-dot {
+  border-color: var(--amber);
+}
+
+.passport-stamp.now .passport-stamp-dot,
+.passport-stamp.here .passport-stamp-dot {
+  border-color: var(--blue);
+  background: var(--blue);
+  box-shadow: 0 0 0 4px var(--blue-soft);
+}
+
+.passport-stamp-year {
+  display: block;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.passport-stamp strong {
+  display: block;
+  margin: 0.28rem 0 0.2rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px dashed color-mix(in srgb, hsl(var(--stamp-hue, 168), 62%, 52%) 45%, var(--line));
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 0.78rem;
+  line-height: 1.25;
+  transform: rotate(-0.8deg);
+  transform-origin: left top;
+}
+
+.passport-stamp.origin strong {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+  transform: rotate(-1.4deg);
+}
+
+.passport-stamp.now strong,
+.passport-stamp.here strong {
+  border-style: solid;
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  transform: none;
+}
+
+.passport-stamp small {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.passport-stamp.now small,
+.passport-stamp.here small {
+  color: var(--blue);
 }
 
 .grade-pill {
@@ -6084,20 +6229,6 @@ body.dock-visible {
   padding: 0.9rem 1rem;
 }
 
-.passport-stops {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  margin-top: 0.6rem;
-}
-
-.passport-stop {
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 0.78rem;
-}
-
 .hall-table {
   overflow: auto;
 }
@@ -6175,5 +6306,9 @@ body.dock-visible {
   .ticker-track {
     white-space: normal;
     flex-wrap: wrap;
+  }
+
+  .passport-stamp strong {
+    transform: none;
   }
 }

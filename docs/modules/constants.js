@@ -41,7 +41,7 @@ export const TRADE_ROOM_LABELS = {
 export const TRADE_ROOM_HINTS = {
   history: "Past deals and grades",
   calculator: "Build both sides",
-  passport: "Who held whom",
+  passport: "Career stamps",
   lab: "Shop, acquire, blockbuster",
 };
 export const TRADE_TAB_IDLE_HINT = "History, calculator, find deals";
