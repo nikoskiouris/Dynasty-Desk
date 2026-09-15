@@ -16,15 +16,30 @@ Open `docs/` locally (`npm run serve`) or the GitHub Pages URL.
 2. Pick the league.
 3. League ID / URL still lives behind “Have a league ID or URL instead?”
 
-Share URLs are free GitHub Pages query strings: `?league=&me=&tab=&week=&tone=`. Recap can copy that link or save a PNG image card. Nothing to pay for.
+Share URLs are free GitHub Pages query strings: `?league=&me=&tab=&view=&week=&tone=`. `tab` is the page, `view` is the room inside it. Old links (`tab=trader`, `tab=analytics`, `tab=team`, `view=passport`, ...) still resolve. Recap can copy that link or save a PNG image card. Nothing to pay for.
 
 ### Pages
-1. **Command Center** — live scoreboard with pre-game win%, standings, luck / all-play, Monte Carlo playoff and title odds, dynasty power board.
-2. **Teams** — tap any roster: power scout card, optimal lineup, bench, nicknames, pick vault, season log, jump into a trade.
-3. **Awards** — weekly honors (marked live if the week is still going), season superlatives, luck index, all-time record book from archive matchups.
-4. **History** — dynasty archive: comparisons, finish matrix, rivalries, trades.
-5. **Trade Lab** — shop an asset, acquire a target, generate a blockbuster, or use the **Calculator** to build both sides by hand and get a verdict.
-6. **Recap** — group-chat paste in desk / hype / roast voice. Copy text, copy a recap link, or save the image card.
+Four pages. Each page has a row of rooms under it, so every feature is at most two taps away.
+
+1. **League** — this season.
+   - **Scores** — live scoreboard with pre-game win%, pulse tiles that jump to the right room.
+   - **Standings** — overall / divisions, all-play, luck index.
+   - **Power** — dynasty value board (starters, depth, picks, age). Tap a team to open its scout card.
+   - **Awards** — weekly honors (marked live if the week is still going) and season superlatives.
+   - **Recap** — group-chat paste in desk / hype / roast voice. Copy text, copy a recap link, or save the image card.
+2. **Teams** — every roster.
+   - **Roster** — tap any team: power scout card, optimal lineup, bench, nicknames, pick vault, season log, jump into a trade.
+   - **Loyalty** — kept / gone / new since last season, iron share, DNA keep rate.
+   - **Passports** — career stamps for every player on the roster.
+   - A **Viewing** picker on Loyalty and Passports switches which roster you are looking at.
+3. **Trades** — deals.
+   - **Log** — graded trade log with the trade wire. Tap a row to open the trade file (record since, KTC now, later finishes).
+   - **Calculator** — build both sides by hand and get a verdict.
+   - **Find deals** — shop an asset, target a player, or generate a blockbuster.
+4. **History** — the archive.
+   - **Hall** — all-time titles, finish matrix, rivalry ledger, league eras, manager lens.
+   - **Seasons** — season archive and side-by-side comparisons.
+   - **Records** — all-time record book from archive matchups.
 
 Demo league: [Try Hard or Die Hard](https://sleeper.app/leagues/1315165104303513600) (`1315165104303513600`).
 
@@ -80,4 +95,4 @@ python -m src.cli \
 - Player assets: `player:<sleeper_player_id>`
 - Pick assets: `pick:<season>:r<round>:<original_owner|any>`
 - Playoff odds are a 4000-season Monte Carlo. Early weeks shrink last year's pace toward the league mean so one 11-3 campaign is not a 99% lock in Week 1.
-- Phone layout (`max-width: 700px`) puts Recap and Trade next to Home. iPad and desktop keep the original tab order.
+- Phone layout (`max-width: 700px`) pins the four page tabs to the bottom edge and keeps the room strip sticky under the header. A share button sits in the header. iPad and desktop keep the tabs inline above the room strip.

@@ -571,6 +571,7 @@ function handleRoomTabKeydown(event) {
 function renderActivePage() {
   if (!state.leagueId) return;
   syncRoomUi();
+  renderLeagueHero();
   const page = state.activePage;
   const room = getRoom(page);
   switch (page) {
@@ -1385,7 +1386,13 @@ async function runLeagueLoad(leagueId) {
         hydrateManagerSelector();
         syncTradeModeUi();
         renderActivePage();
-        setStatus(`Loaded ${state.leagueName}. Choose your team to continue.`, { ok: true });
+        const me = getMyRoster();
+        setStatus(
+          me
+            ? `Loaded ${state.leagueName}. Viewing as ${me.manager?.displayName || "your team"}. Switch teams in the Manager panel.`
+            : `Loaded ${state.leagueName}. Choose your team to continue.`,
+          { ok: true },
+        );
       })
       .catch((err) => {
         state.playerMetadataLoaded = false;
@@ -1497,32 +1504,7 @@ function handleLiveVisibility() {
 async function copyHelperLeagueId() {
   const leagueId = el.copyLeagueIdBtn?.textContent?.trim();
   if (!leagueId) return;
-
-  let copied = false;
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(leagueId);
-      copied = true;
-    }
-  } catch {
-    copied = false;
-  }
-
-  if (!copied) {
-    try {
-      const tempInput = document.createElement("input");
-      tempInput.value = leagueId;
-      tempInput.style.position = "absolute";
-      tempInput.style.left = "-9999px";
-      document.body.appendChild(tempInput);
-      tempInput.select();
-      copied = document.execCommand("copy");
-      document.body.removeChild(tempInput);
-    } catch {
-      copied = false;
-    }
-  }
-
+  const copied = await copyTextToClipboard(leagueId);
   showCopyFeedback(copied ? "Copied!" : "Copy failed");
 }
 
@@ -5312,6 +5294,13 @@ function renderArchiveHero(history) {
   const tradeLabel = history.archiveTrades.tradeCount > 0
     ? `${formatNumber(history.archiveTrades.movedAssetCount)} assets moved`
     : history.syncLabel;
+  const titleLeader = [...history.dynastyRows]
+    .filter((row) => row.titles > 0)
+    .sort((a, b) => b.titles - a.titles || b.podiums - a.podiums)[0] || null;
+  const titleValue = titleLeader ? titleLeader.managerName : "Open";
+  const titleDetail = titleLeader
+    ? `${titleLeader.titles} title${titleLeader.titles === 1 ? "" : "s"} · ${titleLeader.podiums} podium${titleLeader.podiums === 1 ? "" : "s"}`
+    : "no completed season in the archive yet";
 
   return `
     <div class="league-archive-hero">
@@ -5334,7 +5323,7 @@ function renderArchiveHero(history) {
 
     <div class="analytics-metric-grid">
       ${renderAnalyticsMetric("Archive Span", history.seasonRange, `${history.completedSeasonCount} completed season${history.completedSeasonCount === 1 ? "" : "s"}`, "blue")}
-      ${renderAnalyticsMetric("Latest Crown", championLabel, championDetail, "gold")}
+      ${renderAnalyticsMetric("Most Titles", titleValue, titleDetail, "gold")}
       ${renderAnalyticsMetric("Trades Logged", formatNumber(history.archiveTrades.tradeCount), tradeLabel, "blue")}
       ${renderAnalyticsMetric("Parity", history.averageParityScore ? `${history.averageParityScore}/100` : "N/A", "average scoring tightness", "green")}
     </div>
