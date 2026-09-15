@@ -5650,47 +5650,116 @@ body.dock-visible {
 
 .trade-log {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.6rem;
   max-height: 38rem;
   overflow: auto;
 }
 
 .trade-row {
   display: grid;
-  grid-template-columns: minmax(7rem, 0.9fr) minmax(0, 1.4fr) auto auto;
-  gap: 0.55rem;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "when since grade"
+    "move move grade";
+  column-gap: 0.9rem;
+  row-gap: 0.45rem;
+  align-items: start;
   width: 100%;
-  padding: 0.7rem 0.85rem;
+  padding: 0.85rem 1rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--panel-soft);
   color: inherit;
+  font-weight: 650;
   text-align: left;
+  white-space: normal;
 }
 
 .trade-row:hover {
   border-color: var(--blue);
 }
 
-.trade-row-when,
-.trade-row-since {
+.trade-row-when {
+  grid-area: when;
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
   font-size: 0.78rem;
   font-weight: 700;
 }
 
+.trade-row-week {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.trade-row-partner {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
 .trade-row-since {
+  grid-area: since;
+  align-self: center;
   min-width: 3.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
+.trade-row .grade-pill {
+  grid-area: grade;
+  align-self: center;
+}
+
 .trade-row-move {
+  grid-area: move;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
   min-width: 0;
-  overflow: hidden;
   color: var(--muted-strong);
   font-size: 0.8rem;
-  line-height: 1.35;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: normal;
+}
+
+.trade-move-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.trade-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.22rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: normal;
+}
+
+.trade-chip-empty {
+  color: var(--muted);
+}
+
+.trade-arrow {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-weight: 800;
 }
 
 .pick-selection {
@@ -5838,11 +5907,14 @@ body.dock-visible {
     grid-template-columns: 1fr 1fr;
   }
   .trade-row {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "when grade"
+      "move move"
+      "since since";
   }
-  .trade-row-move,
   .trade-row-since {
-    grid-column: 1 / -1;
+    text-align: left;
   }
 }
 

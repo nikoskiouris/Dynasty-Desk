@@ -91,7 +91,7 @@ import {
 } from "./modules/values.js";
 import { createLivePoller, shouldPollLive, shouldRefreshSim, weekRowsFingerprint } from "./modules/live.js";
 import { buildRecapCardModel, drawRecapCard, renderRecapCardBlob, recapCardFilename } from "./modules/recap-card.js";
-import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber, clamp } from "./modules/html.js";
+import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber, clamp, renderTradeAssetLabel, renderTradeMove } from "./modules/html.js";
 import {
   analyzePastTrades,
   analyzeLeagueTradeSides,
@@ -3539,14 +3539,7 @@ function renderLoyaltyDashboard() {
 
 function renderTradeAssetLine(item) {
   const valueLabel = formatNumber(Math.round(item.value || 0));
-  if (item.draftedPlayerName) {
-    const pickLabel = escapeHtml(item.pickLabel || item.name || "Pick");
-    const extraValue = Number(item.draftedPlayerValue) > 0
-      ? `, ${formatNumber(Math.round(item.draftedPlayerValue))}`
-      : "";
-    return `<li><span>${pickLabel} <span class="pick-selection">(${escapeHtml(item.draftedPlayerName)}${extraValue})</span></span><strong>${valueLabel}</strong></li>`;
-  }
-  return `<li><span>${escapeHtml(item.name || "Asset")}</span><strong>${valueLabel}</strong></li>`;
+  return `<li><span>${renderTradeAssetLabel(item)}</span><strong>${valueLabel}</strong></li>`;
 }
 
 function renderResultPills(games = []) {
@@ -3654,8 +3647,11 @@ function renderTradeHistoryDesk() {
       <div class="trade-log">
         ${analyzed.map((row) => `
           <button type="button" class="trade-row ${gradeClassName(row.grade)} verdict-${escapeHtml(row.verdict)}" data-action="open-trade" data-trade-id="${escapeHtml(row.id)}" data-manager-key="${escapeHtml(managerKey)}">
-            <span class="trade-row-when">${escapeHtml(row.season)} W${row.week || "?"} · ${escapeHtml(row.partnerName)}</span>
-            <span class="trade-row-move">${escapeHtml(row.received.map((item) => item.name).join(", ") || "picks")} ← ${escapeHtml(row.sent.map((item) => item.name).join(", ") || "picks")}</span>
+            <span class="trade-row-when">
+              <span class="trade-row-week">${escapeHtml(row.season)} W${row.week || "?"}</span>
+              <span class="trade-row-partner">${escapeHtml(row.partnerName)}</span>
+            </span>
+            ${renderTradeMove(row)}
             <span class="trade-row-since">${escapeHtml(row.since.games ? row.since.label : "—")}</span>
             <span class="grade-pill">${escapeHtml(row.grade)}</span>
           </button>
