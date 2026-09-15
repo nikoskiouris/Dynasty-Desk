@@ -469,6 +469,59 @@ export function buildPlayerPassport({ playerId, name = "", seasons = [] } = {}) 
   };
 }
 
+export function formatSeasonSpan(fromSeason, toSeason) {
+  const from = String(fromSeason || "").trim();
+  const to = String(toSeason || from).trim();
+  if (!from) return "";
+  if (from === to) return from;
+  if (from.length === 4 && to.length === 4 && from.slice(0, 2) === to.slice(0, 2)) {
+    return `${from}–${to.slice(-2)}`;
+  }
+  return `${from}–${to}`;
+}
+
+export function decoratePassport(passport = {}, { myManagerKey = "", currentSeason = "" } = {}) {
+  const mine = String(myManagerKey || "");
+  const nowSeason = String(currentSeason || "");
+  const stops = (passport.stops || []).map((stop, index, list) => {
+    const fromSeason = String(stop.fromSeason || "");
+    const toSeason = String(stop.toSeason || fromSeason);
+    const fromYear = Number(fromSeason);
+    const toYear = Number(toSeason);
+    const years = Number.isFinite(fromYear) && Number.isFinite(toYear)
+      ? Math.max(1, toYear - fromYear + 1)
+      : 1;
+    const isMine = mine && String(stop.managerKey) === mine;
+    const isNow = nowSeason && toSeason === nowSeason && isMine;
+    const origin = index === 0;
+    const last = index === list.length - 1;
+    return {
+      ...stop,
+      fromSeason,
+      toSeason,
+      years,
+      origin,
+      last,
+      current: Boolean(isNow),
+      stamp: origin ? "origin" : isNow ? "now" : "visa",
+    };
+  });
+  return {
+    ...passport,
+    stops,
+    hops: Math.max(0, stops.length - 1),
+  };
+}
+
+export function passportJourneyLabel(passport = {}) {
+  const stops = passport.stops || [];
+  const hops = Number.isFinite(Number(passport.hops)) ? Number(passport.hops) : Math.max(0, stops.length - 1);
+  const here = stops.some((stop) => stop.current);
+  if (stops.length <= 1) return here ? "Never left this desk" : "One stamp";
+  const visaWord = hops === 1 ? "One visa" : `${hops} visas`;
+  return here ? `${visaWord} · still here` : visaWord;
+}
+
 export function buildHallRows(dynastyRows = [], { playoffTeams = 6 } = {}) {
   return [...dynastyRows]
     .map((row) => {

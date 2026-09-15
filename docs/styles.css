@@ -5650,47 +5650,130 @@ body.dock-visible {
 
 .trade-log {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.6rem;
   max-height: 38rem;
   overflow: auto;
 }
 
 .trade-row {
-  display: grid;
-  grid-template-columns: minmax(7rem, 0.9fr) minmax(0, 1.4fr) auto auto;
-  gap: 0.55rem;
-  align-items: center;
+  display: block;
   width: 100%;
-  padding: 0.7rem 0.85rem;
+  margin: 0;
+  padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--panel-soft);
   color: inherit;
+  font-weight: 650;
   text-align: left;
+  white-space: normal;
+  cursor: pointer;
 }
 
 .trade-row:hover {
   border-color: var(--blue);
+  transform: translateY(-1px);
 }
 
-.trade-row-when,
-.trade-row-since {
+.trade-row:focus-visible {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: var(--focus);
+}
+
+.trade-row-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "when since grade"
+    "move move move";
+  column-gap: 0.9rem;
+  row-gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.85rem 1rem;
+}
+
+.trade-row-when {
+  grid-area: when;
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
   font-size: 0.78rem;
   font-weight: 700;
 }
 
+.trade-row-week {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.trade-row-partner {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
 .trade-row-since {
+  grid-area: since;
+  align-self: center;
   min-width: 3.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
+.trade-row .grade-pill {
+  grid-area: grade;
+}
+
 .trade-row-move {
+  grid-area: move;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
   min-width: 0;
-  overflow: hidden;
   color: var(--muted-strong);
   font-size: 0.8rem;
-  line-height: 1.35;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: normal;
+}
+
+.trade-move-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.trade-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.22rem 0.55rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--panel-solid);
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: normal;
+}
+
+.trade-chip-empty {
+  color: var(--muted);
+}
+
+.trade-arrow {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-weight: 800;
 }
 
 .pick-selection {
@@ -5837,12 +5920,15 @@ body.dock-visible {
   .trade-file-hero {
     grid-template-columns: 1fr 1fr;
   }
-  .trade-row {
-    grid-template-columns: 1fr auto;
+  .trade-row-inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "when grade"
+      "move move"
+      "since since";
   }
-  .trade-row-move,
   .trade-row-since {
-    grid-column: 1 / -1;
+    text-align: left;
   }
 }
 
@@ -5869,13 +5955,161 @@ body.dock-visible {
   gap: 1rem;
 }
 
-.passport-block {
-  padding: 0.55rem 0;
+.passport-page {
+  padding: 0.85rem 0 0.95rem;
   border-top: 1px solid var(--line);
 }
 
-.passport-block:first-of-type {
+.passport-page:first-of-type {
   border-top: 0;
+  padding-top: 0.15rem;
+}
+
+.passport-page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.7rem;
+}
+
+.passport-page-head div {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.passport-page-head strong {
+  font-size: 1rem;
+}
+
+.passport-page-head span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.passport-page-value {
+  flex: 0 0 auto;
+  color: var(--blue);
+  font-size: 1.05rem;
+  font-style: normal;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.passport-timeline {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(8.4rem, 1fr);
+  margin: 0;
+  padding: 0.1rem 0 0;
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.passport-timeline::before {
+  content: "";
+  position: absolute;
+  top: 0.52rem;
+  left: 1.05rem;
+  right: 1.05rem;
+  height: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--amber) 55%, var(--line)), var(--blue));
+  pointer-events: none;
+}
+
+.passport-timeline[data-stops="1"] {
+  grid-auto-columns: minmax(8.4rem, 16rem);
+  max-width: 18rem;
+}
+
+.passport-timeline[data-stops="1"]::before {
+  display: none;
+}
+
+.passport-stamp {
+  position: relative;
+  min-width: 0;
+  padding: 0 0.65rem 0.15rem;
+}
+
+.passport-stamp-dot {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-bottom: 0.55rem;
+  border: 2px solid hsl(var(--stamp-hue, 168), 62%, 52%);
+  border-radius: 50%;
+  background: var(--panel-solid);
+  box-shadow: 0 0 0 3px var(--panel-soft);
+}
+
+.passport-stamp.origin .passport-stamp-dot {
+  border-color: var(--amber);
+}
+
+.passport-stamp.now .passport-stamp-dot,
+.passport-stamp.here .passport-stamp-dot {
+  border-color: var(--blue);
+  background: var(--blue);
+  box-shadow: 0 0 0 4px var(--blue-soft);
+}
+
+.passport-stamp-year {
+  display: block;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.passport-stamp strong {
+  display: inline-block;
+  width: max-content;
+  max-width: 100%;
+  margin: 0.28rem 0 0.2rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px dashed color-mix(in srgb, hsl(var(--stamp-hue, 168), 62%, 52%) 45%, var(--line));
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 0.78rem;
+  line-height: 1.25;
+  transform: rotate(-1.1deg);
+  transform-origin: left top;
+}
+
+.passport-stamp.origin strong {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+  transform: rotate(-1.4deg);
+}
+
+.passport-stamp.now strong,
+.passport-stamp.here strong {
+  border-style: solid;
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  transform: none;
+}
+
+.passport-stamp small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.passport-stamp.now small,
+.passport-stamp.here small {
+  color: var(--blue);
 }
 
 .grade-pill {
@@ -5998,20 +6232,6 @@ body.dock-visible {
   padding: 0.9rem 1rem;
 }
 
-.passport-stops {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  margin-top: 0.6rem;
-}
-
-.passport-stop {
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 0.78rem;
-}
-
 .hall-table {
   overflow: auto;
 }
@@ -6089,5 +6309,9 @@ body.dock-visible {
   .ticker-track {
     white-space: normal;
     flex-wrap: wrap;
+  }
+
+  .passport-stamp strong {
+    transform: none;
   }
 }

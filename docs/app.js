@@ -91,13 +91,16 @@ import {
 } from "./modules/values.js";
 import { createLivePoller, shouldPollLive, shouldRefreshSim, weekRowsFingerprint } from "./modules/live.js";
 import { buildRecapCardModel, drawRecapCard, renderRecapCardBlob, recapCardFilename } from "./modules/recap-card.js";
-import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber, clamp } from "./modules/html.js";
+import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber, clamp, renderTradeAssetLabel, renderTradeMove } from "./modules/html.js";
 import {
   analyzePastTrades,
   analyzeLeagueTradeSides,
   biggestTradeMiss,
   buildHallRows,
   buildPlayerPassport,
+  decoratePassport,
+  formatSeasonSpan,
+  passportJourneyLabel,
   buildRosterDna,
   buildTenure,
   formatRecordLine,
@@ -423,6 +426,7 @@ el.storageNoticeDismiss?.addEventListener("click", dismissStorageNotice);
 el.sleeperUsername?.addEventListener("input", () => setFieldError(el.sleeperUsername, el.usernameError, ""));
 el.leagueId?.addEventListener("input", () => setFieldError(el.leagueId, el.leagueIdError, ""));
 el.workspace?.addEventListener("click", handleWorkspaceClick);
+el.workspace?.addEventListener("keydown", handleWorkspaceKeydown);
 el.workspace?.addEventListener("change", handleWorkspaceChange);
 el.workspace?.addEventListener("input", handleWorkspaceInput);
 el.playerSearch?.addEventListener("input", () => {
@@ -3539,14 +3543,7 @@ function renderLoyaltyDashboard() {
 
 function renderTradeAssetLine(item) {
   const valueLabel = formatNumber(Math.round(item.value || 0));
-  if (item.draftedPlayerName) {
-    const pickLabel = escapeHtml(item.pickLabel || item.name || "Pick");
-    const extraValue = Number(item.draftedPlayerValue) > 0
-      ? `, ${formatNumber(Math.round(item.draftedPlayerValue))}`
-      : "";
-    return `<li><span>${pickLabel} <span class="pick-selection">(${escapeHtml(item.draftedPlayerName)}${extraValue})</span></span><strong>${valueLabel}</strong></li>`;
-  }
-  return `<li><span>${escapeHtml(item.name || "Asset")}</span><strong>${valueLabel}</strong></li>`;
+  return `<li><span>${renderTradeAssetLabel(item)}</span><strong>${valueLabel}</strong></li>`;
 }
 
 function renderResultPills(games = []) {
@@ -3653,15 +3650,59 @@ function renderTradeHistoryDesk() {
       </div>
       <div class="trade-log">
         ${analyzed.map((row) => `
-          <button type="button" class="trade-row ${gradeClassName(row.grade)} verdict-${escapeHtml(row.verdict)}" data-action="open-trade" data-trade-id="${escapeHtml(row.id)}" data-manager-key="${escapeHtml(managerKey)}">
-            <span class="trade-row-when">${escapeHtml(row.season)} W${row.week || "?"} · ${escapeHtml(row.partnerName)}</span>
-            <span class="trade-row-move">${escapeHtml(row.received.map((item) => item.name).join(", ") || "picks")} ← ${escapeHtml(row.sent.map((item) => item.name).join(", ") || "picks")}</span>
-            <span class="trade-row-since">${escapeHtml(row.since.games ? row.since.label : "—")}</span>
-            <span class="grade-pill">${escapeHtml(row.grade)}</span>
-          </button>
+          <div class="trade-row ${gradeClassName(row.grade)} verdict-${escapeHtml(row.verdict)}" role="button" tabindex="0" data-action="open-trade" data-trade-id="${escapeHtml(row.id)}" data-manager-key="${escapeHtml(managerKey)}">
+            <div class="trade-row-inner">
+              <span class="trade-row-when">
+                <span class="trade-row-week">${escapeHtml(row.season)} W${row.week || "?"}</span>
+                <span class="trade-row-partner">${escapeHtml(row.partnerName)}</span>
+              </span>
+              ${renderTradeMove(row)}
+              <span class="trade-row-since">${escapeHtml(row.since.games ? row.since.label : "—")}</span>
+              <span class="grade-pill">${escapeHtml(row.grade)}</span>
+            </div>
+          </div>
         `).join("") || `<p class="muted">No completed trades in the loaded archive yet.</p>`}
       </div>
     </section>
+  `;
+}
+
+function passportStampLabel(stop) {
+  if (stop.stamp === "origin") return "Origin";
+  if (stop.stamp === "now") return "Now";
+  return `${stop.years} yr${Number(stop.years) === 1 ? "" : "s"}`;
+}
+
+function renderPassportStamp(stop) {
+  const kind = stop.stamp || "visa";
+  return `
+    <li class="passport-stamp ${escapeHtml(kind)}${stop.current ? " here" : ""}" style="--stamp-hue:${hashHue(stop.managerName)}">
+      <span class="passport-stamp-dot" aria-hidden="true"></span>
+      <span class="passport-stamp-year">${escapeHtml(formatSeasonSpan(stop.fromSeason, stop.toSeason))}</span>
+      <strong>${escapeHtml(stop.managerName)}</strong>
+      <small>${escapeHtml(passportStampLabel(stop))}</small>
+    </li>
+  `;
+}
+
+function renderPassportPage(row, { myManagerKey, currentSeason }) {
+  const passport = decoratePassport(row, { myManagerKey, currentSeason });
+  const pos = playerPositionById(row.playerId);
+  const value = Math.round(playerValueById(row.playerId) || 0);
+  const bits = [pos, passportJourneyLabel(passport)].filter(Boolean);
+  return `
+    <article class="passport-page">
+      <header class="passport-page-head">
+        <div>
+          <strong>${escapeHtml(passport.name)}</strong>
+          <span>${escapeHtml(bits.join(" · "))}</span>
+        </div>
+        ${value > 0 ? `<em class="passport-page-value">${formatNumber(value)}</em>` : ""}
+      </header>
+      <ol class="passport-timeline" data-stops="${passport.stops.length}">
+        ${passport.stops.map(renderPassportStamp).join("")}
+      </ol>
+    </article>
   `;
 }
 
@@ -3675,6 +3716,7 @@ function renderPassportDesk() {
   }
 
   const managerKey = rosterManagerKey(roster);
+  const currentSeason = String(state.league?.season || "");
   const trades = loyaltyTradesForRoster(roster);
   const passports = buildPassportBoard(roster, 12);
   const partnerId = Number(state.calc?.partnerRosterId || 0);
@@ -3688,19 +3730,12 @@ function renderPassportDesk() {
     <section class="workspace-panel passport-card">
       <div class="panel-heading">
         <div>
-          <span class="eyebrow">Player passport</span>
-          <h2>Who held whom</h2>
+          <span class="eyebrow">Passport control</span>
+          <h2>Career stamps</h2>
         </div>
-        <p class="section-copy">Ownership by season from the archive plus the current boards.</p>
+        <p class="section-copy">Each visa is a desk. Origin is first hold. Now is who has them this year. Slide the rail.</p>
       </div>
-      ${passports.map((row) => `
-        <article class="passport-block">
-          <strong>${escapeHtml(row.name)}</strong>
-          <div class="passport-stops">
-            ${row.stops.map((stop) => `<span class="passport-stop">${escapeHtml(stop.managerName)} ${escapeHtml(stop.fromSeason)}${stop.toSeason !== stop.fromSeason ? `–${escapeHtml(stop.toSeason)}` : ""}</span>`).join("")}
-          </div>
-        </article>
-      `).join("") || `<p class="muted small">Need roster history to stamp passports.</p>`}
+      ${passports.map((row) => renderPassportPage(row, { myManagerKey: managerKey, currentSeason })).join("") || `<p class="muted small">Need roster history to stamp passports.</p>`}
     </section>
     ${partner && pairRows.length ? `
       <section class="workspace-panel pair-history">
@@ -4454,6 +4489,14 @@ function renderTicker() {
 // ---------------------------------------------------------------------------
 // Workspace event delegation
 // ---------------------------------------------------------------------------
+
+function handleWorkspaceKeydown(event) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const target = event.target.closest("[data-action][role='button']");
+  if (!target || event.target !== target || !el.workspace?.contains(target)) return;
+  event.preventDefault();
+  target.click();
+}
 
 function handleWorkspaceClick(event) {
   const target = event.target.closest("[data-action]");

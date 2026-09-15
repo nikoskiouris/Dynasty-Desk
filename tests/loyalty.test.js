@@ -19,6 +19,9 @@ import {
   biggestTradeMiss,
   newCorePlayers,
   buildPlayerPassport,
+  decoratePassport,
+  formatSeasonSpan,
+  passportJourneyLabel,
   buildHallRows,
   loyaltyScore,
 } from "../docs/modules/loyalty.js";
@@ -163,6 +166,27 @@ test("passport collapses consecutive seasons with the same manager", () => {
   assert.equal(passport.stops[0].fromSeason, "2023");
   assert.equal(passport.stops[0].toSeason, "2024");
   assert.equal(passport.stops[1].managerName, "Nikoball");
+});
+
+test("passport timeline marks origin, visas, and now", () => {
+  const decorated = decoratePassport(buildPlayerPassport({
+    playerId: "gibbs",
+    name: "Jahmyr Gibbs",
+    seasons: [
+      { season: "2023", managerKey: "a", managerName: "Night Blood" },
+      { season: "2024", managerKey: "a", managerName: "Night Blood" },
+      { season: "2025", managerKey: "b", managerName: "Nikoball" },
+      { season: "2026", managerKey: "b", managerName: "Nikoball" },
+    ],
+  }), { myManagerKey: "b", currentSeason: "2026" });
+  assert.equal(decorated.hops, 1);
+  assert.equal(decorated.stops[0].stamp, "origin");
+  assert.equal(decorated.stops[0].years, 2);
+  assert.equal(decorated.stops[1].stamp, "now");
+  assert.equal(decorated.stops[1].current, true);
+  assert.equal(formatSeasonSpan("2023", "2024"), "2023–24");
+  assert.equal(formatSeasonSpan("2026", "2026"), "2026");
+  assert.equal(passportJourneyLabel(decorated), "One visa · still here");
 });
 
 test("passport keeps a takeover stop when the name on the desk changes", () => {
