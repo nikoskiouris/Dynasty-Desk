@@ -189,20 +189,39 @@ test("passport timeline marks origin, visas, and now", () => {
   assert.equal(passportJourneyLabel(decorated), "One visa · still here");
 });
 
-test("passport keeps a takeover stop when the name on the desk changes", () => {
+test("passport keeps a rename stop when the same person changes display name", () => {
   const passport = buildPlayerPassport({
     playerId: "chase",
     name: "Ja'Marr Chase",
     seasons: [
-      { season: "2024", managerKey: "user:juan", managerName: "Gus K" },
-      { season: "2025", managerKey: "user:juan", managerName: "Gus K" },
-      { season: "2026", managerKey: "user:juan", managerName: "Juan Platanis" },
+      { season: "2024", managerKey: "user:juan", managerName: "Old Handle" },
+      { season: "2025", managerKey: "user:juan", managerName: "Old Handle" },
+      { season: "2026", managerKey: "user:juan", managerName: "JuanPlantis" },
     ],
   });
   assert.equal(passport.stops.length, 2);
-  assert.equal(passport.stops[0].managerName, "Gus K");
+  assert.equal(passport.stops[0].managerName, "Old Handle");
   assert.equal(passport.stops[0].toSeason, "2025");
-  assert.equal(passport.stops[1].managerName, "Juan Platanis");
+  assert.equal(passport.stops[1].managerName, "JuanPlantis");
+});
+
+test("passport treats a desk takeover as two people, not a roster slot", () => {
+  const passport = buildPlayerPassport({
+    playerId: "chase",
+    name: "Ja'Marr Chase",
+    seasons: [
+      { season: "2024", managerKey: "user:gus", managerName: "gusk" },
+      { season: "2025", managerKey: "user:gus", managerName: "gusk" },
+      { season: "2026", managerKey: "user:juan", managerName: "JuanPlantis" },
+    ],
+  });
+  assert.equal(passport.stops.length, 2);
+  assert.equal(passport.stops[0].managerKey, "user:gus");
+  assert.equal(passport.stops[0].managerName, "gusk");
+  assert.equal(passport.stops[0].toSeason, "2025");
+  assert.equal(passport.stops[1].managerKey, "user:juan");
+  assert.equal(passport.stops[1].managerName, "JuanPlantis");
+  assert.equal(passport.stops.some((stop) => /roster|team\s+\d+/i.test(stop.managerName)), false);
 });
 
 test("hall rows rank titles then wins", () => {

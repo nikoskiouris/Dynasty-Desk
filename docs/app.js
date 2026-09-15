@@ -113,9 +113,9 @@ import {
 } from "./modules/loyalty.js";
 import { renderLeaguePickerMarkup } from "./modules/league-search.js";
 import {
-  personManagerKey,
-  buildTakeoverAliasMap,
-  resolveFranchiseManagerKey,
+  buildFranchiseIndex,
+  ownerIdFromRoster,
+  resolveRosterIdentity,
   takeoverForRoster,
 } from "./modules/franchise.js";
 import { buildDeskHistorySnapshot, isSameDeskPlace } from "./modules/desk-history.js";
@@ -312,7 +312,7 @@ let liveVisibilityBound = false;
 let userSearchPromise = null;
 let lastSimSignature = "";
 let leagueTradeSideCache = { key: "", sides: [] };
-let takeoverIndexCache = { key: "", aliases: new Map(), takeovers: [] };
+let franchiseIndexCache = { key: "", index: null };
 let applyingHistory = false;
 
 function getAssetValue(asset, values = state.values) {
@@ -1297,7 +1297,7 @@ async function runLeagueLoad(leagueId) {
     state.activePage = DEFAULT_PAGE;
     state.tradeRoom = DEFAULT_TRADE_ROOM;
     state.leagueRoom = DEFAULT_LEAGUE_ROOM;
-    takeoverIndexCache = { key: "", aliases: new Map(), takeovers: [] };
+    franchiseIndexCache = { key: "", index: null };
     state.transactions = [];
     state.transactionsLoaded = false;
     state.transactionsFailed = false;
@@ -2542,7 +2542,9 @@ function managerForRosterId(rosterId) {
   const roster = findNormalizedRoster(rosterId);
   if (roster) return roster.manager;
   const team = getSeasonModel()?.teams.get(String(rosterId));
-  return team ? { displayName: team.name, avatar: team.avatar, teamName: team.teamName } : { displayName: `Roster ${rosterId}`, avatar: null };
+  if (team) return { displayName: team.name, avatar: team.avatar, teamName: team.teamName };
+  const identity = resolveRosterIdentity(getFranchiseIndex(), { leagueId: state.leagueId, rosterId });
+  return { displayName: identity.managerName, avatar: null };
 }
 
 function renderTeamIdentity(rosterId, { size = "sm", showTeamName = true, extra = "" } = {}) {
@@ -3247,6 +3249,10 @@ function managerNameByKey(managerKey) {
   const key = String(managerKey || "");
   const live = state.normalizedRosters.find((roster) => rosterManagerKey(roster) === key);
   if (live) return live.manager.displayName;
+  if (key.startsWith("user:")) {
+    const named = getFranchiseIndex().names.get(key.slice(5));
+    if (named) return named;
+  }
   for (const entry of state.leagueHistory || []) {
     for (const roster of entry.rosters || []) {
       const info = getHistoryRosterInfo(entry.leagueId, roster.roster_id);
@@ -4907,15 +4913,19 @@ function buildSeasonStandings(entry) {
   const bracketFinishMap = buildBracketFinishMap(entry.winnersBracket);
   const rows = (entry.rosters || []).map((roster) => {
     const rosterId = normalizeRosterIdKey(roster?.roster_id);
-    const userId = roster?.owner_id != null ? String(roster.owner_id) : "";
-    const user = userId ? userById.get(userId) : null;
-    const managerName = displayNameForUser(user, `Roster ${rosterId || "?"}`);
+    const identity = resolveRosterIdentity(getFranchiseIndex(), {
+      userId: ownerIdFromRoster(roster),
+      leagueId: entry.leagueId,
+      rosterId,
+    });
+    const user = identity.userId ? userById.get(identity.userId) : null;
+    const managerName = displayNameForUser(user, identity.managerName);
     const explicitRank = extractRosterFinishRank(roster);
     return {
       roster,
       rosterId,
-      userId,
-      managerKey: buildManagerKey(userId, entry.leagueId, rosterId),
+      userId: identity.userId,
+      managerKey: identity.managerKey,
       managerName,
       wins: Number(roster?.settings?.wins || 0),
       losses: Number(roster?.settings?.losses || 0),
@@ -6262,6 +6272,19 @@ function getHistoryRosterInfo(leagueId, rosterId) {
     rosters: state.rosters,
   };
   const roster = (source.rosters || []).find((item) => normalizeRosterIdKey(item?.roster_id) === rosterKey);
+  const identity = resolveRosterIdentity(getFranchiseIndex(), {
+    userId: ownerIdFromRoster(roster),
+    leagueId: source.leagueId || leagueId,
+    rosterId: rosterKey,
+  });
+  if (identity.userId) {
+    return {
+      rosterId: rosterKey,
+      userId: identity.userId,
+      managerKey: identity.managerKey,
+      managerName: identity.managerName,
+    };
+  }
   if (!roster) {
     const currentRoster = state.normalizedRosters.find((item) => normalizeRosterIdKey(item.rosterId) === rosterKey);
     if (currentRoster) {
@@ -6272,25 +6295,16 @@ function getHistoryRosterInfo(leagueId, rosterId) {
         managerName: currentRoster.manager.displayName,
       };
     }
-    return {
-      rosterId: rosterKey,
-      userId: "",
-      managerKey: buildManagerKey("", leagueId, rosterKey),
-      managerName: `Roster ${rosterKey}`,
-    };
   }
-  const userId = roster.owner_id != null ? String(roster.owner_id) : "";
-  const userById = new Map((source.users || []).map((user) => [String(user.user_id), user]));
-  const user = userId ? userById.get(userId) : null;
   return {
     rosterId: rosterKey,
-    userId,
-    managerKey: buildManagerKey(userId, source.leagueId || leagueId, rosterKey),
-    managerName: displayNameForUser(user, `Roster ${rosterKey}`),
+    userId: identity.userId,
+    managerKey: identity.managerKey,
+    managerName: identity.managerName,
   };
 }
 
-function takeoverCacheKey() {
+function franchiseCacheKey() {
   return [
     state.leagueId,
     (state.rosters || []).map((roster) => `${roster.roster_id}:${roster.owner_id}`).join(","),
@@ -6300,28 +6314,29 @@ function takeoverCacheKey() {
   ].join("::");
 }
 
-function getTakeoverIndex() {
-  const key = takeoverCacheKey();
-  if (takeoverIndexCache.key === key) return takeoverIndexCache;
+function getFranchiseIndex() {
+  const key = franchiseCacheKey();
+  if (franchiseIndexCache.key === key && franchiseIndexCache.index) return franchiseIndexCache.index;
   const users = [
     ...(state.users || []),
     ...(state.leagueHistory || []).flatMap((entry) => entry.users || []),
   ];
-  const index = buildTakeoverAliasMap({
+  const index = buildFranchiseIndex({
     currentRosters: state.rosters,
     historyEntries: state.leagueHistory,
     users,
+    currentLeagueId: state.leagueId,
   });
-  takeoverIndexCache = { key, aliases: index.aliases, takeovers: index.takeovers };
-  return takeoverIndexCache;
+  franchiseIndexCache = { key, index };
+  return index;
 }
 
 function getRosterTakeover(rosterId) {
-  return takeoverForRoster(getTakeoverIndex().takeovers, rosterId);
+  return takeoverForRoster(getFranchiseIndex().takeovers, rosterId);
 }
 
 function buildManagerKey(userId, leagueId, rosterId) {
-  return resolveFranchiseManagerKey(userId, leagueId, rosterId, getTakeoverIndex().aliases);
+  return resolveRosterIdentity(getFranchiseIndex(), { userId, leagueId, rosterId }).managerKey;
 }
 
 function extractRosterDecimalStat(roster, wholeKey, decimalKey) {
@@ -7087,7 +7102,11 @@ function buildRosterPairKey(leftRosterId, rightRosterId) {
 function getRosterManagerName(rosterId) {
   const rosterKey = normalizeRosterIdKey(rosterId);
   const roster = state.normalizedRosters.find((entry) => normalizeRosterIdKey(entry.rosterId) === rosterKey);
-  return roster?.manager?.displayName || `Roster ${rosterKey || "?"}`;
+  if (roster?.manager?.displayName) return roster.manager.displayName;
+  return resolveRosterIdentity(getFranchiseIndex(), {
+    leagueId: state.leagueId,
+    rosterId: rosterKey,
+  }).managerName;
 }
 
 function buildTradeMovements(transaction) {
@@ -7177,7 +7196,7 @@ function lookupTradePickSelection(pick, transaction = null) {
     season,
     round,
     originalRosterId,
-    ownerKey: personManagerKey(ownerInfo?.userId, sourceLeagueId, originalRosterId),
+    ownerKey: ownerInfo?.managerKey || "",
   });
 }
 
@@ -13330,7 +13349,12 @@ function normalizeRosters(league, rosters, users, players, previousContext = { l
   const ownedPicksByRoster = buildOwnedPicksByRoster(league, rosters, tradedPicks, state.pickValueCatalog, currentDraftContext);
 
   return rosters.map((roster) => {
-    const owner = userById.get(String(roster.owner_id)) || {};
+    const identity = resolveRosterIdentity(getFranchiseIndex(), {
+      userId: ownerIdFromRoster(roster),
+      leagueId: league?.league_id || state.leagueId,
+      rosterId: roster.roster_id,
+    });
+    const owner = userById.get(identity.userId) || userById.get(String(roster.owner_id)) || {};
     const playerAssets = (roster.players || []).map((playerId) => {
       const p = players[playerId] || {};
       const name = `${(p.first_name || "").trim()} ${(p.last_name || "").trim()}`.trim() || p.full_name || playerId;
@@ -13378,8 +13402,8 @@ function normalizeRosters(league, rosters, users, players, previousContext = { l
     return {
       rosterId: roster.roster_id,
       manager: {
-        userId: roster.owner_id || "unknown",
-        displayName: displayNameForUser(owner, `Roster ${roster.roster_id}`),
+        userId: identity.userId || roster.owner_id || "unknown",
+        displayName: displayNameForUser(owner, identity.managerName),
         teamName: String(owner?.metadata?.team_name || "").trim(),
         avatar: owner?.avatar || null,
       },
@@ -13517,8 +13541,15 @@ function resolvePickOwnerName(originalOwner, rosterById, userById) {
   const ownerKey = String(originalOwner);
   const roster = rosterById.get(ownerKey);
   if (roster) {
-    const owner = roster.owner_id != null ? userById.get(String(roster.owner_id)) : null;
-    return displayNameForUser(owner, `Roster ${roster.roster_id}`);
+    const identity = resolveRosterIdentity(getFranchiseIndex(), {
+      userId: ownerIdFromRoster(roster),
+      leagueId: state.leagueId,
+      rosterId: roster.roster_id,
+    });
+    const owner = identity.userId
+      ? userById.get(identity.userId)
+      : (roster.owner_id != null ? userById.get(String(roster.owner_id)) : null);
+    return displayNameForUser(owner, identity.managerName);
   }
 
   const user = userById.get(ownerKey);
