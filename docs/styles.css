@@ -6070,15 +6070,17 @@ body.dock-visible {
 }
 
 .passport-stamp strong {
-  display: block;
+  display: inline-block;
+  width: max-content;
+  max-width: 100%;
   margin: 0.28rem 0 0.2rem;
-  padding: 0.4rem 0.5rem;
+  padding: 0.4rem 0.55rem;
   border: 1px dashed color-mix(in srgb, hsl(var(--stamp-hue, 168), 62%, 52%) 45%, var(--line));
   border-radius: 6px;
   background: var(--panel);
   font-size: 0.78rem;
   line-height: 1.25;
-  transform: rotate(-0.8deg);
+  transform: rotate(-1.1deg);
   transform-origin: left top;
 }
 
