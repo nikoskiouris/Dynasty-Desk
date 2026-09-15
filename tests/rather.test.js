@@ -114,6 +114,7 @@ test("renderRatherMarkup shows headline, format detail, and two players", () => 
   assert.match(html, /full PPR scoring · 12-man league · Superflex QB/);
   assert.match(html, /Drake Maye/);
   assert.match(html, /Malik Nabers/);
+  assert.doesNotMatch(html, /Dynasty asset/);
   assert.match(html, /data-rather-pick="player:11564"/);
   assert.match(html, /id="rather-skip"/);
   assert.doesNotMatch(html, /8510/);

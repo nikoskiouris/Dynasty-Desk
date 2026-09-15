@@ -151,7 +151,7 @@ function renderRatherPlayerButton(player, side) {
     : "";
   const meta = player?.meta
     ? `<small class="rather-meta">${escapeHtml(player.meta)}</small>`
-    : `<small class="rather-meta rather-meta-empty">Dynasty asset</small>`;
+    : "";
   return `
     <button
       type="button"
