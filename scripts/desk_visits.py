@@ -1,43 +1,42 @@
 #!/usr/bin/env python3
-"""Print stored visit totals as four unlabeled numbers: today, week, year, all-time."""
+"""Print stored desk traffic as eight unlabeled numbers.
+
+Order: today views, today people, week views, week people,
+year views, year people, all-time views, all-time people.
+
+Views increment on every live desk load. People are unique hashed
+IP + user-agent values for that period. Bots are skipped.
+"""
 from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
 from urllib.error import URLError
-from urllib.parse import urlencode
 from urllib.request import urlopen
 
-SITE = "dynastyticker.com"
-BASE = ""
-API = "https://page-views-api.ratneshc.com/api/v1/views"
+API = "https://dynastyticker.com/api/views"
+PERIODS = ("today", "week", "year", "all")
 
 
-def period_keys(now: datetime) -> tuple[str, str, str]:
-    iso = now.isocalendar()
-    day = now.strftime("%Y-%m-%d")
-    week = f"{iso.year}-W{iso.week:02d}"
-    year = str(now.year)
-    return day, week, year
-
-
-def views(path: str) -> int:
-    query = urlencode({"site": SITE, "path": path})
-    with urlopen(f"{API}?{query}", timeout=10) as response:
-        payload = json.load(response)
-    try:
-        value = int(payload.get("views") or 0)
-    except (TypeError, ValueError):
-        return 0
-    return max(0, value)
+def counts(payload: object) -> list[int]:
+    data = payload if isinstance(payload, dict) else {}
+    rows: list[int] = []
+    for period in PERIODS:
+        bucket = data.get(period) if isinstance(data.get(period), dict) else {}
+        for key in ("views", "people"):
+            try:
+                value = int(bucket.get(key) or 0)
+            except (TypeError, ValueError):
+                value = 0
+            rows.append(max(0, value))
+    return rows
 
 
 def main() -> int:
-    now = datetime.now(timezone.utc)
-    day, week, year = period_keys(now)
-    for path in (f"{BASE}/d/{day}", f"{BASE}/w/{week}", f"{BASE}/y/{year}", BASE or "/"):
-        print(views(path))
+    with urlopen(API, timeout=10) as response:
+        payload = json.load(response)
+    for value in counts(payload):
+        print(value)
     return 0
 
 

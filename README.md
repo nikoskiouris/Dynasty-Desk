@@ -71,6 +71,22 @@ The app is a static site. Host is **Netlify**, not GitHub Pages. Public URL: `ht
 
 Tests: `.github/workflows/test.yml`.
 
+### Traffic (how many people, how many hits)
+
+There is no perfect “people” count. Use two numbers and do not mix them.
+
+1. **CDN logs — all hits.** In Netlify go to **Analytics & metrics → Analytics → Enable Analytics**. That reads server logs: pageviews = HTML served, unique visitors = distinct IPs. It sees users with ad blockers and with JavaScript off. It also counts bots and 404s. Charts update hourly and keep about 30 days. This is the most complete picture of raw traffic.
+
+2. **Desk opens — people who actually loaded the app.** The live site POSTs to first-party `/api/visit` (same host, no Google Analytics, no cookies). Reloads add **views**. The same IP + browser counts once as **people** for today / this ISO week / this year / all-time. Obvious bot user-agents are skipped. Print the eight unlabeled totals with:
+
+```
+python3 scripts/desk_visits.py
+```
+
+Order: today views, today people, week views, week people, year views, year people, all-time views, all-time people.
+
+The old third-party `page-views-api.ratneshc.com` counter is retired. It only counted a browser once via localStorage, so it missed private windows, undercounted people who blocked the third-party host, and could not tell traffic from people.
+
 ## CLI
 
 ```bash

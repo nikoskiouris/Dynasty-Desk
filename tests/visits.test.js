@@ -4,186 +4,121 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  VISIT_COUNTED_KEY,
-  VISIT_DAY_KEY,
-  VISIT_WEEK_KEY,
-  VISIT_YEAR_KEY,
   isLiveDeskHost,
+  isSecretNumbersPath,
   loadSecretNumbers,
-  pendingVisitKinds,
-  readVisitCounted,
   recordDeskVisit,
   renderSecretNumbers,
   shouldTrackVisit,
   visitCountUrl,
-  visitPathFor,
-  visitPeriodKeys,
   visitTrackUrl,
-  writeVisitCounted,
 } from "../docs/modules/visits.js";
 
-const docs = join(dirname(fileURLToPath(import.meta.url)), "../docs");
-const NOW = new Date("2026-09-16T18:00:00.000Z");
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const docs = join(root, "docs");
 
-function memoryStorage(start = new Map()) {
-  return {
-    getItem(key) {
-      return start.has(key) ? start.get(key) : null;
-    },
-    setItem(key, value) {
-      start.set(key, String(value));
-    },
-    map: start,
-  };
-}
-
-test("visit URLs stay on the public dynastyticker.com path", () => {
-  assert.match(visitTrackUrl(NOW), /\/track\?/);
-  assert.match(visitTrackUrl(NOW), /dynastyticker\.com/);
-  assert.match(visitCountUrl(NOW), /\/views\?/);
-  assert.doesNotMatch(visitTrackUrl(NOW), /github\.io/);
+test("visit URLs stay first-party on the live host", () => {
+  const live = { hostname: "dynastyticker.com" };
+  assert.equal(visitTrackUrl(live), "https://dynastyticker.com/api/visit");
+  assert.equal(visitCountUrl(live), "https://dynastyticker.com/api/views");
+  assert.doesNotMatch(visitTrackUrl(live), /page-views-api|ratneshc|github\.io/);
+  assert.equal(visitTrackUrl({ hostname: "127.0.0.1" }), "http://127.0.0.1/api/visit");
 });
 
-test("period keys use UTC day, ISO week, and calendar year", () => {
-  const periods = visitPeriodKeys(NOW);
-  assert.equal(periods.day, "2026-09-16");
-  assert.equal(periods.week, "2026-W38");
-  assert.equal(periods.year, "2026");
-  assert.match(visitPathFor("today", periods), /\/d\/2026-09-16$/);
-  assert.match(visitPathFor("week", periods), /\/w\/2026-W38$/);
-  assert.match(visitPathFor("year", periods), /\/y\/2026$/);
-  assert.equal(visitPathFor("all", periods), "/");
-});
-
-test("only the live dynastyticker.com host records a first visit", () => {
-  const storage = memoryStorage();
+test("only the live dynastyticker.com host records a desk open", () => {
   assert.equal(isLiveDeskHost({ hostname: "127.0.0.1" }), false);
   assert.equal(isLiveDeskHost({ hostname: "nikoskiouris.github.io" }), false);
   assert.equal(isLiveDeskHost({ hostname: "dynastyticker.com" }), true);
   assert.equal(isLiveDeskHost({ hostname: "www.dynastyticker.com" }), true);
-  assert.equal(readVisitCounted(storage), false);
-  assert.equal(shouldTrackVisit({ location: { hostname: "localhost" }, storage, now: NOW }), false);
-  assert.equal(shouldTrackVisit({ location: { hostname: "dynastyticker.com" }, storage, now: NOW }), true);
-  writeVisitCounted(storage);
-  assert.equal(storage.map.get(VISIT_COUNTED_KEY), "1");
-  assert.deepEqual(pendingVisitKinds({ storage, now: NOW }), ["today", "week", "year"]);
+  assert.equal(shouldTrackVisit({ location: { hostname: "localhost" } }), false);
+  assert.equal(shouldTrackVisit({ location: { hostname: "dynastyticker.com" } }), true);
+  assert.equal(isSecretNumbersPath({ pathname: "/secret-numbers/" }), true);
+  assert.equal(shouldTrackVisit({
+    location: { hostname: "dynastyticker.com", pathname: "/secret-numbers/" },
+  }), false);
 });
 
-test("recordDeskVisit pings today, week, year, and all-time on a first live visit", async () => {
-  const storage = memoryStorage();
+test("recordDeskVisit POSTs every live load and never hits views", async () => {
   const calls = [];
-  const fetchFn = async (url) => {
-    calls.push(url);
+  const fetchFn = async (url, options = {}) => {
+    calls.push({ url, method: options.method || "GET" });
     return { ok: true };
   };
 
   assert.equal(await recordDeskVisit({
     fetchFn,
     location: { hostname: "dynastyticker.com" },
-    storage,
-    now: NOW,
   }), true);
-  assert.equal(calls.length, 4);
-  assert.match(calls[0], /path=%2Fd%2F2026-09-16/);
-  assert.match(calls[1], /path=%2Fw%2F2026-W38/);
-  assert.match(calls[2], /path=%2Fy%2F2026/);
-  assert.match(calls[3], /path=%2F$/);
-  assert.doesNotMatch(calls.join("\n"), /\/views\?/);
-  assert.equal(storage.map.get(VISIT_DAY_KEY), "2026-09-16");
-  assert.equal(storage.map.get(VISIT_WEEK_KEY), "2026-W38");
-  assert.equal(storage.map.get(VISIT_YEAR_KEY), "2026");
-  assert.equal(storage.map.get(VISIT_COUNTED_KEY), "1");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "POST");
+  assert.match(calls[0].url, /\/api\/visit$/);
 
-  calls.length = 0;
   assert.equal(await recordDeskVisit({
     fetchFn,
     location: { hostname: "dynastyticker.com" },
-    storage,
-    now: NOW,
+  }), true);
+  assert.equal(calls.length, 2);
+});
+
+test("localhost and the numbers page do not ping the counter", async () => {
+  const calls = [];
+  const fetchFn = async (url) => {
+    calls.push(url);
+    return { ok: true };
+  };
+  assert.equal(await recordDeskVisit({
+    fetchFn,
+    location: { hostname: "127.0.0.1" },
+  }), false);
+  assert.equal(await recordDeskVisit({
+    fetchFn,
+    location: { hostname: "dynastyticker.com", pathname: "/secret-numbers" },
   }), false);
   assert.equal(calls.length, 0);
 });
 
-test("a new UTC day only pings the day bucket", async () => {
-  const storage = memoryStorage(new Map([
-    [VISIT_DAY_KEY, "2026-09-16"],
-    [VISIT_WEEK_KEY, "2026-W38"],
-    [VISIT_YEAR_KEY, "2026"],
-    [VISIT_COUNTED_KEY, "1"],
-  ]));
-  const calls = [];
-  const nextDay = new Date("2026-09-17T01:00:00.000Z");
-  await recordDeskVisit({
-    fetchFn: async (url) => {
-      calls.push(url);
-      return { ok: true };
-    },
-    location: { hostname: "dynastyticker.com" },
-    storage,
-    now: nextDay,
-  });
-  assert.equal(calls.length, 1);
-  assert.match(calls[0], /path=%2Fd%2F2026-09-17/);
-  assert.equal(storage.map.get(VISIT_DAY_KEY), "2026-09-17");
-});
-
-test("localhost does not ping the live counter", async () => {
-  const calls = [];
-  const recorded = await recordDeskVisit({
-    fetchFn: async (url) => {
-      calls.push(url);
-      return { ok: true };
-    },
-    location: { hostname: "127.0.0.1" },
-    storage: memoryStorage(),
-    now: NOW,
-  });
-  assert.equal(recorded, false);
-  assert.equal(calls.length, 0);
-});
-
-test("a failed ping leaves the browser uncounted so it can retry", async () => {
-  const storage = memoryStorage();
+test("a failed ping stays uncounted so the next load can retry", async () => {
   const recorded = await recordDeskVisit({
     fetchFn: async () => {
       throw new Error("offline");
     },
     location: { hostname: "dynastyticker.com" },
-    storage,
-    now: NOW,
   });
   assert.equal(recorded, false);
-  assert.equal(storage.map.get(VISIT_COUNTED_KEY), undefined);
-  assert.equal(storage.map.get(VISIT_DAY_KEY), undefined);
 });
 
-test("secret numbers are four unlabeled lines", () => {
-  assert.equal(renderSecretNumbers([12, 34, 56, 78]), "12\n34\n56\n78");
-  assert.equal(renderSecretNumbers(null), "0\n0\n0\n0");
+test("secret numbers are eight unlabeled lines", () => {
+  assert.equal(renderSecretNumbers([12, 3, 40, 8, 200, 50, 500, 80]), "12\n3\n40\n8\n200\n50\n500\n80");
+  assert.equal(renderSecretNumbers(null), "0\n0\n0\n0\n0\n0\n0\n0");
 });
 
-test("loadSecretNumbers reads four view totals and never tracks", async () => {
+test("loadSecretNumbers reads the eight totals and never tracks", async () => {
   const calls = [];
   const counts = await loadSecretNumbers({
-    now: NOW,
     fetchFn: async (url) => {
       calls.push(url);
-      const views = calls.length;
-      return { ok: true, json: async () => ({ views }) };
+      return {
+        ok: true,
+        json: async () => ({
+          today: { views: 1, people: 2 },
+          week: { views: 3, people: 4 },
+          year: { views: 5, people: 6 },
+          all: { views: 7, people: 8 },
+        }),
+      };
     },
   });
-  assert.deepEqual(counts, [1, 2, 3, 4]);
-  assert.equal(calls.length, 4);
-  for (const url of calls) assert.match(url, /\/views\?/);
+  assert.deepEqual(counts, [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /\/api\/views$/);
 });
 
 test("loadSecretNumbers treats hung views as zero", async () => {
   const counts = await loadSecretNumbers({
-    now: NOW,
     timeoutMs: 20,
     fetchFn: () => new Promise(() => {}),
   });
-  assert.deepEqual(counts, [0, 0, 0, 0]);
+  assert.deepEqual(counts, [0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 test("the desk stores visits but never prints the total on public pages", () => {
@@ -203,6 +138,7 @@ test("the desk stores visits but never prints the total on public pages", () => 
   assert.doesNotMatch(privacy, /visit count/i);
   assert.doesNotMatch(privacy, /page-views-api/);
   assert.doesNotMatch(privacy, /secret-numbers/);
+  assert.match(privacy, /recordDeskVisit/);
 
   const sitemap = readFileSync(join(docs, "sitemap.xml"), "utf8");
   assert.doesNotMatch(sitemap, /secret-numbers/);
@@ -213,6 +149,7 @@ test("the desk stores visits but never prints the total on public pages", () => 
   for (const name of ["terms.html", "404.html"]) {
     assert.doesNotMatch(readFileSync(join(docs, name), "utf8"), /secret-numbers/);
   }
+  assert.match(readFileSync(join(docs, "terms.html"), "utf8"), /recordDeskVisit/);
 });
 
 test("the unlisted numbers page is bare and unlabeled", () => {
@@ -222,9 +159,29 @@ test("the unlisted numbers page is bare and unlabeled", () => {
   assert.match(html, /noindex/);
   assert.match(html, /loadSecretNumbers/);
   assert.match(html, /innerText/);
-  assert.match(html, /0<br>0<br>0<br>0/);
+  assert.match(html, /0<br>0<br>0<br>0<br>0<br>0<br>0<br>0/);
   assert.doesNotMatch(html, /stylesheet/);
   assert.doesNotMatch(html, /Dynasty/);
   assert.doesNotMatch(html, /today|week|year|all.time|users/i);
   assert.doesNotMatch(html, /<nav|<footer|<a /);
+});
+
+test("Netlify serves the first-party counter ahead of the 404 catch-all", () => {
+  const toml = readFileSync(join(root, "netlify.toml"), "utf8");
+  const visitAt = toml.indexOf('from = "/api/visit"');
+  const viewsAt = toml.indexOf('from = "/api/views"');
+  const notFoundAt = toml.indexOf('from = "/*"');
+  assert.ok(visitAt > 0);
+  assert.ok(viewsAt > visitAt);
+  assert.ok(notFoundAt > viewsAt);
+  assert.match(toml, /\.netlify\/functions\/visit/);
+
+  const fn = readFileSync(join(root, "netlify/functions/visit.js"), "utf8");
+  assert.match(fn, /desk-traffic/);
+  assert.match(fn, /\/api\/visit/);
+  assert.match(fn, /\/api\/views/);
+
+  const script = readFileSync(join(root, "scripts/desk_visits.py"), "utf8");
+  assert.match(script, /dynastyticker\.com\/api\/views/);
+  assert.doesNotMatch(script, /page-views-api|ratneshc/);
 });
