@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Dynasty Desk — My Team, League, Trades</title>
-    <meta name="description" content="Search a Sleeper username. Open your roster DNA, the league hall, luck charms, and a past-trade analyzer." />
+    <title>Dynasty Desk — Fantasy League Command Center</title>
+    <meta name="description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a group-chat recap for your league." />
     <meta name="theme-color" content="#071018" />
     <meta property="og:title" content="Dynasty Desk — Fantasy League Command Center" />
     <meta property="og:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a group-chat recap for your league." />
@@ -46,16 +46,28 @@
           <span class="eyebrow">Dynasty Desk</span>
           <strong id="mobile-chrome-title">League Command Center</strong>
         </div>
-        <button
-          type="button"
-          id="mobile-theme-btn"
-          class="mobile-icon-btn"
-          aria-pressed="false"
-          title="Toggle light and dark theme"
-        >
-          <span id="mobile-theme-icon" class="theme-glyph" aria-hidden="true"></span>
-          <span class="sr-only" id="mobile-theme-label">Light mode</span>
-        </button>
+        <div class="mobile-chrome-actions">
+          <button
+            type="button"
+            id="mobile-share-btn"
+            class="mobile-icon-btn hidden"
+            title="Copy a link to this league and team"
+          >
+            <span class="share-glyph" aria-hidden="true"></span>
+            <span class="sr-only">Copy league link</span>
+          </button>
+          <button
+            type="button"
+            id="mobile-theme-btn"
+            class="mobile-icon-btn"
+            aria-pressed="false"
+            title="Toggle light and dark theme"
+          >
+            <span id="mobile-theme-icon" class="theme-glyph" aria-hidden="true"></span>
+            <span class="sr-only" id="mobile-theme-label">Light mode</span>
+          </button>
+        </div>
+        <span id="mobile-share-feedback" class="feedback-chip mobile-share-feedback hidden" role="status">Link copied</span>
       </header>
       <div class="rail-backdrop" id="rail-backdrop" hidden></div>
       <aside class="control-rail" id="control-rail" aria-label="League controls">
@@ -177,38 +189,23 @@
           </dl>
         </header>
 
-        <nav class="workspace-tabs hidden" id="page-tabs" role="tablist" aria-label="Workspace pages">
-          <button id="team-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="team-page" tabindex="-1" data-page="team">
-            <span class="tab-copy"><strong>My Team</strong><small>Lineup, DNA, charms</small></span>
-          </button>
-          <button id="league-tab" class="page-tab active" type="button" role="tab" aria-selected="true" aria-controls="league-page" tabindex="0" data-page="league">
-            <span class="tab-copy"><strong>League</strong><small id="league-tab-hint">Now, awards, recap, hall</small></span>
-          </button>
-          <div class="page-tab-wrap" id="trader-tab-wrap" data-page="trader">
-            <button id="trader-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="trader-menu" aria-haspopup="menu" aria-expanded="false" tabindex="-1" data-page="trader">
-              <span class="tab-copy"><strong>Trades</strong><small id="trader-tab-hint">History, calculator, find deals</small></span>
-              <span class="tab-caret" aria-hidden="true"></span>
+        <div class="desk-nav hidden" id="desk-nav">
+          <nav class="workspace-tabs" id="page-tabs" role="tablist" aria-label="Desk pages">
+            <button id="league-tab" class="page-tab active" type="button" role="tab" aria-selected="true" aria-controls="league-page" tabindex="0" data-page="league">
+              <span class="tab-copy"><strong>League</strong><small>Scores, standings, awards</small></span>
             </button>
-            <div id="trader-menu" class="page-tab-menu" role="menu" aria-label="Trade pages" hidden>
-              <button type="button" role="menuitem" data-trade-room="history">
-                <strong>Trade History</strong>
-                <small>Grades, record since, the file</small>
-              </button>
-              <button type="button" role="menuitem" data-trade-room="calculator">
-                <strong>Calculator</strong>
-                <small>Build both sides by hand</small>
-              </button>
-              <button type="button" role="menuitem" data-trade-room="passport">
-                <strong>Passport</strong>
-                <small>Career stamps</small>
-              </button>
-              <button type="button" role="menuitem" data-trade-room="lab">
-                <strong>Find deals</strong>
-                <small>Shop, acquire, blockbuster</small>
-              </button>
-            </div>
-          </div>
-        </nav>
+            <button id="teams-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="teams-page" tabindex="-1" data-page="teams">
+              <span class="tab-copy"><strong>Teams</strong><small>Rosters, loyalty, passports</small></span>
+            </button>
+            <button id="trades-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="trades-page" tabindex="-1" data-page="trades">
+              <span class="tab-copy"><strong>Trades</strong><small>Log, calculator, find deals</small></span>
+            </button>
+            <button id="history-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="history-page" tabindex="-1" data-page="history">
+              <span class="tab-copy"><strong>History</strong><small>Hall, seasons, records</small></span>
+            </button>
+          </nav>
+          <nav class="room-nav" id="room-nav" role="tablist" aria-label="Rooms on this page"></nav>
+        </div>
 
         <div id="ticker" class="ticker hidden" aria-label="League ticker">
           <span class="ticker-label">Live</span>
@@ -222,7 +219,7 @@
             <div class="landing-copy">
               <span class="step-badge accent">Start</span>
               <h2>Search a Sleeper username to open the desk.</h2>
-              <p class="muted">Type the username, pick the league, done. Team is your board. League is one chapter at a time. Trades is a menu of desks.</p>
+              <p class="muted">Type the username, pick the league, done. Four pages: League for this season, Teams for every roster, Trades for deals, History for the archive.</p>
               <div class="landing-actions">
                 <button id="landing-demo-btn" type="button">Open demo league</button>
                 <button id="landing-focus-btn" type="button" class="ghost-btn">I have a username</button>
@@ -233,98 +230,89 @@
               </p>
             </div>
             <ul class="landing-features">
-              <li><strong>My Team</strong><span>Lineup, roster DNA, longest-tenured, luck charms, and the trade you still regret.</span></li>
-              <li><strong>League</strong><span>Now, awards, recap, and the hall — pick one chapter, not a long scroll.</span></li>
-              <li><strong>Trades</strong><span>History, calculator, passports, and find deals. Each desk is its own page.</span></li>
+              <li><strong>League</strong><span>Live scores, standings, playoff odds, power rankings, weekly awards, and a group-chat recap.</span></li>
+              <li><strong>Teams</strong><span>Scout any roster: optimal lineup, pick vault, roster DNA, luck charms, and player passports.</span></li>
+              <li><strong>Trades</strong><span>Graded trade log, a calculator that verdicts both sides, and a generator that finds deals for you.</span></li>
+              <li><strong>History</strong><span>All-time hall, season ledger, manager comparisons, and the record book.</span></li>
             </ul>
           </div>
         </section>
 
-        <div id="team-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="team-tab">
-          <section class="workspace-panel" id="teams-section">
-            <div class="panel-heading">
-              <div>
-                <span class="eyebrow">My Team</span>
-                <h2>Roster, DNA, loyalty</h2>
-              </div>
-              <p class="section-copy">Your board first. Tap another manager to scout them. Charms, tenure, and roster DNA live with the lineup.</p>
-            </div>
-            <div id="teams-grid" class="teams-grid"></div>
-          </section>
-
-          <div id="loyalty-dashboard" class="loyalty-dashboard"></div>
-
-          <section class="workspace-panel" id="power-section">
-            <div class="panel-heading">
-              <div>
-                <span class="eyebrow">Scout Card</span>
-                <h2 id="power-heading">Roster power</h2>
-              </div>
-              <p class="section-copy">Power score, lineup rank, position map, and Sleeper intel for the selected roster.</p>
-            </div>
-            <div id="power-dashboard" class="power-dashboard">
-              <p class="muted">Load values to score this roster.</p>
-            </div>
-          </section>
-
-          <section class="workspace-panel" id="roster-sheet-section">
-            <div class="panel-heading">
-              <div>
-                <span class="eyebrow">Roster Sheet</span>
-                <h2 id="roster-sheet-heading">Lineup, bench, and picks</h2>
-              </div>
-              <p class="section-copy">Optimal starting lineup by dynasty value, bench depth, and the full pick vault.</p>
-            </div>
-            <div id="roster-sheet" class="roster-sheet"></div>
-          </section>
-        </div>
-
         <div id="league-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="league-tab">
-          <nav class="league-jump" id="league-jump" aria-label="League pages">
-            <button type="button" data-league-room="now">Now</button>
-            <button type="button" data-league-room="awards">Awards</button>
-            <button type="button" data-league-room="recap">Recap</button>
-            <button type="button" data-league-room="hall">Hall</button>
-          </nav>
-          <div id="league-now" class="league-room" data-league-room-panel="now">
-            <div id="home-dashboard" class="home-dashboard"></div>
+          <div class="room" data-room-panel="scores">
+            <div id="scores-dashboard" class="dashboard"></div>
           </div>
-          <div id="league-awards" class="league-room hidden" data-league-room-panel="awards">
-            <div id="awards-dashboard" class="awards-dashboard"></div>
+          <div class="room hidden" data-room-panel="standings">
+            <div id="standings-dashboard" class="dashboard"></div>
           </div>
-          <div id="league-recap" class="league-room hidden" data-league-room-panel="recap">
-            <div id="recap-dashboard" class="recap-dashboard"></div>
+          <div class="room hidden" data-room-panel="power">
+            <div id="power-board-dashboard" class="dashboard"></div>
           </div>
-          <section class="workspace-panel league-room hidden" id="analytics-section" data-league-room-panel="hall">
-            <div class="panel-heading" id="league-hall">
-              <div>
-                <span class="eyebrow">All-time hall</span>
-                <h2>Dynasty history</h2>
-              </div>
-              <p class="section-copy">Finish heatmap, career table, rivalries, hottest-since / fleece wire, and season comparisons.</p>
-            </div>
-            <div id="analytics-dashboard" class="analytics-dashboard">
-              <p class="muted">Load a league and choose a team to generate analytics.</p>
-            </div>
-          </section>
+          <div class="room hidden" data-room-panel="awards">
+            <div id="awards-dashboard" class="dashboard"></div>
+          </div>
+          <div class="room hidden" data-room-panel="recap">
+            <div id="recap-dashboard" class="dashboard"></div>
+          </div>
         </div>
 
-        <div id="trader-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="trader-tab">
-          <div id="trade-history-room" class="trade-room" data-trade-room-panel="history">
-            <div id="trade-history-dashboard" class="trade-history-dashboard"></div>
+        <div id="teams-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="teams-tab">
+          <div class="room" data-room-panel="roster">
+            <section class="workspace-panel" id="teams-section">
+              <div class="panel-heading">
+                <div>
+                  <span class="eyebrow">Teams</span>
+                  <h2>Pick a roster to scout</h2>
+                </div>
+                <p class="section-copy">Ranked by dynasty power score. Your team is outlined. Tap any card to open its scout card and lineup below, or start a trade.</p>
+              </div>
+              <div id="teams-grid" class="teams-grid"></div>
+            </section>
+
+            <section class="workspace-panel" id="power-section">
+              <div class="panel-heading">
+                <div>
+                  <span class="eyebrow">Scout Card</span>
+                  <h2 id="power-heading">Roster power</h2>
+                </div>
+                <p class="section-copy">Power score, lineup rank, position map, and Sleeper intel for the selected roster.</p>
+              </div>
+              <div id="power-dashboard" class="power-dashboard">
+                <p class="muted">Load values to score this roster.</p>
+              </div>
+            </section>
+
+            <section class="workspace-panel" id="roster-sheet-section">
+              <div class="panel-heading">
+                <div>
+                  <span class="eyebrow">Roster Sheet</span>
+                  <h2 id="roster-sheet-heading">Lineup, bench, and picks</h2>
+                </div>
+                <p class="section-copy">Optimal starting lineup by dynasty value, bench depth, the full pick vault, and this season's game log.</p>
+              </div>
+              <div id="roster-sheet" class="roster-sheet"></div>
+            </section>
+          </div>
+          <div class="room hidden" data-room-panel="loyalty">
+            <div id="loyalty-dashboard" class="loyalty-dashboard"></div>
+          </div>
+          <div class="room hidden" data-room-panel="passports">
+            <div id="passport-dashboard" class="dashboard"></div>
+          </div>
+        </div>
+
+        <div id="trades-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="trades-tab">
+          <div class="room" data-room-panel="log">
+            <div id="trade-log-dashboard" class="dashboard"></div>
           </div>
 
-          <div id="trade-passport-room" class="trade-room hidden" data-trade-room-panel="passport">
-            <div id="trade-passport-dashboard" class="trade-passport-dashboard"></div>
-          </div>
-
-          <div id="trade-calculator-room" class="trade-room hidden" data-trade-room-panel="calculator">
+          <div class="room hidden" data-room-panel="calculator">
             <section class="workspace-panel" id="calculator-section">
               <div id="calculator-shell" class="calculator-shell"></div>
             </section>
           </div>
 
-          <div id="trade-lab-room" class="trade-room hidden" data-trade-room-panel="lab">
+          <div class="room hidden" data-room-panel="lab">
             <section class="workspace-panel" id="player-section">
               <div class="panel-heading">
                 <div>
@@ -393,6 +381,20 @@
               </div>
               <div id="results-list"></div>
             </section>
+          </div>
+        </div>
+
+        <div id="history-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="history-tab">
+          <div class="room" data-room-panel="hall">
+            <div id="hall-dashboard" class="dashboard analytics-dashboard">
+              <p class="muted">Load a league and choose a team to open the hall.</p>
+            </div>
+          </div>
+          <div class="room hidden" data-room-panel="seasons">
+            <div id="seasons-dashboard" class="dashboard analytics-dashboard"></div>
+          </div>
+          <div class="room hidden" data-room-panel="records">
+            <div id="records-dashboard" class="dashboard"></div>
           </div>
         </div>
 

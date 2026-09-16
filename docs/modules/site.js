@@ -1,4 +1,5 @@
-import { DEFAULT_LEAGUE_ROOM, LEAGUE_ROOM_HINTS, LEAGUE_ROOM_LABELS, TRADE_ROOM_HINTS, TRADE_ROOM_LABELS } from "./constants.js";
+import { DEFAULT_ROOMS, PAGE_HINTS, PAGE_LABELS, ROOM_HINTS, ROOM_LABELS } from "./constants.js";
+import { normalizeDeskTab, normalizeRoom } from "./parse.js";
 
 export const SITE_NAME = "Dynasty Desk";
 export const SITE_ORIGIN = "https://nikoskiouris.github.io";
@@ -15,46 +16,46 @@ export const DEFAULT_DESCRIPTION =
 
 export const PAGE_META = {
   league: {
-    title: "League",
-    description: "Live scores, standings, odds, awards, recap, and the all-time dynasty hall.",
-  },
-  team: {
-    title: "My Team",
-    description: "Your lineup, roster DNA, luck charms, tenure, and dynasty story.",
-  },
-  trader: {
-    title: "Trades",
-    description: "Trade history, calculator, player passports, and find deals — each on its own desk.",
-  },
-  home: {
-    title: "League",
-    description: "Live scores, standings, odds, awards, recap, and the all-time dynasty hall.",
+    title: PAGE_LABELS.league,
+    description: "Live scores, standings, playoff odds, power rankings, weekly awards, and a group-chat recap.",
   },
   teams: {
-    title: "My Team",
-    description: "Your lineup, roster DNA, luck charms, tenure, and dynasty story.",
+    title: PAGE_LABELS.teams,
+    description: "Scout any roster: optimal lineup, bench, pick vault, roster DNA, luck charms, and player passports.",
   },
-  recap: {
-    title: "League",
-    description: "Group-chat recap of scores, awards, standings, and odds. Copy text or save an image card.",
+  trades: {
+    title: PAGE_LABELS.trades,
+    description: "Graded trade log, a two-team calculator, and a generator that finds deals across the league.",
+  },
+  history: {
+    title: PAGE_LABELS.history,
+    description: "All-time hall, season ledger, manager comparisons, and the league record book.",
+  },
+};
+
+const ROOM_DESCRIPTIONS = {
+  league: {
+    recap: "Group-chat recap of scores, awards, standings, and odds. Copy text or save an image card.",
   },
 };
 
 function pageMetaFor({ page = "", room = "" } = {}) {
-  const base = PAGE_META[page];
-  if (page === "trader" && room && TRADE_ROOM_LABELS[room]) {
+  const pageId = normalizeDeskTab(page);
+  const base = PAGE_META[pageId];
+  if (!base) return null;
+  const roomId = normalizeRoom(pageId, room) || normalizeRoom(pageId, page);
+  if (roomId && roomId !== DEFAULT_ROOMS[pageId]) {
     return {
-      title: TRADE_ROOM_LABELS[room],
-      description: base?.description || TRADE_ROOM_HINTS[room] || "",
+      title: ROOM_LABELS[pageId]?.[roomId] || base.title,
+      description: ROOM_DESCRIPTIONS[pageId]?.[roomId]
+        || (ROOM_HINTS[pageId]?.[roomId] ? `${ROOM_HINTS[pageId][roomId]}.` : base.description),
     };
   }
-  if (page === "league" && room && room !== DEFAULT_LEAGUE_ROOM && LEAGUE_ROOM_LABELS[room]) {
-    return {
-      title: LEAGUE_ROOM_LABELS[room],
-      description: LEAGUE_ROOM_HINTS[room] || base?.description || "",
-    };
-  }
-  return base || null;
+  return base;
+}
+
+export function pageHintFor(page) {
+  return PAGE_HINTS[normalizeDeskTab(page)] || "";
 }
 
 export function buildDocumentTitle({ page = "", leagueName = "", loaded = false, room = "" } = {}) {
