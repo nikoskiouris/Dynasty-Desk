@@ -41,8 +41,6 @@ Four pages. Each page has a row of rooms under it, so every feature is at most t
    - **Seasons** — season archive and side-by-side comparisons.
    - **Records** — all-time record book from archive matchups.
 
-Demo league: [Try Hard or Die Hard](https://sleeper.app/leagues/1315165104303513600) (`1315165104303513600`).
-
 ### Live Sunday scores
 The desk polls Sleeper matchups on the NFL window (Thu–Mon UTC) and whenever the current week already has points. Scoreboard, ticker, awards, and recap refresh. The 4000-season Monte Carlo does **not** rerun on every point tick. It refreshes when a week finals, remaining games change, or ~3 minutes have passed.
 

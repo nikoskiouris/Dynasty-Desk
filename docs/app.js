@@ -24,8 +24,6 @@ import {
   ROOM_HINTS,
   DEFAULT_FAIRNESS_PCT,
   DEFAULT_MAX_RESULTS,
-  DEMO_LEAGUE_ID,
-  AUTOSELECT_MANAGER_BY_LEAGUE,
   TRANSACTION_WEEK_START,
   TRANSACTION_WEEK_FALLBACK_END,
   ANALYTICS_RECENT_TRADE_LIMIT,
@@ -237,9 +235,6 @@ const el = {
   leagueId: document.querySelector("#league-id"),
   leagueLoadForm: document.querySelector("#league-load-form"),
   loadLeagueBtn: document.querySelector("#load-league-btn"),
-  railDemoBtn: document.querySelector("#rail-demo-btn"),
-  copyLeagueIdBtn: document.querySelector("#copy-league-id-btn"),
-  copyLeagueIdFeedback: document.querySelector("#copy-league-id-feedback"),
   leagueStatus: document.querySelector("#league-status"),
   leagueStatusText: document.querySelector("#league-status-text"),
   leagueStatusLoader: document.querySelector("#league-status-loader"),
@@ -295,7 +290,6 @@ const el = {
   themeToggleBtn: document.querySelector("#theme-toggle-btn"),
   shareLinkBtn: document.querySelector("#share-link-btn"),
   shareLinkFeedback: document.querySelector("#share-link-feedback"),
-  landingDemoBtn: document.querySelector("#landing-demo-btn"),
   landingFindBtn: document.querySelector("#landing-find-btn"),
   landingUsername: document.querySelector("#landing-username"),
   landingUsernameForm: document.querySelector("#landing-username-form"),
@@ -308,7 +302,6 @@ const el = {
   generateError: document.querySelector("#generate-error"),
   stickyMobileCta: document.querySelector("#sticky-mobile-cta"),
   stickyFindBtn: document.querySelector("#sticky-find-btn"),
-  stickyDemoBtn: document.querySelector("#sticky-demo-btn"),
   storageNotice: document.querySelector("#storage-notice"),
   storageNoticeDismiss: document.querySelector("#storage-notice-dismiss"),
   mobileChromeTitle: document.querySelector("#mobile-chrome-title"),
@@ -330,7 +323,6 @@ const el = {
 let leagueLoadPromise = null;
 let leagueLoadAnimationTimer = null;
 let leagueLoadStartedAt = 0;
-let copyFeedbackTimer = null;
 let shareFeedbackTimer = null;
 let livePoller = null;
 let liveVisibilityBound = false;
@@ -396,9 +388,6 @@ el.leagueId?.addEventListener("keydown", (event) => {
     requestLoadLeague(event);
   }
 });
-el.railDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
-el.railDemoBtn?.addEventListener("click", loadDemoLeague);
-el.copyLeagueIdBtn?.addEventListener("click", copyHelperLeagueId);
 el.pageTabButtons?.forEach((button) => {
   button.addEventListener("click", () => {
     if (button.dataset.page === state.activePage) {
@@ -441,11 +430,7 @@ window.matchMedia(PHONE_LAYOUT_QUERY).addEventListener("change", () => {
 });
 el.shareLinkBtn?.addEventListener("click", copyShareLink);
 el.landingUsernameForm?.addEventListener("submit", requestFindLeagues);
-el.landingDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
-el.landingDemoBtn?.addEventListener("click", loadDemoLeague);
 el.stickyFindBtn?.addEventListener("click", focusUsernameSearch);
-el.stickyDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
-el.stickyDemoBtn?.addEventListener("click", loadDemoLeague);
 el.storageNoticeDismiss?.addEventListener("click", dismissStorageNotice);
 el.sleeperUsername?.addEventListener("input", () => {
   syncUsernameFields(el.sleeperUsername);
@@ -1161,16 +1146,6 @@ function syncTradeModeUi() {
   renderSessionSnapshot();
 }
 
-function getDemoLeagueId() {
-  return el.copyLeagueIdBtn?.textContent?.trim() || DEMO_LEAGUE_ID;
-}
-
-function loadDemoLeague(event) {
-  event?.preventDefault?.();
-  if (el.leagueId) el.leagueId.value = getDemoLeagueId();
-  void loadLeagueById(getDemoLeagueId());
-}
-
 function requestLoadLeague(event) {
   event?.preventDefault?.();
   const classified = classifyLeagueInput(el.leagueId?.value || el.sleeperUsername?.value);
@@ -1216,12 +1191,6 @@ function handleLoadLeaguePointerDown(event) {
   if (!isPrimaryPointer(event)) return;
   event.preventDefault();
   void requestLoadLeague(event);
-}
-
-function handleDemoLeaguePointerDown(event) {
-  if (!isPrimaryPointer(event)) return;
-  event.preventDefault();
-  loadDemoLeague(event);
 }
 
 async function searchUserLeagues(username) {
@@ -1568,24 +1537,6 @@ function startLivePolling() {
 function handleLiveVisibility() {
   if (!livePoller?.running) return;
   if (!document.hidden) livePoller.resume();
-}
-
-async function copyHelperLeagueId() {
-  const leagueId = el.copyLeagueIdBtn?.textContent?.trim();
-  if (!leagueId) return;
-  const copied = await copyTextToClipboard(leagueId);
-  showCopyFeedback(copied ? "Copied!" : "Copy failed");
-}
-
-function showCopyFeedback(text) {
-  if (!el.copyLeagueIdFeedback) return;
-  el.copyLeagueIdFeedback.textContent = text;
-  el.copyLeagueIdFeedback.classList.remove("hidden");
-
-  clearTimeout(copyFeedbackTimer);
-  copyFeedbackTimer = setTimeout(() => {
-    el.copyLeagueIdFeedback.classList.add("hidden");
-  }, 1500);
 }
 
 async function loadLeagueCoreData(leagueId) {
@@ -2334,10 +2285,6 @@ function hydrateManagerSelector() {
       el.meSelect.appendChild(option);
     });
 
-  const preferredManager = AUTOSELECT_MANAGER_BY_LEAGUE[state.leagueId];
-  const preferredRoster = preferredManager
-    ? state.normalizedRosters.find((roster) => roster.manager.displayName === preferredManager)
-    : null;
   const pendingRoster = state.pendingMeRosterId
     ? state.normalizedRosters.find((roster) => Number(roster.rosterId) === Number(state.pendingMeRosterId))
     : null;
@@ -2347,9 +2294,6 @@ function hydrateManagerSelector() {
   if (pendingRoster) {
     state.meRosterId = pendingRoster.rosterId;
     el.meSelect.value = String(pendingRoster.rosterId);
-  } else if (!preservedRoster && preferredRoster) {
-    state.meRosterId = preferredRoster.rosterId;
-    el.meSelect.value = String(preferredRoster.rosterId);
   } else if (preservedRoster) {
     state.meRosterId = preservedRoster.rosterId;
     el.meSelect.value = String(preservedRoster.rosterId);
@@ -13785,7 +13729,6 @@ function startLeagueLoadingUi() {
     el.stickyFindBtn.disabled = true;
     el.stickyFindBtn.textContent = "Opening…";
   }
-  if (el.stickyDemoBtn) el.stickyDemoBtn.disabled = true;
 
   leagueLoadStartedAt = Date.now();
   setStatus("Loading Sleeper data...", { loading: true });
@@ -13808,7 +13751,6 @@ function stopLeagueLoadingUi() {
     el.stickyFindBtn.disabled = false;
     el.stickyFindBtn.textContent = "Find leagues";
   }
-  if (el.stickyDemoBtn) el.stickyDemoBtn.disabled = false;
   if (!el.loadLeagueBtn) return;
   el.loadLeagueBtn.disabled = false;
   el.loadLeagueBtn.classList.remove("loading");

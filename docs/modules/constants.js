@@ -150,10 +150,6 @@ export const SCOPED_ROOM_ALIASES = {
 };
 export const DEFAULT_FAIRNESS_PCT = 20;
 export const DEFAULT_MAX_RESULTS = 3;
-export const DEMO_LEAGUE_ID = "1315165104303513600";
-export const AUTOSELECT_MANAGER_BY_LEAGUE = {
-  [DEMO_LEAGUE_ID]: "NikoSkiouris",
-};
 export const TRANSACTION_WEEK_START = 1;
 export const TRANSACTION_WEEK_FALLBACK_END = 18;
 export const ANALYTICS_RECENT_TRADE_LIMIT = 6;

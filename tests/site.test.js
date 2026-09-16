@@ -123,6 +123,13 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /rel="canonical"/);
   assert.match(index, /apple-touch-icon/);
   assert.match(index, /id="sticky-mobile-cta"/);
+  assert.match(index, /id="sticky-find-btn"/);
+  assert.doesNotMatch(index, /id="landing-demo-btn"/);
+  assert.doesNotMatch(index, /id="rail-demo-btn"/);
+  assert.doesNotMatch(index, /id="sticky-demo-btn"/);
+  assert.doesNotMatch(index, /id="copy-league-id-btn"/);
+  assert.doesNotMatch(index, /Use demo league/);
+  assert.doesNotMatch(index, /Open demo/);
   assert.match(index, /id="storage-notice"/);
   assert.match(index, /id="landing-rather"/);
   assert.match(index, /id="landing-username"/);
@@ -195,6 +202,8 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   const notFound = readDocs("404.html");
   assert.match(notFound, /Page not found/);
   assert.match(notFound, /<h1>/);
+  assert.doesNotMatch(notFound, /demo league/i);
+  assert.doesNotMatch(notFound, /1315165104303513600/);
 
   const privacy = readDocs("privacy.html");
   assert.match(privacy, /localStorage/);

@@ -350,9 +350,7 @@ h5 {
 
 #load-league-btn,
 #find-leagues-btn,
-#landing-find-btn,
-#landing-demo-btn,
-#rail-demo-btn {
+#landing-find-btn {
   touch-action: manipulation;
 }
 
@@ -638,15 +636,6 @@ button.ghost-btn:hover {
   background: transparent;
   filter: none;
   text-decoration: underline;
-}
-
-.helper-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.5rem;
-  align-items: center;
-  margin: 0.15rem 0 0;
-  color: var(--rail-muted);
 }
 
 .feedback-chip {
@@ -5442,7 +5431,7 @@ body.dock-visible {
 @media (max-width: 700px), (max-height: 500px) and (orientation: landscape) and (hover: none) and (pointer: coarse) {
   .sticky-mobile-cta:not([hidden]) {
     display: grid;
-    grid-template-columns: 1.2fr 0.8fr;
+    grid-template-columns: 1fr;
     gap: 0.5rem;
   }
 
