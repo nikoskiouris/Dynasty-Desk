@@ -1,4 +1,4 @@
-# FantasyDynastyAnalyzer
+# Dynasty Desk
 
 Sleeper dynasty league desk: live scores, standings, playoff odds, awards, archive, and a trade lab. Values stay on KeepTradeCut. The site is static. It talks to Sleeper from the browser.
 

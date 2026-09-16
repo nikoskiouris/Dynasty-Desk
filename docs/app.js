@@ -82,6 +82,7 @@ import {
   playerAgeForAsset,
   isInactivePlayerAsset,
   leagueHasSuperflex,
+  crowdShiftsFromVotes,
 } from "./modules/values.js";
 import { createLivePoller, shouldPollLive, shouldRefreshSim, weekRowsFingerprint } from "./modules/live.js";
 import { buildRecapCardModel, drawRecapCard, renderRecapCardBlob, recapCardFilename } from "./modules/recap-card.js";
@@ -132,17 +133,17 @@ import {
 } from "./modules/site.js";
 import {
   DEFAULT_RATHER_FORMAT,
-  applyRatherOverlayHidden,
   decorateRatherPlayer,
   fetchRatherDraftPicks,
   listRatherPlayers,
   pickRatherPair,
   pushRatherRecentKey,
+  rankRatherPlayers,
   readRatherRecentKeys,
-  readRatherSessionDone,
+  readRatherVotes,
   recordRatherVote,
+  renderLandingRatherPlaceholder,
   renderRatherMarkup,
-  writeRatherSessionDone,
 } from "./modules/rather.js";
 
 const OUTGOING_POOL_LIMIT = 18;
@@ -279,7 +280,11 @@ const el = {
   shareLinkBtn: document.querySelector("#share-link-btn"),
   shareLinkFeedback: document.querySelector("#share-link-feedback"),
   landingDemoBtn: document.querySelector("#landing-demo-btn"),
-  landingFocusBtn: document.querySelector("#landing-focus-btn"),
+  landingFindBtn: document.querySelector("#landing-find-btn"),
+  landingUsername: document.querySelector("#landing-username"),
+  landingUsernameForm: document.querySelector("#landing-username-form"),
+  landingUsernameError: document.querySelector("#landing-username-error"),
+  landingRather: document.querySelector("#landing-rather"),
   landingLoading: document.querySelector("#landing-loading"),
   landingLoadingText: document.querySelector("#landing-loading-text"),
   usernameError: document.querySelector("#username-error"),
@@ -290,8 +295,6 @@ const el = {
   stickyDemoBtn: document.querySelector("#sticky-demo-btn"),
   storageNotice: document.querySelector("#storage-notice"),
   storageNoticeDismiss: document.querySelector("#storage-notice-dismiss"),
-  ratherOverlay: document.querySelector("#rather-overlay"),
-  ratherBody: document.querySelector("#rather-body"),
   mobileChromeTitle: document.querySelector("#mobile-chrome-title"),
   mobileRailToggle: document.querySelector("#mobile-rail-toggle"),
   mobileRailClose: document.querySelector("#mobile-rail-close"),
@@ -321,14 +324,21 @@ let leagueTradeSideCache = { key: "", sides: [] };
 let franchiseIndexCache = { key: "", index: null };
 let applyingHistory = false;
 let ratherPromptPair = null;
-let ratherLastFocus = null;
 let ratherSeasonStatsCache = { season: "", stats: null };
+let ratherPromptContext = {
+  nflPlayers: {},
+  seasonStats: {},
+  draftPicks: {},
+  currentSeason: "",
+  previousSeason: "",
+};
 
 function getAssetValue(asset, values = state.values) {
   return marketAssetValue(asset, values, {
     valueNameMap: state.valueNameMap,
     pickCatalog: state.pickValueCatalog,
     league: state.league,
+    crowdShifts: state.crowdShifts,
   });
 }
 
@@ -400,29 +410,31 @@ el.mobileRailToggle?.addEventListener("click", () => {
 el.mobileRailClose?.addEventListener("click", () => setMobileRailOpen(false));
 el.railBackdrop?.addEventListener("click", () => setMobileRailOpen(false));
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && isRatherPromptOpen()) {
-    event.preventDefault();
-    skipRatherPrompt();
-    return;
-  }
   if (event.key === "Escape" && document.body.classList.contains("rail-open")) {
     setMobileRailOpen(false);
     el.mobileRailToggle?.focus();
   }
 });
-el.ratherOverlay?.addEventListener("click", handleRatherOverlayClick);
+el.landingRather?.addEventListener("click", handleLandingRatherClick);
 window.matchMedia(PHONE_LAYOUT_QUERY).addEventListener("change", () => {
   setMobileRailOpen(false);
 });
 el.shareLinkBtn?.addEventListener("click", copyShareLink);
+el.landingUsernameForm?.addEventListener("submit", requestFindLeagues);
 el.landingDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
 el.landingDemoBtn?.addEventListener("click", loadDemoLeague);
-el.landingFocusBtn?.addEventListener("click", focusUsernameSearch);
 el.stickyFindBtn?.addEventListener("click", focusUsernameSearch);
 el.stickyDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
 el.stickyDemoBtn?.addEventListener("click", loadDemoLeague);
 el.storageNoticeDismiss?.addEventListener("click", dismissStorageNotice);
-el.sleeperUsername?.addEventListener("input", () => setFieldError(el.sleeperUsername, el.usernameError, ""));
+el.sleeperUsername?.addEventListener("input", () => {
+  syncUsernameFields(el.sleeperUsername);
+  setUsernameError("");
+});
+el.landingUsername?.addEventListener("input", () => {
+  syncUsernameFields(el.landingUsername);
+  setUsernameError("");
+});
 el.leagueId?.addEventListener("input", () => setFieldError(el.leagueId, el.leagueIdError, ""));
 el.workspace?.addEventListener("click", handleWorkspaceClick);
 el.workspace?.addEventListener("keydown", handleWorkspaceKeydown);
@@ -467,7 +479,7 @@ renderSessionSnapshot();
 syncTradeModeUi();
 syncStorageNotice();
 bootFromUrl();
-void bootRatherPrompt();
+void bootLandingRather();
 if (typeof history.scrollRestoration === "string") history.scrollRestoration = "manual";
 window.addEventListener("popstate", (event) => applyDeskPopState(event.state));
 if (isPhoneLayout()) setMobileRailOpen(false);
@@ -725,6 +737,7 @@ function bootFromUrl() {
 
   const fields = bootSearchFieldValues({ leagueFromUrl: parsed.leagueId });
   if (el.sleeperUsername) el.sleeperUsername.value = fields.username;
+  if (el.landingUsername) el.landingUsername.value = fields.username;
   if (el.leagueId) el.leagueId.value = fields.leagueId;
 
   if (parsed.leagueId) {
@@ -1156,14 +1169,15 @@ function requestLoadLeague(event) {
 
 function requestFindLeagues(event) {
   event?.preventDefault?.();
-  const classified = classifyLeagueInput(el.sleeperUsername?.value);
+  syncUsernameFields(event?.currentTarget === el.landingUsernameForm ? el.landingUsername : el.sleeperUsername);
+  const classified = classifyLeagueInput(el.sleeperUsername?.value || el.landingUsername?.value);
   if (classified.kind === "empty") {
-    setFieldError(el.sleeperUsername, el.usernameError, "Type your Sleeper username, then press Find leagues.");
+    setUsernameError("Type your Sleeper username, then press Find leagues.");
     setStatus("Type your Sleeper username, then press Find leagues.", { error: true });
-    el.sleeperUsername?.focus();
+    (el.landingUsername || el.sleeperUsername)?.focus();
     return;
   }
-  setFieldError(el.sleeperUsername, el.usernameError, "");
+  setUsernameError("");
   if (classified.kind === "league") {
     if (el.leagueId) el.leagueId.value = classified.leagueId;
     void loadLeagueById(classified.leagueId);
@@ -1210,10 +1224,10 @@ async function runUserLeagueSearch(username) {
     state.sleeperUser = user;
     state.userLeagues = sortUserLeagues(leagues, season);
     renderLeaguePicker(state.userLeagues, season);
-    setFieldError(el.sleeperUsername, el.usernameError, "");
+    setUsernameError("");
     if (state.userLeagues.length === 0) {
       setStatus(`Found ${user.display_name || username}, but no NFL leagues for ${season}/${Number(season) - 1}.`, { error: true });
-      setFieldError(el.sleeperUsername, el.usernameError, `No NFL leagues for ${season}/${Number(season) - 1}.`);
+      setUsernameError(`No NFL leagues for ${season}/${Number(season) - 1}.`);
       return;
     }
     if (state.userLeagues.length === 1) {
@@ -1222,11 +1236,12 @@ async function runUserLeagueSearch(username) {
       setStatus(`One league found. Opening ${state.userLeagues[0].name || "league"}…`, { loading: true });
     } else {
       setStatus(`Found ${state.userLeagues.length} leagues for ${user.display_name || username}. Pick one.`);
+      if (isPhoneLayout()) setMobileRailOpen(true);
     }
   } catch (err) {
     renderLeaguePicker([]);
     const message = `Could not find that Sleeper user. ${err.message}`;
-    setFieldError(el.sleeperUsername, el.usernameError, message);
+    setUsernameError(message);
     setStatus(message, { error: true });
   } finally {
     stopFindLeaguesUi();
@@ -1246,20 +1261,25 @@ function renderLeaguePicker(leagues, season) {
 }
 
 function startFindLeaguesUi() {
-  if (el.findLeaguesBtn) {
-    el.findLeaguesBtn.disabled = true;
-    el.findLeaguesBtn.classList.add("loading");
-    el.findLeaguesBtn.textContent = "Searching...";
-  }
+  [el.findLeaguesBtn, el.landingFindBtn].forEach((button) => {
+    if (!button) return;
+    button.disabled = true;
+    button.classList.add("loading");
+    button.textContent = "Searching...";
+  });
   el.usernameSearchForm?.setAttribute("aria-busy", "true");
+  el.landingUsernameForm?.setAttribute("aria-busy", "true");
 }
 
 function stopFindLeaguesUi() {
-  if (!el.findLeaguesBtn) return;
-  el.findLeaguesBtn.disabled = false;
-  el.findLeaguesBtn.classList.remove("loading");
-  el.findLeaguesBtn.textContent = "Find leagues";
+  [el.findLeaguesBtn, el.landingFindBtn].forEach((button) => {
+    if (!button) return;
+    button.disabled = false;
+    button.classList.remove("loading");
+    button.textContent = "Find leagues";
+  });
   el.usernameSearchForm?.setAttribute("aria-busy", "false");
+  el.landingUsernameForm?.setAttribute("aria-busy", "false");
 }
 
 async function loadLeague() {
@@ -5567,7 +5587,12 @@ function buildComparePlayerChip(playerId) {
     || player.full_name
     || `Player ${playerId}`;
   const assetId = `player:${playerId}`;
-  const value = Number(state.values?.[assetId]);
+  const value = Number(getAssetValue({
+    assetId,
+    assetType: "player",
+    name,
+    raw: player,
+  }));
   return {
     playerId,
     name,
@@ -13330,6 +13355,7 @@ function applyValuationBundle(bundle, { rerender = true } = {}) {
   state.valueFormat = selectValueFormat(state.league);
   state.values = bundle?.values && typeof bundle.values === "object" ? bundle.values : {};
   state.valueNameMap = bundle?.nameMap && typeof bundle.nameMap === "object" ? bundle.nameMap : {};
+  refreshCrowdShifts();
   refreshPlayerPositionRanks();
   state.pickValueCatalog = buildPickValuationCatalog(state.values, state.valueNameMap);
   state.globalMaxPlayerValue = getGlobalMaxPlayerValue(state.values);
@@ -13384,6 +13410,17 @@ function setFieldError(input, errorEl, message) {
   errorEl.hidden = !invalid;
 }
 
+function setUsernameError(message) {
+  setFieldError(el.sleeperUsername, el.usernameError, message);
+  setFieldError(el.landingUsername, el.landingUsernameError, message);
+}
+
+function syncUsernameFields(source) {
+  const value = String(source?.value || "");
+  if (el.sleeperUsername && el.sleeperUsername !== source) el.sleeperUsername.value = value;
+  if (el.landingUsername && el.landingUsername !== source) el.landingUsername.value = value;
+}
+
 function setGenerateError(message) {
   if (el.generateError) {
     el.generateError.textContent = message || "";
@@ -13392,8 +13429,10 @@ function setGenerateError(message) {
 }
 
 function focusUsernameSearch() {
-  if (isPhoneLayout()) setMobileRailOpen(true);
-  const target = el.sleeperUsername || el.leagueId;
+  if (isPhoneLayout() && state.leagueId) setMobileRailOpen(true);
+  const target = !state.leagueId && el.landingUsername
+    ? el.landingUsername
+    : (el.sleeperUsername || el.leagueId);
   target?.focus();
   target?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -13416,41 +13455,25 @@ function syncDocumentMeta() {
   });
 }
 
-function isRatherPromptOpen() {
-  return Boolean(el.ratherOverlay) && !el.ratherOverlay.hidden;
-}
-
-async function bootRatherPrompt() {
-  if (!el.ratherOverlay || !el.ratherBody) return;
-  if (readRatherSessionDone()) return;
+async function bootLandingRather() {
+  if (!el.landingRather) return;
+  if (parseShareParams(window.location.search).leagueId) return;
+  el.landingRather.innerHTML = renderLandingRatherPlaceholder();
   try {
-    const [valueBundles, context] = await Promise.all([
+    const [, context] = await Promise.all([
       (async () => {
         if (!state.valueBundles?.sf?.values || !Object.keys(state.valueBundles.sf.values).length) {
           state.valueBundles = await fetchValuationBundles();
         }
-        return state.valueBundles;
       })(),
       loadRatherPromptContext(),
     ]);
-    const names = valueBundles?.names || state.valueNameMap || {};
-    const values = valueBundles?.sf?.values || {};
-    const players = listRatherPlayers(values, names);
-    const picked = pickRatherPair(players, { recentKeys: readRatherRecentKeys() });
-    if (!picked) return;
-    const extras = {
-      currentSeason: context.currentSeason,
-      previousSeason: context.previousSeason,
-      seasonStats: context.seasonStats,
-      draftPicks: context.draftPicks,
-    };
-    openRatherPrompt({
-      left: decorateRatherPlayer(picked.left, context.nflPlayers, extras),
-      right: decorateRatherPlayer(picked.right, context.nflPlayers, extras),
-      key: picked.key,
-    });
+    ratherPromptContext = context;
+    refreshCrowdShifts();
+    showNextRatherMatchup();
   } catch (err) {
-    console.warn("Could not open rather prompt", err);
+    console.warn("Could not open rather matchup", err);
+    el.landingRather.innerHTML = "";
   }
 }
 
@@ -13485,42 +13508,62 @@ async function loadRatherSeasonStats(season) {
   return payload;
 }
 
-function openRatherPrompt(pair) {
-  if (!el.ratherOverlay || !el.ratherBody || !pair?.left || !pair?.right) return;
-  ratherPromptPair = pair;
-  ratherLastFocus = document.activeElement;
-  el.ratherBody.innerHTML = renderRatherMarkup(pair, DEFAULT_RATHER_FORMAT);
-  bindRatherPhotos(el.ratherBody);
-  applyRatherOverlayHidden(el.ratherOverlay, false);
-  document.body.classList.add("rather-open");
-  document.querySelector(".app-frame")?.setAttribute("inert", "");
-  el.ratherOverlay.querySelector(".rather-player")?.focus();
+function ratherMarketValues() {
+  return state.valueBundles?.sf?.values && Object.keys(state.valueBundles.sf.values).length
+    ? state.valueBundles.sf.values
+    : state.values;
 }
 
-function closeRatherPrompt() {
-  if (!el.ratherOverlay) return;
-  applyRatherOverlayHidden(el.ratherOverlay, true);
-  document.body.classList.remove("rather-open");
-  document.querySelector(".app-frame")?.removeAttribute("inert");
-  ratherPromptPair = null;
-  const restore = ratherLastFocus;
-  ratherLastFocus = null;
-  if (restore && typeof restore.focus === "function") restore.focus();
+function refreshCrowdShifts() {
+  state.crowdShifts = crowdShiftsFromVotes(readRatherVotes(), ratherMarketValues(), {
+    format: state.valueFormat || "sf",
+  });
 }
 
-function skipRatherPrompt() {
-  writeRatherSessionDone();
-  closeRatherPrompt();
+function showNextRatherMatchup({ status = "" } = {}) {
+  if (!el.landingRather) return;
+  const names = state.valueBundles?.names || state.valueNameMap || {};
+  const values = ratherMarketValues();
+  const players = rankRatherPlayers(listRatherPlayers(values, names), state.crowdShifts);
+  const picked = pickRatherPair(players, { recentKeys: readRatherRecentKeys() });
+  if (!picked) {
+    el.landingRather.innerHTML = "";
+    ratherPromptPair = null;
+    return;
+  }
+  const extras = {
+    currentSeason: ratherPromptContext.currentSeason,
+    previousSeason: ratherPromptContext.previousSeason,
+    seasonStats: ratherPromptContext.seasonStats,
+    draftPicks: ratherPromptContext.draftPicks,
+  };
+  const nflPlayers = Object.keys(ratherPromptContext.nflPlayers || {}).length
+    ? ratherPromptContext.nflPlayers
+    : (getPlayersCache()?.players || state.players || {});
+  ratherPromptPair = {
+    left: decorateRatherPlayer(picked.left, nflPlayers, extras),
+    right: decorateRatherPlayer(picked.right, nflPlayers, extras),
+    key: picked.key,
+  };
+  el.landingRather.innerHTML = renderRatherMarkup(ratherPromptPair, DEFAULT_RATHER_FORMAT, { status });
+  bindRatherPhotos(el.landingRather);
+}
+
+function skipRatherMatchup() {
+  if (ratherPromptPair?.key) pushRatherRecentKey(ratherPromptPair.key);
+  showNextRatherMatchup({ status: "Skipped. New matchup." });
 }
 
 function chooseRatherPlayer(winnerId) {
   const pair = ratherPromptPair;
   if (!pair) {
-    skipRatherPrompt();
+    showNextRatherMatchup();
     return;
   }
   const ids = [pair.left?.assetId, pair.right?.assetId].filter(Boolean);
   const loserId = ids.find((id) => id !== winnerId) || "";
+  const winnerName = winnerId === pair.left?.assetId ? pair.left?.name : pair.right?.name;
+  const loserName = loserId === pair.left?.assetId ? pair.left?.name : pair.right?.name;
   if (winnerId && loserId) {
     recordRatherVote({
       winnerId,
@@ -13528,19 +13571,29 @@ function chooseRatherPlayer(winnerId) {
       format: DEFAULT_RATHER_FORMAT,
       at: Date.now(),
     });
+    refreshCrowdShifts();
+    if (state.leagueId) {
+      renderActivePage();
+      renderSessionSnapshot();
+    }
   }
   if (pair.key) pushRatherRecentKey(pair.key);
-  writeRatherSessionDone();
-  closeRatherPrompt();
+  const status = winnerName && loserName
+    ? `Noted. ${winnerName} over ${loserName}. Board nudged.`
+    : "Noted. Board nudged.";
+  showNextRatherMatchup({ status });
 }
 
-function handleRatherOverlayClick(event) {
+function handleLandingRatherClick(event) {
   const skip = event.target.closest?.("#rather-skip");
+  const pick = event.target.closest?.("[data-rather-pick]");
+  if (!skip && !pick) return;
+  event.preventDefault();
+  event.stopPropagation();
   if (skip) {
-    skipRatherPrompt();
+    skipRatherMatchup();
     return;
   }
-  const pick = event.target.closest?.("[data-rather-pick]");
   const winnerId = pick?.getAttribute("data-rather-pick");
   if (winnerId) chooseRatherPlayer(winnerId);
 }

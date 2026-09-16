@@ -3,16 +3,16 @@ import { normalizeDeskTab, normalizeRoom } from "./parse.js";
 
 export const SITE_NAME = "Dynasty Desk";
 export const SITE_ORIGIN = "https://nikoskiouris.github.io";
-export const SITE_PATH = "/FantasyDynastyAnalyzer/";
+export const SITE_PATH = "/DynastyDesk/";
 export const SITE_URL = `${SITE_ORIGIN}${SITE_PATH}`;
-export const REPO_URL = "https://github.com/nikoskiouris/FantasyDynastyAnalyzer";
+export const REPO_URL = "https://github.com/nikoskiouris/DynastyDesk";
 export const CONTACT_URL = `${REPO_URL}/issues`;
 export const OG_IMAGE_URL = `${SITE_URL}og-image.jpg`;
 export const STORAGE_NOTICE_KEY = "dynasty_desk_storage_notice";
 
 export const DEFAULT_TITLE = "Dynasty Desk — Fantasy League Command Center";
 export const DEFAULT_DESCRIPTION =
-  "Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a group-chat recap for your league.";
+  "Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a crowd board that starts from KeepTradeCut.";
 
 export const PAGE_META = {
   league: {

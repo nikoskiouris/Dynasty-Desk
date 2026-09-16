@@ -267,23 +267,57 @@ export function decorateRatherPlayer(player, nflPlayers = {}, extras = {}) {
   };
 }
 
-export function renderRatherMarkup(pair, format = DEFAULT_RATHER_FORMAT) {
+export function rankRatherPlayers(players, shifts = null) {
+  const rows = Array.isArray(players) ? players.filter((row) => row?.assetId && row?.name) : [];
+  if (!shifts) return rows;
+  return [...rows].sort((a, b) => {
+    const aValue = applyLocalCrowdShift(a.assetId, Number(a.value), shifts);
+    const bValue = applyLocalCrowdShift(b.assetId, Number(b.value), shifts);
+    return bValue - aValue || a.name.localeCompare(b.name);
+  });
+}
+
+export function renderRatherMarkup(pair, format = DEFAULT_RATHER_FORMAT, options = {}) {
   const left = pair?.left || {};
   const right = pair?.right || {};
+  const skipLabel = options.skipLabel || "Skip this matchup";
+  const note = options.note
+    || "Your pick slightly nudges the desk board. KeepTradeCut stays the market prior.";
+  const status = options.status || "";
   return `
     <div class="rather-panel">
       <span class="eyebrow">Desk Crowd</span>
       <h2 id="rather-title">${escapeHtml(formatRatherHeadline())}</h2>
       <p class="rather-format" id="rather-format">${escapeHtml(formatRatherDetail(format))}</p>
       <p class="rather-format-detail" id="rather-format-detail">${escapeHtml(formatRatherDetailLong(format))}</p>
+      ${status ? `<p class="rather-status" id="rather-status" role="status">${escapeHtml(status)}</p>` : ""}
       <div class="rather-duel">
         ${renderRatherPlayerButton(left, "left")}
         <span class="rather-or" aria-hidden="true">or</span>
         ${renderRatherPlayerButton(right, "right")}
       </div>
-      <button type="button" class="rather-skip ghost-btn" id="rather-skip">Skip for now</button>
+      <button type="button" class="rather-skip ghost-btn" id="rather-skip">${escapeHtml(skipLabel)}</button>
+      <p class="rather-note" id="rather-note">${escapeHtml(note)}</p>
     </div>
   `;
+}
+
+export function renderLandingRatherPlaceholder() {
+  return `
+    <div class="rather-panel landing-rather-pending">
+      <span class="eyebrow">Desk Crowd</span>
+      <h2 id="rather-title">${escapeHtml(formatRatherHeadline())}</h2>
+      <p class="rather-format" id="rather-format">${escapeHtml(formatRatherDetail())}</p>
+      <p class="rather-format-detail" id="rather-format-detail">${escapeHtml(formatRatherDetailLong())}</p>
+      <p class="muted">Loading a close Superflex matchup…</p>
+    </div>
+  `;
+}
+
+function applyLocalCrowdShift(assetId, value, shifts) {
+  const shift = Number(shifts?.[assetId]);
+  if (!Number.isFinite(value) || !Number.isFinite(shift)) return Number.isFinite(value) ? value : 0;
+  return value * (1 + shift);
 }
 
 export function applyRatherOverlayHidden(overlay, hidden) {

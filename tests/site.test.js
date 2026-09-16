@@ -123,7 +123,8 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /apple-touch-icon/);
   assert.match(index, /id="sticky-mobile-cta"/);
   assert.match(index, /id="storage-notice"/);
-  assert.match(index, /id="rather-overlay"/);
+  assert.match(index, /id="landing-rather"/);
+  assert.match(index, /id="landing-username"/);
   assert.match(index, /Who would you rather have\?/);
   assert.match(index, /PPR 12-man Superflex/);
   assert.match(index, /id="username-error"/);
@@ -153,8 +154,10 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(index, /Plus Jakarta/);
 
   const usernameInput = index.match(/<input[^>]*id="sleeper-username"[^>]*>/)?.[0] || "";
+  const landingUsername = index.match(/<input[^>]*id="landing-username"[^>]*>/)?.[0] || "";
   const leagueInput = index.match(/<input[^>]*id="league-id"[^>]*>/)?.[0] || "";
   assert.match(usernameInput, /value=""/);
+  assert.match(landingUsername, /value=""/);
   assert.match(leagueInput, /value=""/);
   assert.doesNotMatch(usernameInput, /value="[^"]+"/);
   assert.doesNotMatch(leagueInput, /value="[^"]+"/);
@@ -163,13 +166,13 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /terms\.html/);
 
   const robots = readDocs("robots.txt");
-  assert.match(robots, /Sitemap: https:\/\/nikoskiouris\.github\.io\/FantasyDynastyAnalyzer\/sitemap\.xml/);
+  assert.match(robots, /Sitemap: https:\/\/nikoskiouris\.github\.io\/DynastyDesk\/sitemap\.xml/);
 
   const sitemap = readDocs("sitemap.xml");
   assert.match(sitemap, /privacy\.html/);
   assert.match(sitemap, /terms\.html/);
-  assert.equal(SITE_URL, "https://nikoskiouris.github.io/FantasyDynastyAnalyzer/");
-  assert.match(sitemap, /https:\/\/nikoskiouris\.github\.io\/FantasyDynastyAnalyzer\//);
+  assert.equal(SITE_URL, "https://nikoskiouris.github.io/DynastyDesk/");
+  assert.match(sitemap, /https:\/\/nikoskiouris\.github\.io\/DynastyDesk\//);
 
   const notFound = readDocs("404.html");
   assert.match(notFound, /Page not found/);

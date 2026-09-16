@@ -331,7 +331,7 @@ def fetch_text(url: str) -> str:
     request = Request(
         url,
         headers={
-            "User-Agent": "FantasyDynastyAnalyzer/1.0 (+https://github.com/nikoskiouris/FantasyDynastyAnalyzer)",
+            "User-Agent": "DynastyDesk/1.0 (+https://github.com/nikoskiouris/DynastyDesk)",
             "Accept-Language": "en-US,en;q=0.9",
         },
     )
