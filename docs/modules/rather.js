@@ -219,7 +219,7 @@ export function formatRatherPlayerMeta({ position, team, age, depthChart } = {})
   const ageLabel = age != null && age !== "" && Number.isFinite(numericAge) && numericAge > 0
     ? `${numericAge}y`
     : "";
-  return [position, team, ageLabel, depthChart].filter(Boolean).join(" · ");
+  return [depthChart || position, team, ageLabel].filter(Boolean).join(" · ");
 }
 
 export function formatRatherPlayerDetail({
