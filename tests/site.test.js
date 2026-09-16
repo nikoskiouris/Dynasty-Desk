@@ -166,13 +166,13 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /terms\.html/);
 
   const robots = readDocs("robots.txt");
-  assert.match(robots, /Sitemap: https:\/\/nikoskiouris\.github\.io\/FantasyDynastyAnalyzer\/sitemap\.xml/);
+  assert.match(robots, /Sitemap: https:\/\/nikoskiouris\.github\.io\/DynastyDesk\/sitemap\.xml/);
 
   const sitemap = readDocs("sitemap.xml");
   assert.match(sitemap, /privacy\.html/);
   assert.match(sitemap, /terms\.html/);
-  assert.equal(SITE_URL, "https://nikoskiouris.github.io/FantasyDynastyAnalyzer/");
-  assert.match(sitemap, /https:\/\/nikoskiouris\.github\.io\/FantasyDynastyAnalyzer\//);
+  assert.equal(SITE_URL, "https://nikoskiouris.github.io/DynastyDesk/");
+  assert.match(sitemap, /https:\/\/nikoskiouris\.github\.io\/DynastyDesk\//);
 
   const notFound = readDocs("404.html");
   assert.match(notFound, /Page not found/);
