@@ -21,6 +21,9 @@ const TEP_MULTIPLIERS = {
   3: 1.18,
 };
 
+// Sleeper "Reception Bonus - TE" stacks on top of `rec`. Missing/zero is not TEP.
+const TE_REC_BONUS_KEYS = ["bonus_rec_te", "rec_te", "bonus_te_rec"];
+
 export function leagueHasSuperflex(league) {
   const slots = Array.isArray(league?.roster_positions) ? league.roster_positions : [];
   const normalized = slots.map((slot) => String(slot || "").toUpperCase());
@@ -29,10 +32,15 @@ export function leagueHasSuperflex(league) {
 }
 
 export function tepLevelFromScoring(scoring = {}) {
-  const bonus = Number(scoring.bonus_rec_te ?? scoring.rec_te ?? scoring.bonus_te_rec ?? 0);
-  if (bonus >= 1.5) return 3;
-  if (bonus >= 1) return 2;
-  if (bonus >= 0.5) return 1;
+  let extra = 0;
+  for (const key of TE_REC_BONUS_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(scoring, key)) continue;
+    const value = Number(scoring[key]);
+    if (Number.isFinite(value) && value > extra) extra = value;
+  }
+  if (extra >= 1.5) return 3;
+  if (extra >= 1) return 2;
+  if (extra >= 0.5) return 1;
   return 0;
 }
 

@@ -40,6 +40,23 @@ test("TEP bump applies only to tight ends", () => {
   assert.equal(getAssetValue(wr, values, { league }), 4000);
 });
 
+test("plain PPR Superflex is not tight end premium", () => {
+  const league = {
+    scoring_settings: {
+      rec: 1,
+      rec_yd: 0.1,
+      rec_td: 6,
+      fum_rec: 2,
+      st_td: 6,
+      def_st_td: 6,
+    },
+  };
+  assert.equal(tepLevel(league), 0);
+  assert.equal(tepLevel({ scoring_settings: { rec: 1, rec_te: 0, bonus_rec_te: 0 } }), 0);
+  const te = { assetId: "player:te", assetType: "player", raw: { position: "TE" } };
+  assert.equal(getAssetValue(te, { "player:te": 4000 }, { league }), 4000);
+});
+
 test("missing market numbers are estimated and labeled", () => {
   const asset = { assetId: "player:unknown", assetType: "player", raw: { position: "WR", age: 24 } };
   assert.equal(isEstimatedAsset(asset, {}), true);

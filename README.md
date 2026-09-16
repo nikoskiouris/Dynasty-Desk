@@ -50,7 +50,7 @@ Sleeper trades first, KeepTradeCut as the prior:
 - Sleeper trade market (`docs/data/sleeper_trade_values.json`) fitted from completed dynasty trades snowballed from public leagues.
 - Those two are blended so frequently traded players follow the Sleeper market; thin names stay closer to KeepTradeCut.
 - Optional **league board** inferred from this league’s own trades (positions, youth, boom-bust skill players, and specific names). Apply it when you want room prices.
-- TE premium bump from Sleeper `bonus_rec_te`.
+- TE premium bump only when Sleeper has extra TE reception points (`bonus_rec_te` / `rec_te`). Plain PPR Superflex is not TEP.
 - Missing assets get a position/age estimate labeled **est**.
 - Elite players still get a premium so one star is not a pile of scraps.
 

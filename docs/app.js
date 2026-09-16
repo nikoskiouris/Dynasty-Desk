@@ -80,6 +80,7 @@ import {
   playerAgeForAsset,
   isInactivePlayerAsset,
   leagueHasSuperflex,
+  tepLevel,
   crowdShiftsFromVotes,
 } from "./modules/values.js";
 import {
@@ -7321,7 +7322,6 @@ function describeLeagueFormat(league) {
   const pprLabel = Number.isFinite(receptionValue)
     ? receptionValue >= 1 ? "PPR" : receptionValue > 0 ? `${receptionValue} PPR` : "standard"
     : "custom scoring";
-  const tePremiumKeys = Object.keys(scoring).filter((key) => /te/i.test(key) && Number(scoring[key]) > 0);
   const taxiSlots = Number(league?.settings?.taxi_slots || 0);
   const draftRounds = Number(league?.settings?.draft_rounds || 0);
   const parts = [
@@ -7329,7 +7329,7 @@ function describeLeagueFormat(league) {
     pprLabel,
     `${slots.length} starters`,
   ];
-  if (tePremiumKeys.length > 0) parts.push("TE premium signals");
+  if (tepLevel(league) > 0) parts.push("TE premium");
   if (taxiSlots > 0) parts.push(`${taxiSlots} taxi`);
   if (draftRounds > 0) parts.push(`${draftRounds}-round rookie draft`);
   return parts.join(" • ");
