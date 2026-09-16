@@ -50,7 +50,7 @@ export function parseVisitCount(payload) {
 }
 
 export function renderVisitCountMarkup(count) {
-  if (count == null) return "";
+  if (count == null || count < 1) return "";
   const digits = formatNumber(count);
   if (count === 1) return `<strong>${digits}</strong> person has viewed this desk`;
   return `<strong>${digits}</strong> people have viewed this desk`;
@@ -58,7 +58,7 @@ export function renderVisitCountMarkup(count) {
 
 export function applyVisitCount(node, count) {
   if (!node) return;
-  if (count == null) {
+  if (count == null || count < 1) {
     node.hidden = true;
     node.innerHTML = "";
     return;

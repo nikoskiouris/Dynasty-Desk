@@ -40,6 +40,7 @@ test("visit copy names people, not page loads", () => {
   assert.match(renderVisitCountMarkup(1284), /1,284|1284/);
   assert.match(renderVisitCountMarkup(12), /people have viewed this desk/);
   assert.equal(renderVisitCountMarkup(null), "");
+  assert.equal(renderVisitCountMarkup(0), "");
 });
 
 test("applyVisitCount hides until a total exists", () => {
@@ -47,6 +48,8 @@ test("applyVisitCount hides until a total exists", () => {
   applyVisitCount(node, null);
   assert.equal(node.hidden, true);
   assert.equal(node.innerHTML, "");
+  applyVisitCount(node, 0);
+  assert.equal(node.hidden, true);
   applyVisitCount(node, 3);
   assert.equal(node.hidden, false);
   assert.match(node.innerHTML, /<strong>3<\/strong> people have viewed this desk/);
