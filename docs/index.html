@@ -1,11 +1,21 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Dynasty Desk — Fantasy League Command Center</title>
     <meta name="description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
-    <meta name="theme-color" content="#071018" />
+    <meta name="theme-color" content="#eef3f2" />
+    <script>
+      try {
+        var storedTheme = localStorage.getItem("dynasty_desk_theme");
+        if (storedTheme === "dark" || storedTheme === "light") {
+          document.documentElement.setAttribute("data-theme", storedTheme);
+          var themeColor = document.querySelector('meta[name="theme-color"]');
+          if (themeColor) themeColor.setAttribute("content", storedTheme === "dark" ? "#071018" : "#eef3f2");
+        }
+      } catch (err) {}
+    </script>
     <meta property="og:title" content="Dynasty Desk — Fantasy League Command Center" />
     <meta property="og:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
     <meta property="og:type" content="website" />
@@ -60,11 +70,11 @@
             type="button"
             id="mobile-theme-btn"
             class="mobile-icon-btn"
-            aria-pressed="false"
-            title="Toggle light and dark theme"
+            aria-pressed="true"
+            title="Dark mode"
           >
             <span id="mobile-theme-icon" class="theme-glyph" aria-hidden="true"></span>
-            <span class="sr-only" id="mobile-theme-label">Light mode</span>
+            <span class="sr-only" id="mobile-theme-label">Dark mode</span>
           </button>
         </div>
         <span id="mobile-share-feedback" class="feedback-chip mobile-share-feedback hidden" role="status">Link copied</span>
@@ -132,12 +142,6 @@
             </form>
           </details>
 
-          <p class="muted small helper-row">
-            <button id="rail-demo-btn" type="button" class="linklike">Use demo league</button>
-            <button id="copy-league-id-btn" type="button" class="linklike" title="Copy league ID to clipboard">1315165104303513600</button>
-            <span id="copy-league-id-feedback" class="feedback-chip hidden">Copied!</span>
-          </p>
-
           <p id="league-status" class="status muted" aria-live="polite">
             <span id="league-status-loader" class="status-loader hidden" aria-hidden="true"></span>
             <span id="league-status-text">Search your Sleeper username to pick a league.</span>
@@ -158,7 +162,7 @@
 
         <div class="rail-footer">
           <button id="share-link-btn" type="button" class="ghost-btn hidden" title="Copy a link that opens this league and team">Copy league link</button>
-          <button id="theme-toggle-btn" type="button" class="ghost-btn" aria-pressed="false" title="Toggle light and dark theme">Light mode</button>
+          <button id="theme-toggle-btn" type="button" class="ghost-btn" aria-pressed="true" title="Toggle light and dark theme">Dark mode</button>
           <span id="share-link-feedback" class="feedback-chip hidden">Link copied</span>
         </div>
       </aside>
@@ -239,9 +243,6 @@
                 </div>
                 <p id="landing-username-error" class="field-error" hidden role="alert"></p>
               </form>
-              <div class="landing-actions">
-                <button id="landing-demo-btn" type="button" class="ghost-btn">Open demo league</button>
-              </div>
               <p id="landing-loading" class="landing-loading hidden" aria-live="polite">
                 <span class="status-loader" aria-hidden="true"></span>
                 <span id="landing-loading-text">Opening league from Sleeper…</span>
@@ -424,26 +425,12 @@
             <div id="records-dashboard" class="dashboard"></div>
           </div>
         </div>
-
-        <footer class="workspace-footer">
-          <span>Dynasty Desk reads public Sleeper league data in your browser. Values start from completed Sleeper dynasty trades across many leagues, mixed with KeepTradeCut 1QB or Superflex rankings. Then a TE-premium bump, a labeled estimate when an asset is missing, a slight nudge from who-would-you-rather votes in this browser, and an optional league board that reads your room's taste.</span>
-          <nav class="footer-links" aria-label="Site">
-            <a href="./privacy.html">Privacy</a>
-            <a href="./terms.html">Terms</a>
-            <a href="https://github.com/nikoskiouris/Dynasty-Desk/issues">Contact</a>
-          </nav>
-        </footer>
       </main>
     </div>
 
     <div id="site-dock" class="site-dock">
       <div id="sticky-mobile-cta" class="sticky-mobile-cta" hidden>
         <button id="sticky-find-btn" type="button">Find leagues</button>
-        <button id="sticky-demo-btn" type="button" class="ghost-btn">Open demo</button>
-      </div>
-      <div id="storage-notice" class="storage-notice" hidden>
-        <p>This desk saves your theme, ranking votes, and a short player-list cache in this browser. No cookies. No ads. No analytics. <a href="./privacy.html">Privacy</a></p>
-        <button id="storage-notice-dismiss" type="button">Got it</button>
       </div>
     </div>
 

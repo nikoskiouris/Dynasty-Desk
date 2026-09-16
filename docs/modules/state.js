@@ -3,6 +3,11 @@ import { PAGE_IDS, DEFAULT_PAGE, DEFAULT_ROOMS } from "./constants.js";
 
 export const THEME_STORAGE_KEY = "dynasty_desk_theme";
 export const PLAYERS_CACHE_KEY = "fda_players_nfl_cache_v1";
+export const DEFAULT_THEME = "light";
+export const THEME_COLORS = {
+  light: "#eef3f2",
+  dark: "#071018",
+};
 
 export function createState() {
   return {
@@ -91,7 +96,7 @@ export function createState() {
     pendingPlace: null,
     pendingWeek: null,
     pendingTone: "",
-    theme: "dark",
+    theme: DEFAULT_THEME,
     sleeperUser: null,
     userLeagues: [],
     livePolling: false,

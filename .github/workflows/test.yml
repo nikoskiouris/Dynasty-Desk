@@ -22,5 +22,8 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install
+        run: npm install
+
       - name: Run tests
         run: npm test

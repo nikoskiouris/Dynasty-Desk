@@ -24,8 +24,6 @@ import {
   ROOM_HINTS,
   DEFAULT_FAIRNESS_PCT,
   DEFAULT_MAX_RESULTS,
-  DEMO_LEAGUE_ID,
-  AUTOSELECT_MANAGER_BY_LEAGUE,
   TRANSACTION_WEEK_START,
   TRANSACTION_WEEK_FALLBACK_END,
   ANALYTICS_RECENT_TRADE_LIMIT,
@@ -40,7 +38,7 @@ import {
   LIVE_SIM_REFRESH_MS,
   MATCHUP_FETCH_CHUNK,
 } from "./modules/constants.js";
-import { state, sleeper, THEME_STORAGE_KEY, PLAYERS_CACHE_KEY } from "./modules/state.js";
+import { state, sleeper, THEME_STORAGE_KEY, PLAYERS_CACHE_KEY, DEFAULT_THEME, THEME_COLORS } from "./modules/state.js";
 import { apiGet, apiGetWithRetry, fetchUserLeagues, mapInChunks } from "./modules/sleeper.js";
 import {
   classifyLeagueInput,
@@ -82,6 +80,7 @@ import {
   playerAgeForAsset,
   isInactivePlayerAsset,
   leagueHasSuperflex,
+  tepLevel,
   crowdShiftsFromVotes,
 } from "./modules/values.js";
 import {
@@ -140,11 +139,8 @@ import {
 } from "./modules/draft-picks.js";
 import {
   applyDocumentMeta,
-  applyStorageNoticeHidden,
   buildDocumentTitle,
   buildPageDescription,
-  readStorageNoticeDismissed,
-  writeStorageNoticeDismissed,
 } from "./modules/site.js";
 import { recordDeskVisit } from "./modules/visits.js";
 import {
@@ -237,9 +233,6 @@ const el = {
   leagueId: document.querySelector("#league-id"),
   leagueLoadForm: document.querySelector("#league-load-form"),
   loadLeagueBtn: document.querySelector("#load-league-btn"),
-  railDemoBtn: document.querySelector("#rail-demo-btn"),
-  copyLeagueIdBtn: document.querySelector("#copy-league-id-btn"),
-  copyLeagueIdFeedback: document.querySelector("#copy-league-id-feedback"),
   leagueStatus: document.querySelector("#league-status"),
   leagueStatusText: document.querySelector("#league-status-text"),
   leagueStatusLoader: document.querySelector("#league-status-loader"),
@@ -295,7 +288,6 @@ const el = {
   themeToggleBtn: document.querySelector("#theme-toggle-btn"),
   shareLinkBtn: document.querySelector("#share-link-btn"),
   shareLinkFeedback: document.querySelector("#share-link-feedback"),
-  landingDemoBtn: document.querySelector("#landing-demo-btn"),
   landingFindBtn: document.querySelector("#landing-find-btn"),
   landingUsername: document.querySelector("#landing-username"),
   landingUsernameForm: document.querySelector("#landing-username-form"),
@@ -308,9 +300,6 @@ const el = {
   generateError: document.querySelector("#generate-error"),
   stickyMobileCta: document.querySelector("#sticky-mobile-cta"),
   stickyFindBtn: document.querySelector("#sticky-find-btn"),
-  stickyDemoBtn: document.querySelector("#sticky-demo-btn"),
-  storageNotice: document.querySelector("#storage-notice"),
-  storageNoticeDismiss: document.querySelector("#storage-notice-dismiss"),
   mobileChromeTitle: document.querySelector("#mobile-chrome-title"),
   mobileRailToggle: document.querySelector("#mobile-rail-toggle"),
   mobileRailClose: document.querySelector("#mobile-rail-close"),
@@ -330,7 +319,6 @@ const el = {
 let leagueLoadPromise = null;
 let leagueLoadAnimationTimer = null;
 let leagueLoadStartedAt = 0;
-let copyFeedbackTimer = null;
 let shareFeedbackTimer = null;
 let livePoller = null;
 let liveVisibilityBound = false;
@@ -396,9 +384,6 @@ el.leagueId?.addEventListener("keydown", (event) => {
     requestLoadLeague(event);
   }
 });
-el.railDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
-el.railDemoBtn?.addEventListener("click", loadDemoLeague);
-el.copyLeagueIdBtn?.addEventListener("click", copyHelperLeagueId);
 el.pageTabButtons?.forEach((button) => {
   button.addEventListener("click", () => {
     if (button.dataset.page === state.activePage) {
@@ -441,12 +426,7 @@ window.matchMedia(PHONE_LAYOUT_QUERY).addEventListener("change", () => {
 });
 el.shareLinkBtn?.addEventListener("click", copyShareLink);
 el.landingUsernameForm?.addEventListener("submit", requestFindLeagues);
-el.landingDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
-el.landingDemoBtn?.addEventListener("click", loadDemoLeague);
 el.stickyFindBtn?.addEventListener("click", focusUsernameSearch);
-el.stickyDemoBtn?.addEventListener("pointerdown", handleDemoLeaguePointerDown);
-el.stickyDemoBtn?.addEventListener("click", loadDemoLeague);
-el.storageNoticeDismiss?.addEventListener("click", dismissStorageNotice);
 el.sleeperUsername?.addEventListener("input", () => {
   syncUsernameFields(el.sleeperUsername);
   setUsernameError("");
@@ -498,7 +478,6 @@ applyTheme(readStoredTheme(), { persist: false });
 state.applyLeagueBoard = readApplyLeagueBoard();
 renderSessionSnapshot();
 syncTradeModeUi();
-syncStorageNotice();
 void recordDeskVisit();
 bootFromUrl();
 void bootLandingRather();
@@ -715,7 +694,7 @@ function readStoredTheme() {
   } catch {
     // Storage unavailable; fall through to the default.
   }
-  return "dark";
+  return DEFAULT_THEME;
 }
 
 function applyTheme(theme, { persist = true } = {}) {
@@ -723,7 +702,7 @@ function applyTheme(theme, { persist = true } = {}) {
   state.theme = nextTheme;
   document.documentElement.dataset.theme = nextTheme;
   const themeColor = document.querySelector('meta[name="theme-color"]');
-  if (themeColor) themeColor.content = nextTheme === "dark" ? "#071018" : "#eef3f2";
+  if (themeColor) themeColor.content = THEME_COLORS[nextTheme];
   if (el.themeToggleBtn) {
     el.themeToggleBtn.textContent = nextTheme === "dark" ? "Light mode" : "Dark mode";
     el.themeToggleBtn.setAttribute("aria-pressed", String(nextTheme === "light"));
@@ -741,6 +720,15 @@ function applyTheme(theme, { persist = true } = {}) {
     } catch {
       // Non-fatal.
     }
+  }
+  const recapCanvas = document.querySelector("#recap-card-canvas");
+  const recapCtx = recapCanvas?.getContext("2d");
+  if (recapCtx && state.recapCardModel) {
+    drawRecapCard(recapCtx, state.recapCardModel, {
+      width: recapCanvas.width,
+      height: recapCanvas.height,
+      theme: nextTheme,
+    });
   }
 }
 
@@ -1161,16 +1149,6 @@ function syncTradeModeUi() {
   renderSessionSnapshot();
 }
 
-function getDemoLeagueId() {
-  return el.copyLeagueIdBtn?.textContent?.trim() || DEMO_LEAGUE_ID;
-}
-
-function loadDemoLeague(event) {
-  event?.preventDefault?.();
-  if (el.leagueId) el.leagueId.value = getDemoLeagueId();
-  void loadLeagueById(getDemoLeagueId());
-}
-
 function requestLoadLeague(event) {
   event?.preventDefault?.();
   const classified = classifyLeagueInput(el.leagueId?.value || el.sleeperUsername?.value);
@@ -1216,12 +1194,6 @@ function handleLoadLeaguePointerDown(event) {
   if (!isPrimaryPointer(event)) return;
   event.preventDefault();
   void requestLoadLeague(event);
-}
-
-function handleDemoLeaguePointerDown(event) {
-  if (!isPrimaryPointer(event)) return;
-  event.preventDefault();
-  loadDemoLeague(event);
 }
 
 async function searchUserLeagues(username) {
@@ -1568,24 +1540,6 @@ function startLivePolling() {
 function handleLiveVisibility() {
   if (!livePoller?.running) return;
   if (!document.hidden) livePoller.resume();
-}
-
-async function copyHelperLeagueId() {
-  const leagueId = el.copyLeagueIdBtn?.textContent?.trim();
-  if (!leagueId) return;
-  const copied = await copyTextToClipboard(leagueId);
-  showCopyFeedback(copied ? "Copied!" : "Copy failed");
-}
-
-function showCopyFeedback(text) {
-  if (!el.copyLeagueIdFeedback) return;
-  el.copyLeagueIdFeedback.textContent = text;
-  el.copyLeagueIdFeedback.classList.remove("hidden");
-
-  clearTimeout(copyFeedbackTimer);
-  copyFeedbackTimer = setTimeout(() => {
-    el.copyLeagueIdFeedback.classList.add("hidden");
-  }, 1500);
 }
 
 async function loadLeagueCoreData(leagueId) {
@@ -2334,10 +2288,6 @@ function hydrateManagerSelector() {
       el.meSelect.appendChild(option);
     });
 
-  const preferredManager = AUTOSELECT_MANAGER_BY_LEAGUE[state.leagueId];
-  const preferredRoster = preferredManager
-    ? state.normalizedRosters.find((roster) => roster.manager.displayName === preferredManager)
-    : null;
   const pendingRoster = state.pendingMeRosterId
     ? state.normalizedRosters.find((roster) => Number(roster.rosterId) === Number(state.pendingMeRosterId))
     : null;
@@ -2347,9 +2297,6 @@ function hydrateManagerSelector() {
   if (pendingRoster) {
     state.meRosterId = pendingRoster.rosterId;
     el.meSelect.value = String(pendingRoster.rosterId);
-  } else if (!preservedRoster && preferredRoster) {
-    state.meRosterId = preferredRoster.rosterId;
-    el.meSelect.value = String(preferredRoster.rosterId);
   } else if (preservedRoster) {
     state.meRosterId = preservedRoster.rosterId;
     el.meSelect.value = String(preservedRoster.rosterId);
@@ -4246,7 +4193,7 @@ function paintRecapCard(weekEntry, model, weekly) {
   const ctx = canvas?.getContext("2d");
   if (!ctx) return;
   const card = currentRecapCardModel(weekEntry, model, weekly);
-  drawRecapCard(ctx, card, { width: canvas.width, height: canvas.height });
+  drawRecapCard(ctx, card, { width: canvas.width, height: canvas.height, theme: state.theme });
   state.recapCardModel = card;
 }
 
@@ -4274,7 +4221,7 @@ async function saveRecapCard() {
   });
   const card = currentRecapCardModel(weekEntry, model, weekly);
   try {
-    const blob = await renderRecapCardBlob(card);
+    const blob = await renderRecapCardBlob(card, { theme: state.theme });
     const file = new File([blob], recapCardFilename(card), { type: "image/png" });
     if (navigator.canShare?.({ files: [file] }) && navigator.share) {
       await navigator.share({
@@ -7375,7 +7322,6 @@ function describeLeagueFormat(league) {
   const pprLabel = Number.isFinite(receptionValue)
     ? receptionValue >= 1 ? "PPR" : receptionValue > 0 ? `${receptionValue} PPR` : "standard"
     : "custom scoring";
-  const tePremiumKeys = Object.keys(scoring).filter((key) => /te/i.test(key) && Number(scoring[key]) > 0);
   const taxiSlots = Number(league?.settings?.taxi_slots || 0);
   const draftRounds = Number(league?.settings?.draft_rounds || 0);
   const parts = [
@@ -7383,7 +7329,7 @@ function describeLeagueFormat(league) {
     pprLabel,
     `${slots.length} starters`,
   ];
-  if (tePremiumKeys.length > 0) parts.push("TE premium signals");
+  if (tepLevel(league) > 0) parts.push("TE premium");
   if (taxiSlots > 0) parts.push(`${taxiSlots} taxi`);
   if (draftRounds > 0) parts.push(`${draftRounds}-round rookie draft`);
   return parts.join(" • ");
@@ -13751,22 +13697,10 @@ function bindRatherPhotos(root) {
   });
 }
 
-function syncStorageNotice() {
-  applyStorageNoticeHidden(el.storageNotice, readStorageNoticeDismissed());
-  syncSiteDock();
-}
-
-function dismissStorageNotice() {
-  writeStorageNoticeDismissed();
-  applyStorageNoticeHidden(el.storageNotice, true);
-  syncSiteDock();
-}
-
 function syncSiteDock() {
   const stickyOpen = isPhoneLayout() && !state.leagueId && !document.body.classList.contains("rail-open");
   if (el.stickyMobileCta) el.stickyMobileCta.hidden = !stickyOpen;
-  const noticeOpen = Boolean(el.storageNotice) && !el.storageNotice.hidden;
-  document.body.classList.toggle("dock-visible", stickyOpen || noticeOpen);
+  document.body.classList.toggle("dock-visible", stickyOpen);
 }
 
 function startLeagueLoadingUi() {
@@ -13785,7 +13719,6 @@ function startLeagueLoadingUi() {
     el.stickyFindBtn.disabled = true;
     el.stickyFindBtn.textContent = "Opening…";
   }
-  if (el.stickyDemoBtn) el.stickyDemoBtn.disabled = true;
 
   leagueLoadStartedAt = Date.now();
   setStatus("Loading Sleeper data...", { loading: true });
@@ -13808,7 +13741,6 @@ function stopLeagueLoadingUi() {
     el.stickyFindBtn.disabled = false;
     el.stickyFindBtn.textContent = "Find leagues";
   }
-  if (el.stickyDemoBtn) el.stickyDemoBtn.disabled = false;
   if (!el.loadLeagueBtn) return;
   el.loadLeagueBtn.disabled = false;
   el.loadLeagueBtn.classList.remove("loading");

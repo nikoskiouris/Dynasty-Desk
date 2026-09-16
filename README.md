@@ -41,8 +41,6 @@ Four pages. Each page has a row of rooms under it, so every feature is at most t
    - **Seasons** — season archive and side-by-side comparisons.
    - **Records** — all-time record book from archive matchups.
 
-Demo league: [Try Hard or Die Hard](https://sleeper.app/leagues/1315165104303513600) (`1315165104303513600`).
-
 ### Live Sunday scores
 The desk polls Sleeper matchups on the NFL window (Thu–Mon UTC) and whenever the current week already has points. Scoreboard, ticker, awards, and recap refresh. The 4000-season Monte Carlo does **not** rerun on every point tick. It refreshes when a week finals, remaining games change, or ~3 minutes have passed.
 
@@ -52,7 +50,7 @@ Sleeper trades first, KeepTradeCut as the prior:
 - Sleeper trade market (`docs/data/sleeper_trade_values.json`) fitted from completed dynasty trades snowballed from public leagues.
 - Those two are blended so frequently traded players follow the Sleeper market; thin names stay closer to KeepTradeCut.
 - Optional **league board** inferred from this league’s own trades (positions, youth, boom-bust skill players, and specific names). Apply it when you want room prices.
-- TE premium bump from Sleeper `bonus_rec_te`.
+- TE premium bump only when Sleeper has extra TE reception points (`bonus_rec_te` / `rec_te`). Plain PPR Superflex is not TEP.
 - Missing assets get a position/age estimate labeled **est**.
 - Elite players still get a premium so one star is not a pile of scraps.
 
@@ -70,6 +68,22 @@ The app is a static site. Host is **Netlify**, not GitHub Pages. Public URL: `ht
 6. Repo **Settings → Pages**: turn GitHub Pages **off** so the old `github.io` URL dies.
 
 Tests: `.github/workflows/test.yml`.
+
+### Traffic (how many people, how many hits)
+
+There is no perfect “people” count. Use two numbers and do not mix them.
+
+1. **CDN logs — all hits.** In Netlify go to **Analytics & metrics → Analytics → Enable Analytics**. That reads server logs: pageviews = HTML served, unique visitors = distinct IPs. It sees users with ad blockers and with JavaScript off. It also counts bots and 404s. Charts update hourly and keep about 30 days. This is the most complete picture of raw traffic.
+
+2. **Desk opens — people who actually loaded the app.** The live site POSTs to first-party `/api/visit` (same host, no Google Analytics, no cookies). Reloads add **views**. The same IP + browser counts once as **people** for today / this ISO week / this year / all-time. Obvious bot user-agents are skipped. Print the eight unlabeled totals with:
+
+```
+python3 scripts/desk_visits.py
+```
+
+Order: today views, today people, week views, week people, year views, year people, all-time views, all-time people.
+
+The old third-party `page-views-api.ratneshc.com` counter is retired. It only counted a browser once via localStorage, so it missed private windows, undercounted people who blocked the third-party host, and could not tell traffic from people.
 
 ## CLI
 

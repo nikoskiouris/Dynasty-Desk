@@ -123,7 +123,14 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /rel="canonical"/);
   assert.match(index, /apple-touch-icon/);
   assert.match(index, /id="sticky-mobile-cta"/);
-  assert.match(index, /id="storage-notice"/);
+  assert.match(index, /id="sticky-find-btn"/);
+  assert.doesNotMatch(index, /id="storage-notice"/);
+  assert.doesNotMatch(index, /id="landing-demo-btn"/);
+  assert.doesNotMatch(index, /id="rail-demo-btn"/);
+  assert.doesNotMatch(index, /id="sticky-demo-btn"/);
+  assert.doesNotMatch(index, /id="copy-league-id-btn"/);
+  assert.doesNotMatch(index, /Use demo league/);
+  assert.doesNotMatch(index, /Open demo/);
   assert.match(index, /id="landing-rather"/);
   assert.match(index, /id="landing-username"/);
   assert.doesNotMatch(index, /id="landing-visits"/);
@@ -133,8 +140,12 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /Who would you rather have\?/);
   assert.match(index, /PPR 12-man Superflex/);
   assert.match(index, /id="username-error"/);
-  assert.match(index, /privacy\.html/);
-  assert.match(index, /data-theme="dark"/);
+  assert.match(index, /data-theme="light"/);
+  assert.match(index, /theme-color" content="#eef3f2"/);
+  assert.match(index, /dynasty_desk_theme/);
+  assert.match(index, />Dark mode</);
+  assert.match(index, /id="theme-toggle-btn"[^>]*aria-pressed="true"/);
+  assert.doesNotMatch(index, /data-theme="dark"/);
   assert.match(index, /family=Inter:/);
   for (const page of ["league", "teams", "trades", "history"]) {
     assert.match(index, new RegExp(`data-page="${page}"`));
@@ -168,14 +179,19 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(leagueInput, /value="[^"]+"/);
   assert.match(usernameInput, /autocomplete="off"/);
   assert.doesNotMatch(index, /last username, league/);
-  assert.match(index, /terms\.html/);
+  assert.doesNotMatch(index, /privacy\.html/);
+  assert.doesNotMatch(index, /terms\.html/);
+  assert.doesNotMatch(index, />Privacy</);
+  assert.doesNotMatch(index, />Terms</);
+  assert.doesNotMatch(index, />Contact</);
+  assert.doesNotMatch(index, /workspace-footer/);
 
   const robots = readDocs("robots.txt");
   assert.match(robots, /Sitemap: https:\/\/dynastyticker\.com\/sitemap\.xml/);
 
   const sitemap = readDocs("sitemap.xml");
-  assert.match(sitemap, /privacy\.html/);
-  assert.match(sitemap, /terms\.html/);
+  assert.doesNotMatch(sitemap, /privacy\.html/);
+  assert.doesNotMatch(sitemap, /terms\.html/);
   assert.equal(SITE_URL, "https://dynastyticker.com/");
   assert.equal(REPO_URL, "https://github.com/nikoskiouris/Dynasty-Desk");
   assert.match(sitemap, /https:\/\/dynastyticker\.com\//);
@@ -187,12 +203,24 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   const netlify = readFileSync(join(docs, "../netlify.toml"), "utf8");
   assert.match(netlify, /publish = "docs"/);
   assert.match(netlify, /dynastyticker\.com/);
+  assert.match(netlify, /from = "\/api\/visit"/);
+  assert.match(netlify, /from = "\/api\/views"/);
+  assert.match(netlify, /directory = "netlify\/functions"/);
+  assert.match(readDocs("_redirects"), /\/api\/visit\s+\/\.netlify\/functions\/visit\s+200!/);
 
   const notFound = readDocs("404.html");
   assert.match(notFound, /Page not found/);
   assert.match(notFound, /<h1>/);
+  assert.match(notFound, /theme-color" content="#eef3f2"/);
+  assert.match(notFound, /data-theme="light"/);
+  assert.doesNotMatch(notFound, /demo league/i);
+  assert.doesNotMatch(notFound, /1315165104303513600/);
+  assert.doesNotMatch(notFound, /privacy\.html/);
+  assert.doesNotMatch(notFound, /terms\.html/);
+  assert.doesNotMatch(notFound, /Contact/);
 
   const privacy = readDocs("privacy.html");
+  assert.match(privacy, /theme-color" content="#eef3f2"/);
   assert.match(privacy, /localStorage/);
   assert.match(privacy, /No accounts/);
   assert.match(privacy, /GitHub issues/);
@@ -209,8 +237,14 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(app, /Last league remembered/);
 
   const terms = readDocs("terms.html");
+  assert.match(terms, /theme-color" content="#eef3f2"/);
   assert.match(terms, /not affiliated/i);
   assert.match(terms, /as is/i);
+
+  assert.match(readDocs("modules/state.js"), /export const DEFAULT_THEME = "light"/);
+  assert.match(readDocs("app.js"), /return DEFAULT_THEME/);
+  assert.match(readDocs("site.webmanifest"), /"theme_color": "#eef3f2"/);
+  assert.match(readDocs("styles.css"), /Daylight mint desk/);
 
   assert.ok(statSync(join(docs, "og-image.jpg")).size < 120_000);
   assert.match(OG_IMAGE_URL, /og-image\.jpg$/);

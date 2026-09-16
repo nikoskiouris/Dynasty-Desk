@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildRecapCardModel, recapCardFilename, drawRecapCard } from "../docs/modules/recap-card.js";
+import { buildRecapCardModel, recapCardFilename, drawRecapCard, recapCardPalette } from "../docs/modules/recap-card.js";
 
 test("recap card model keeps the headline games, MVP, and title favorite", () => {
   const model = buildRecapCardModel({
@@ -69,4 +69,46 @@ test("drawRecapCard paints title, scores, and the free share URL", () => {
   assert.match(painted, /Niko/);
   assert.match(painted, /120\.4/);
   assert.match(painted, /week=2/);
+});
+
+test("recap cards follow the desk theme and default to light", () => {
+  assert.equal(recapCardPalette("light").bg, "#eef3f2");
+  assert.equal(recapCardPalette("dark").bg, "#071018");
+  assert.equal(recapCardPalette("light").text, "#102024");
+  const fills = [];
+  const ctx = {
+    fillStyle: "",
+    font: "",
+    strokeStyle: "",
+    lineWidth: 0,
+    clearRect() {},
+    fillRect() {},
+    fillText() {},
+    measureText(text) {
+      return { width: String(text).length * 12 };
+    },
+    beginPath() {},
+    moveTo() {},
+    arcTo() {},
+    closePath() {},
+    fill() {},
+    stroke() {},
+    createRadialGradient() {
+      return { addColorStop() {} };
+    },
+  };
+  Object.defineProperty(ctx, "fillStyle", {
+    set(value) {
+      fills.push(value);
+    },
+    get() {
+      return fills[fills.length - 1];
+    },
+  });
+  const model = buildRecapCardModel({ leagueName: "League", weekLabel: "Week 1", games: [] });
+  drawRecapCard(ctx, model);
+  assert.equal(fills[0], "#eef3f2");
+  fills.length = 0;
+  drawRecapCard(ctx, model, { theme: "dark" });
+  assert.equal(fills[0], "#071018");
 });

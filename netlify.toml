@@ -5,10 +5,26 @@
 [build.environment]
   PYTHON_VERSION = "3.12"
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 [[redirects]]
   from = "https://www.dynastyticker.com/*"
   to = "https://dynastyticker.com/:splat"
   status = 301
+  force = true
+
+[[redirects]]
+  from = "/api/visit"
+  to = "/.netlify/functions/visit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/views"
+  to = "/.netlify/functions/visit"
+  status = 200
   force = true
 
 [[redirects]]

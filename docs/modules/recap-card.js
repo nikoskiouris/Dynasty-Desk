@@ -76,8 +76,23 @@ function wrapText(ctx, text, maxWidth) {
   return lines;
 }
 
-export function drawRecapCard(ctx, model, { width = 1080, height = 1350 } = {}) {
-  const palette = {
+const RECAP_PALETTES = {
+  light: {
+    bg: "#eef3f2",
+    panel: "rgba(255,255,255,0.92)",
+    line: "rgba(12,24,28,0.12)",
+    text: "#102024",
+    muted: "#4d6166",
+    blue: "#0a7568",
+    violet: "#156e7a",
+    green: "#0a7568",
+    amber: "#946200",
+    glow: "rgba(15,157,138,0.18)",
+    glow2: "rgba(15,157,138,0.1)",
+    awardFill: "rgba(15,157,138,0.12)",
+    favoriteFill: "rgba(21,110,122,0.12)",
+  },
+  dark: {
     bg: "#071018",
     panel: "rgba(255,255,255,0.06)",
     line: "rgba(46,230,197,0.16)",
@@ -87,21 +102,33 @@ export function drawRecapCard(ctx, model, { width = 1080, height = 1350 } = {}) 
     violet: "#5fd0dc",
     green: "#2ee6c5",
     amber: "#f5c14a",
-  };
+    glow: "rgba(46,230,197,0.22)",
+    glow2: "rgba(46,230,197,0.12)",
+    awardFill: "rgba(46,230,197,0.14)",
+    favoriteFill: "rgba(95,208,220,0.16)",
+  },
+};
+
+export function recapCardPalette(theme) {
+  return RECAP_PALETTES[theme === "dark" ? "dark" : "light"];
+}
+
+export function drawRecapCard(ctx, model, { width = 1080, height = 1350, theme = "light" } = {}) {
+  const palette = recapCardPalette(theme);
 
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = palette.bg;
   ctx.fillRect(0, 0, width, height);
 
   const glow = ctx.createRadialGradient(width * 0.8, 0, 40, width * 0.8, 0, width * 0.7);
-  glow.addColorStop(0, "rgba(46,230,197,0.22)");
-  glow.addColorStop(1, "rgba(46,230,197,0)");
+  glow.addColorStop(0, palette.glow);
+  glow.addColorStop(1, "rgba(15,157,138,0)");
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, width, height);
 
   const glow2 = ctx.createRadialGradient(width * 0.1, height, 20, width * 0.1, height, width * 0.6);
-  glow2.addColorStop(0, "rgba(46,230,197,0.12)");
-  glow2.addColorStop(1, "rgba(46,230,197,0)");
+  glow2.addColorStop(0, palette.glow2);
+  glow2.addColorStop(1, "rgba(15,157,138,0)");
   ctx.fillStyle = glow2;
   ctx.fillRect(0, 0, width, height);
 
@@ -161,7 +188,7 @@ export function drawRecapCard(ctx, model, { width = 1080, height = 1350 } = {}) 
   if (model.award) {
     y += 12;
     roundRect(ctx, 72, y, width - 144, 150, 24);
-    ctx.fillStyle = "rgba(46,230,197,0.14)";
+    ctx.fillStyle = palette.awardFill;
     ctx.fill();
     ctx.fillStyle = palette.green;
     ctx.font = "700 22px Inter, system-ui, sans-serif";
@@ -177,7 +204,7 @@ export function drawRecapCard(ctx, model, { width = 1080, height = 1350 } = {}) 
 
   if (model.favorite) {
     roundRect(ctx, 72, y, width - 144, 130, 24);
-    ctx.fillStyle = "rgba(95,208,220,0.16)";
+    ctx.fillStyle = palette.favoriteFill;
     ctx.fill();
     ctx.fillStyle = palette.violet;
     ctx.font = "700 22px Inter, system-ui, sans-serif";
@@ -205,6 +232,7 @@ export async function renderRecapCardBlob(model, {
   width = 1080,
   height = 1350,
   documentRef = globalThis.document,
+  theme = "light",
 } = {}) {
   if (!documentRef?.createElement) {
     throw new Error("Canvas is not available in this environment.");
@@ -214,7 +242,7 @@ export async function renderRecapCardBlob(model, {
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Could not open a 2D canvas for the recap card.");
-  drawRecapCard(ctx, model, { width, height });
+  drawRecapCard(ctx, model, { width, height, theme });
   if (typeof canvas.toBlob === "function") {
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (blob) return blob;
