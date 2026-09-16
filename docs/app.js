@@ -130,6 +130,19 @@ import {
   readStorageNoticeDismissed,
   writeStorageNoticeDismissed,
 } from "./modules/site.js";
+import {
+  DEFAULT_RATHER_FORMAT,
+  applyRatherOverlayHidden,
+  decorateRatherPlayer,
+  listRatherPlayers,
+  pickRatherPair,
+  pushRatherRecentKey,
+  readRatherRecentKeys,
+  readRatherSessionDone,
+  recordRatherVote,
+  renderRatherMarkup,
+  writeRatherSessionDone,
+} from "./modules/rather.js";
 
 const OUTGOING_POOL_LIMIT = 18;
 const DEFAULT_MAX_OUTGOING_PACKAGE_SIZE = 5;
@@ -276,6 +289,8 @@ const el = {
   stickyDemoBtn: document.querySelector("#sticky-demo-btn"),
   storageNotice: document.querySelector("#storage-notice"),
   storageNoticeDismiss: document.querySelector("#storage-notice-dismiss"),
+  ratherOverlay: document.querySelector("#rather-overlay"),
+  ratherBody: document.querySelector("#rather-body"),
   mobileChromeTitle: document.querySelector("#mobile-chrome-title"),
   mobileRailToggle: document.querySelector("#mobile-rail-toggle"),
   mobileRailClose: document.querySelector("#mobile-rail-close"),
@@ -304,6 +319,8 @@ let lastSimSignature = "";
 let leagueTradeSideCache = { key: "", sides: [] };
 let franchiseIndexCache = { key: "", index: null };
 let applyingHistory = false;
+let ratherPromptPair = null;
+let ratherLastFocus = null;
 
 function getAssetValue(asset, values = state.values) {
   return marketAssetValue(asset, values, {
@@ -381,11 +398,17 @@ el.mobileRailToggle?.addEventListener("click", () => {
 el.mobileRailClose?.addEventListener("click", () => setMobileRailOpen(false));
 el.railBackdrop?.addEventListener("click", () => setMobileRailOpen(false));
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && isRatherPromptOpen()) {
+    event.preventDefault();
+    skipRatherPrompt();
+    return;
+  }
   if (event.key === "Escape" && document.body.classList.contains("rail-open")) {
     setMobileRailOpen(false);
     el.mobileRailToggle?.focus();
   }
 });
+el.ratherOverlay?.addEventListener("click", handleRatherOverlayClick);
 window.matchMedia(PHONE_LAYOUT_QUERY).addEventListener("change", () => {
   setMobileRailOpen(false);
 });
@@ -442,6 +465,7 @@ renderSessionSnapshot();
 syncTradeModeUi();
 syncStorageNotice();
 bootFromUrl();
+void bootRatherPrompt();
 if (typeof history.scrollRestoration === "string") history.scrollRestoration = "manual";
 window.addEventListener("popstate", (event) => applyDeskPopState(event.state));
 if (isPhoneLayout()) setMobileRailOpen(false);
@@ -13387,6 +13411,101 @@ function syncDocumentMeta() {
       loaded: Boolean(state.leagueId),
       room,
     }),
+  });
+}
+
+function isRatherPromptOpen() {
+  return Boolean(el.ratherOverlay) && !el.ratherOverlay.hidden;
+}
+
+async function bootRatherPrompt() {
+  if (!el.ratherOverlay || !el.ratherBody) return;
+  if (readRatherSessionDone()) return;
+  try {
+    if (!state.valueBundles?.sf?.values || !Object.keys(state.valueBundles.sf.values).length) {
+      state.valueBundles = await fetchValuationBundles();
+    }
+    const names = state.valueBundles?.names || state.valueNameMap || {};
+    const values = state.valueBundles?.sf?.values || {};
+    const players = listRatherPlayers(values, names);
+    const picked = pickRatherPair(players, { recentKeys: readRatherRecentKeys() });
+    if (!picked) return;
+    const nflPlayers = getPlayersCache()?.players || state.players || {};
+    openRatherPrompt({
+      left: decorateRatherPlayer(picked.left, nflPlayers),
+      right: decorateRatherPlayer(picked.right, nflPlayers),
+      key: picked.key,
+    });
+  } catch (err) {
+    console.warn("Could not open rather prompt", err);
+  }
+}
+
+function openRatherPrompt(pair) {
+  if (!el.ratherOverlay || !el.ratherBody || !pair?.left || !pair?.right) return;
+  ratherPromptPair = pair;
+  ratherLastFocus = document.activeElement;
+  el.ratherBody.innerHTML = renderRatherMarkup(pair, DEFAULT_RATHER_FORMAT);
+  bindRatherPhotos(el.ratherBody);
+  applyRatherOverlayHidden(el.ratherOverlay, false);
+  document.body.classList.add("rather-open");
+  document.querySelector(".app-frame")?.setAttribute("inert", "");
+  el.ratherOverlay.querySelector(".rather-player")?.focus();
+}
+
+function closeRatherPrompt() {
+  if (!el.ratherOverlay) return;
+  applyRatherOverlayHidden(el.ratherOverlay, true);
+  document.body.classList.remove("rather-open");
+  document.querySelector(".app-frame")?.removeAttribute("inert");
+  ratherPromptPair = null;
+  const restore = ratherLastFocus;
+  ratherLastFocus = null;
+  if (restore && typeof restore.focus === "function") restore.focus();
+}
+
+function skipRatherPrompt() {
+  writeRatherSessionDone();
+  closeRatherPrompt();
+}
+
+function chooseRatherPlayer(winnerId) {
+  const pair = ratherPromptPair;
+  if (!pair) {
+    skipRatherPrompt();
+    return;
+  }
+  const ids = [pair.left?.assetId, pair.right?.assetId].filter(Boolean);
+  const loserId = ids.find((id) => id !== winnerId) || "";
+  if (winnerId && loserId) {
+    recordRatherVote({
+      winnerId,
+      loserId,
+      format: DEFAULT_RATHER_FORMAT,
+      at: Date.now(),
+    });
+  }
+  if (pair.key) pushRatherRecentKey(pair.key);
+  writeRatherSessionDone();
+  closeRatherPrompt();
+}
+
+function handleRatherOverlayClick(event) {
+  const skip = event.target.closest?.("#rather-skip");
+  if (skip) {
+    skipRatherPrompt();
+    return;
+  }
+  const pick = event.target.closest?.("[data-rather-pick]");
+  const winnerId = pick?.getAttribute("data-rather-pick");
+  if (winnerId) chooseRatherPlayer(winnerId);
+}
+
+function bindRatherPhotos(root) {
+  root?.querySelectorAll?.("img.rather-photo").forEach((img) => {
+    img.addEventListener("error", () => {
+      img.classList.add("is-broken");
+    });
   });
 }
 

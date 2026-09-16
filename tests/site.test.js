@@ -123,6 +123,9 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /apple-touch-icon/);
   assert.match(index, /id="sticky-mobile-cta"/);
   assert.match(index, /id="storage-notice"/);
+  assert.match(index, /id="rather-overlay"/);
+  assert.match(index, /Who would you rather have\?/);
+  assert.match(index, /PPR 12-man Superflex/);
   assert.match(index, /id="username-error"/);
   assert.match(index, /privacy\.html/);
   assert.match(index, /data-theme="dark"/);
@@ -176,6 +179,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(privacy, /localStorage/);
   assert.match(privacy, /No accounts/);
   assert.match(privacy, /GitHub issues/);
+  assert.match(privacy, /who would you rather have/);
   assert.doesNotMatch(privacy, /Last Sleeper username/);
   assert.doesNotMatch(privacy, /Last league ID/);
 
