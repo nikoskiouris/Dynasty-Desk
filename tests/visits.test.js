@@ -106,7 +106,7 @@ test("the desk stores visits but never prints the total", () => {
   assert.doesNotMatch(index, /id="landing-visits"/);
   assert.doesNotMatch(index, /id="footer-visits"/);
   assert.doesNotMatch(index, /people have viewed this desk/);
-  assert.match(index, /anonymous visit ping/);
+  assert.doesNotMatch(index, /anonymous visit ping/);
 
   const app = readFileSync(join(docs, "app.js"), "utf8");
   assert.match(app, /recordDeskVisit/);
@@ -114,7 +114,7 @@ test("the desk stores visits but never prints the total", () => {
   assert.doesNotMatch(app, /visitCountUrl/);
 
   const privacy = readFileSync(join(docs, "privacy.html"), "utf8");
-  assert.match(privacy, /visit count/i);
-  assert.match(privacy, /does not show that number/i);
-  assert.match(privacy, /page-views-api\.ratneshc\.com/);
+  assert.doesNotMatch(privacy, /visit count/i);
+  assert.doesNotMatch(privacy, /page-views-api/);
+  assert.doesNotMatch(privacy, /does not show that number/i);
 });
