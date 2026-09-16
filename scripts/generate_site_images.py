@@ -135,7 +135,7 @@ def make_og_image() -> None:
         draw.text((x + pad_x, 458), label, font=chip, fill=BLUE)
         x = box[2] + 12
 
-    draw.text((88, 528), "nikoskiouris.github.io/FantasyDynastyAnalyzer", font=url_font, fill=MUTED)
+    draw.text((88, 528), "nikoskiouris.github.io/DynastyDesk", font=url_font, fill=MUTED)
     jpeg = img.convert("RGB")
     jpeg.save(ROOT / "og-image.jpg", format="JPEG", quality=82, optimize=True, progressive=True)
 
