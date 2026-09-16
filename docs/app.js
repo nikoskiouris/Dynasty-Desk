@@ -120,7 +120,11 @@ import {
   summarizeCharms,
   winPctFromRecord,
 } from "./modules/loyalty.js";
-import { renderLeaguePickerMarkup } from "./modules/league-search.js";
+import {
+  renderLeaguePickerMarkup,
+  renderMeSelectOptions,
+  resolveDefaultMeRoster,
+} from "./modules/league-search.js";
 import {
   buildFranchiseIndex,
   ownerIdFromRoster,
@@ -327,6 +331,8 @@ let lastSimSignature = "";
 let leagueTradeSideCache = { key: "", sides: [] };
 let franchiseIndexCache = { key: "", index: null };
 let applyingHistory = false;
+let managerSelectorHydrating = false;
+let managerSelectorHydrateEpoch = 0;
 let ratherPromptPair = null;
 let ratherSeasonStatsCache = { season: "", stats: null };
 let ratherPromptContext = {
@@ -458,8 +464,10 @@ el.modeCards?.forEach((button) => {
 });
 el.clearTargetBtn?.addEventListener("click", clearTargetAsset);
 el.meSelect?.addEventListener("change", () => {
+  if (managerSelectorHydrating) return;
   invalidateResults();
   state.meRosterId = Number(el.meSelect.value);
+  state.mePickedByUser = true;
   state.lensRosterId = null;
   resetCalculatorState({ keepPartner: false });
   renderPlayerSearch();
@@ -1338,6 +1346,11 @@ async function runLeagueLoad(leagueId) {
     resetHistoryCompareState();
     resetSeasonState();
     state.lensRosterId = null;
+    if (String(state.leagueId || "") !== String(leagueId)) {
+      state.meRosterId = null;
+      state.mePickedByUser = false;
+      if (el.meSelect) el.meSelect.innerHTML = "";
+    }
     state.homeWeek = null;
     state.awardsWeek = null;
     state.recapWeek = null;
@@ -2275,47 +2288,63 @@ function savePlayersCache(players, savedAt, stateKey = null) {
   }
 }
 
+function applyMeSelectValue(rosterId) {
+  if (!el.meSelect || rosterId == null || rosterId === "") return;
+  const token = String(rosterId);
+  el.meSelect.value = token;
+  const index = [...el.meSelect.options].findIndex((option) => option.value === token);
+  if (index >= 0) {
+    el.meSelect.selectedIndex = index;
+    el.meSelect.options[index].selected = true;
+  }
+}
+
 function hydrateManagerSelector() {
-  const selectedRosterId = Number(el.meSelect.value || state.meRosterId);
-  el.meSelect.innerHTML = "";
-  state.normalizedRosters
-    .slice()
-    .sort((a, b) => a.manager.displayName.localeCompare(b.manager.displayName))
-    .forEach((roster) => {
-      const option = document.createElement("option");
-      option.value = String(roster.rosterId);
-      option.textContent = roster.manager.displayName;
-      el.meSelect.appendChild(option);
-    });
-
-  const pendingRoster = state.pendingMeRosterId
-    ? state.normalizedRosters.find((roster) => Number(roster.rosterId) === Number(state.pendingMeRosterId))
-    : null;
-  const preservedRoster = state.normalizedRosters.find((roster) => roster.rosterId === selectedRosterId);
+  if (!el.meSelect) return;
+  const epoch = ++managerSelectorHydrateEpoch;
+  managerSelectorHydrating = true;
+  const chosen = resolveDefaultMeRoster({
+    rosters: state.normalizedRosters,
+    pendingMeRosterId: state.pendingMeRosterId,
+    selectedRosterId: el.meSelect.value || state.meRosterId,
+    sleeperUser: state.sleeperUser,
+    rawRosters: state.rosters,
+    userPickedMe: state.mePickedByUser,
+  });
   state.pendingMeRosterId = null;
-
-  if (pendingRoster) {
-    state.meRosterId = pendingRoster.rosterId;
-    el.meSelect.value = String(pendingRoster.rosterId);
-  } else if (preservedRoster) {
-    state.meRosterId = preservedRoster.rosterId;
-    el.meSelect.value = String(preservedRoster.rosterId);
-  } else if (state.normalizedRosters.length > 0) {
-    state.meRosterId = state.normalizedRosters[0].rosterId;
-    el.meSelect.value = String(state.normalizedRosters[0].rosterId);
+  el.meSelect.innerHTML = renderMeSelectOptions(state.normalizedRosters, chosen?.rosterId);
+  if (chosen) {
+    state.meRosterId = chosen.rosterId;
+    applyMeSelectValue(chosen.rosterId);
+  } else {
+    state.meRosterId = null;
   }
   pruneSelectedOutgoingAssets();
   pruneExcludedOutgoingAssets();
   renderPlayerSearch();
   renderSessionSnapshot();
   renderActivePage();
+  updateUrlState({ mode: "replace" });
+  requestAnimationFrame(() => {
+    if (epoch !== managerSelectorHydrateEpoch) return;
+    if (chosen) applyMeSelectValue(chosen.rosterId);
+    managerSelectorHydrating = false;
+  });
+}
+
+function currentMeRosterId() {
+  const fromState = Number(state.meRosterId);
+  if (Number.isFinite(fromState) && fromState > 0) return fromState;
+  const fromSelect = Number(el.meSelect?.value);
+  if (Number.isFinite(fromSelect) && fromSelect > 0) return fromSelect;
+  return null;
 }
 
 function getMyRoster() {
-  if (!state.meRosterId) return null;
-  const meRosterId = Number(el.meSelect.value || state.meRosterId);
+  const meRosterId = currentMeRosterId();
+  if (!meRosterId) return null;
   state.meRosterId = meRosterId;
-  return state.normalizedRosters.find((roster) => roster.rosterId === meRosterId) || null;
+  return state.normalizedRosters.find((roster) => Number(roster.rosterId) === meRosterId) || null;
 }
 
 function getLensRoster() {
@@ -7417,8 +7446,8 @@ function sortAssetPickerOptions(a, b, values = state.values) {
 }
 
 function renderPlayerSearch() {
-  if (!state.meRosterId) return;
-  const meRosterId = Number(el.meSelect.value || state.meRosterId);
+  const meRosterId = currentMeRosterId();
+  if (!meRosterId) return;
   state.meRosterId = meRosterId;
   const mode = getTradeMode();
 

@@ -1,10 +1,100 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { leagueStatusLabel, renderLeaguePickerMarkup } from "../docs/modules/league-search.js";
+import {
+  findRosterForSleeperUser,
+  leagueStatusLabel,
+  renderLeaguePickerMarkup,
+  renderMeSelectOptions,
+  resolveDefaultMeRoster,
+} from "../docs/modules/league-search.js";
 
 test("leagueStatusLabel humanizes sleeper status", () => {
   assert.equal(leagueStatusLabel("in_season"), "in season");
   assert.equal(leagueStatusLabel(""), "league");
+});
+
+test("resolveDefaultMeRoster prefers the searched Sleeper user over the first roster", () => {
+  const rosters = [
+    { rosterId: 1, manager: { userId: "u-alpha", displayName: "Alpha" } },
+    { rosterId: 7, manager: { userId: "u-niko", displayName: "NikoSkiouris" } },
+    { rosterId: 3, manager: { userId: "u-zeta", displayName: "Zeta" } },
+  ];
+  const chosen = resolveDefaultMeRoster({
+    rosters,
+    sleeperUser: { user_id: "u-niko", username: "NikoSkiouris", display_name: "Niko" },
+  });
+  assert.equal(chosen.rosterId, 7);
+});
+
+test("resolveDefaultMeRoster keeps a share-link team ahead of the searched user", () => {
+  const rosters = [
+    { rosterId: 1, manager: { userId: "u-alpha", displayName: "Alpha" } },
+    { rosterId: 7, manager: { userId: "u-niko", displayName: "NikoSkiouris" } },
+  ];
+  const chosen = resolveDefaultMeRoster({
+    rosters,
+    pendingMeRosterId: 1,
+    sleeperUser: { user_id: "u-niko" },
+  });
+  assert.equal(chosen.rosterId, 1);
+});
+
+test("resolveDefaultMeRoster keeps a manual team pick after the league is loaded", () => {
+  const rosters = [
+    { rosterId: 1, manager: { userId: "u-alpha", displayName: "Alpha" } },
+    { rosterId: 7, manager: { userId: "u-niko", displayName: "NikoSkiouris" } },
+  ];
+  const chosen = resolveDefaultMeRoster({
+    rosters,
+    selectedRosterId: 1,
+    sleeperUser: { user_id: "u-niko" },
+    userPickedMe: true,
+  });
+  assert.equal(chosen.rosterId, 1);
+});
+
+test("resolveDefaultMeRoster ignores a leftover roster id when a username was searched", () => {
+  const rosters = [
+    { rosterId: 1, manager: { userId: "u-alpha", displayName: "Alpha" } },
+    { rosterId: 7, manager: { userId: "u-niko", displayName: "NikoSkiouris" } },
+  ];
+  const chosen = resolveDefaultMeRoster({
+    rosters,
+    selectedRosterId: 1,
+    sleeperUser: { user_id: "u-niko" },
+    userPickedMe: false,
+  });
+  assert.equal(chosen.rosterId, 7);
+});
+
+test("findRosterForSleeperUser matches co-owners and display names", () => {
+  const rosters = [
+    { rosterId: 2, manager: { userId: "u-alpha", displayName: "Alpha" } },
+    { rosterId: 9, manager: { userId: "u-main", displayName: "NikoSkiouris" } },
+  ];
+  assert.equal(
+    findRosterForSleeperUser(rosters, { user_id: "u-niko" }, [
+      { roster_id: 2, owner_id: "u-alpha" },
+      { roster_id: 9, owner_id: "u-main", co_owners: ["u-niko"] },
+    ])?.rosterId,
+    9,
+  );
+  assert.equal(
+    findRosterForSleeperUser(
+      [{ rosterId: 4, manager: { userId: "x", displayName: "NikoSkiouris" } }],
+      { username: "nikoskiouris" },
+    )?.rosterId,
+    4,
+  );
+});
+
+test("me select markup marks the searched roster selected even when it is not first alphabetically", () => {
+  const html = renderMeSelectOptions([
+    { rosterId: 1, manager: { displayName: "Alpha" } },
+    { rosterId: 7, manager: { displayName: "NikoSkiouris" } },
+  ], 7);
+  assert.match(html, /value="7" selected/);
+  assert.doesNotMatch(html, /value="1" selected/);
 });
 
 test("league picker markup lists seasons and marks the selected desk", () => {
