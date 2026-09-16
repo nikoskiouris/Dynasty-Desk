@@ -123,7 +123,8 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /apple-touch-icon/);
   assert.match(index, /id="sticky-mobile-cta"/);
   assert.match(index, /id="storage-notice"/);
-  assert.match(index, /id="rather-overlay"/);
+  assert.match(index, /id="landing-rather"/);
+  assert.match(index, /id="landing-username"/);
   assert.match(index, /Who would you rather have\?/);
   assert.match(index, /PPR 12-man Superflex/);
   assert.match(index, /id="username-error"/);
@@ -153,8 +154,10 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(index, /Plus Jakarta/);
 
   const usernameInput = index.match(/<input[^>]*id="sleeper-username"[^>]*>/)?.[0] || "";
+  const landingUsername = index.match(/<input[^>]*id="landing-username"[^>]*>/)?.[0] || "";
   const leagueInput = index.match(/<input[^>]*id="league-id"[^>]*>/)?.[0] || "";
   assert.match(usernameInput, /value=""/);
+  assert.match(landingUsername, /value=""/);
   assert.match(leagueInput, /value=""/);
   assert.doesNotMatch(usernameInput, /value="[^"]+"/);
   assert.doesNotMatch(leagueInput, /value="[^"]+"/);

@@ -4,10 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Dynasty Desk — Fantasy League Command Center</title>
-    <meta name="description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a group-chat recap for your league." />
+    <meta name="description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a crowd board that starts from KeepTradeCut." />
     <meta name="theme-color" content="#071018" />
     <meta property="og:title" content="Dynasty Desk — Fantasy League Command Center" />
-    <meta property="og:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a group-chat recap for your league." />
+    <meta property="og:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a crowd board that starts from KeepTradeCut." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://nikoskiouris.github.io/FantasyDynastyAnalyzer/" />
     <meta property="og:image" content="https://nikoskiouris.github.io/FantasyDynastyAnalyzer/og-image.jpg" />
@@ -16,7 +16,7 @@
     <meta property="og:image:alt" content="Dynasty Desk: your league on a broadcast desk" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Dynasty Desk — Fantasy League Command Center" />
-    <meta name="twitter:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a group-chat recap for your league." />
+    <meta name="twitter:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a crowd board that starts from KeepTradeCut." />
     <meta name="twitter:image" content="https://nikoskiouris.github.io/FantasyDynastyAnalyzer/og-image.jpg" />
     <link rel="canonical" href="https://nikoskiouris.github.io/FantasyDynastyAnalyzer/" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
@@ -215,27 +215,54 @@
         </div>
 
         <section class="empty-workspace" id="landing">
-          <div class="landing-grid">
+          <div class="landing-hero">
             <div class="landing-copy">
               <span class="step-badge accent">Start</span>
-              <h2>Search a Sleeper username to open the desk.</h2>
-              <p class="muted">Type the username, pick the league, done. Four pages: League for this season, Teams for every roster, Trades for deals, History for the archive.</p>
+              <h2>Your league, on a broadcast desk.</h2>
+              <p class="muted">Search a Sleeper username. Open live scores, playoff odds, a dynasty trade lab, and a crowd board that starts from KeepTradeCut — then listens when you pick.</p>
+              <form id="landing-username-form" class="landing-search" novalidate>
+                <label for="landing-username">Sleeper username</label>
+                <div class="landing-search-row">
+                  <input
+                    id="landing-username"
+                    name="landing-username"
+                    placeholder="Search your Sleeper username"
+                    autocomplete="off"
+                    value=""
+                    autocapitalize="none"
+                    autocorrect="off"
+                    spellcheck="false"
+                    enterkeyhint="search"
+                    aria-describedby="landing-username-error"
+                  />
+                  <button id="landing-find-btn" type="submit">Find leagues</button>
+                </div>
+                <p id="landing-username-error" class="field-error" hidden role="alert"></p>
+              </form>
               <div class="landing-actions">
-                <button id="landing-demo-btn" type="button">Open demo league</button>
-                <button id="landing-focus-btn" type="button" class="ghost-btn">I have a username</button>
+                <button id="landing-demo-btn" type="button" class="ghost-btn">Open demo league</button>
               </div>
               <p id="landing-loading" class="landing-loading hidden" aria-live="polite">
                 <span class="status-loader" aria-hidden="true"></span>
                 <span id="landing-loading-text">Opening league from Sleeper…</span>
               </p>
             </div>
-            <ul class="landing-features">
-              <li><strong>League</strong><span>Live scores, standings, playoff odds, power rankings, weekly awards, and a group-chat recap.</span></li>
-              <li><strong>Teams</strong><span>Scout any roster: optimal lineup, pick vault, roster DNA, luck charms, and player passports.</span></li>
-              <li><strong>Trades</strong><span>Graded trade log, a calculator that verdicts both sides, and a generator that finds deals for you.</span></li>
-              <li><strong>History</strong><span>All-time hall, season ledger, manager comparisons, and the record book.</span></li>
-            </ul>
+            <div id="landing-rather" class="landing-rather">
+              <div class="rather-panel landing-rather-pending">
+                <span class="eyebrow">Desk Crowd</span>
+                <h2 id="rather-title">Who would you rather have?</h2>
+                <p class="rather-format" id="rather-format">PPR 12-man Superflex</p>
+                <p class="rather-format-detail" id="rather-format-detail">Dynasty rankings · full PPR scoring · 12-man league · Superflex QB</p>
+                <p class="muted">Loading a close Superflex matchup…</p>
+              </div>
+            </div>
           </div>
+          <ul class="landing-features">
+            <li><strong>League</strong><span>Live scores, standings, playoff odds, power rankings, weekly awards, and a group-chat recap.</span></li>
+            <li><strong>Teams</strong><span>Scout any roster: optimal lineup, pick vault, roster DNA, luck charms, and player passports.</span></li>
+            <li><strong>Trades</strong><span>Graded trade log, a calculator that verdicts both sides, and a generator that finds deals for you.</span></li>
+            <li><strong>History</strong><span>All-time hall, season ledger, manager comparisons, and the record book.</span></li>
+          </ul>
         </section>
 
         <div id="league-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="league-tab">
@@ -399,7 +426,7 @@
         </div>
 
         <footer class="workspace-footer">
-          <span>Dynasty Desk reads public Sleeper league data in your browser. Values blend KeepTradeCut 1QB or Superflex rankings with a TE-premium bump and a labeled estimate when an asset is missing.</span>
+          <span>Dynasty Desk reads public Sleeper league data in your browser. Values start from KeepTradeCut 1QB or Superflex rankings, then add a TE-premium bump, a labeled estimate when an asset is missing, and a slight nudge from who-would-you-rather votes in this browser.</span>
           <nav class="footer-links" aria-label="Site">
             <a href="./privacy.html">Privacy</a>
             <a href="./terms.html">Terms</a>
@@ -407,19 +434,6 @@
           </nav>
         </footer>
       </main>
-    </div>
-
-    <div id="rather-overlay" class="rather-overlay" hidden>
-      <div class="rather-dialog" role="dialog" aria-modal="true" aria-labelledby="rather-title" aria-describedby="rather-format rather-format-detail">
-        <div id="rather-body">
-          <div class="rather-panel">
-            <span class="eyebrow">Desk Crowd</span>
-            <h2 id="rather-title">Who would you rather have?</h2>
-            <p class="rather-format" id="rather-format">PPR 12-man Superflex</p>
-            <p class="rather-format-detail" id="rather-format-detail">Dynasty rankings · full PPR scoring · 12-man league · Superflex QB</p>
-          </div>
-        </div>
-      </div>
     </div>
 
     <div id="site-dock" class="site-dock">

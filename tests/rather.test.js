@@ -17,6 +17,7 @@ import {
   pickRatherPair,
   playerInitials,
   pushRatherRecentKey,
+  rankRatherPlayers,
   readRatherRecentKeys,
   readRatherSessionDone,
   readRatherVotes,
@@ -117,6 +118,8 @@ test("renderRatherMarkup shows headline, format detail, and two players", () => 
   assert.doesNotMatch(html, /Dynasty asset/);
   assert.match(html, /data-rather-pick="player:11564"/);
   assert.match(html, /id="rather-skip"/);
+  assert.match(html, /Skip this matchup/);
+  assert.match(html, /KeepTradeCut stays the market prior/);
   assert.doesNotMatch(html, /8510/);
 });
 
@@ -159,12 +162,29 @@ test("applyRatherOverlayHidden toggles the hidden attribute", () => {
   assert.equal(classes.has("hidden"), true);
 });
 
-test("index overlay and CSS keep the rather dialog hidden by default", () => {
+test("index puts rather on the landing page and never auto-opens a league overlay", () => {
   const index = readFileSync(join(docs, "index.html"), "utf8");
   const css = readFileSync(join(docs, "styles.css"), "utf8");
-  assert.match(index, /id="rather-overlay"/);
-  assert.match(index, /id="rather-body"/);
+  const app = readFileSync(join(docs, "app.js"), "utf8");
+  assert.match(index, /id="landing-rather"/);
+  assert.match(index, /id="landing-username"/);
+  assert.match(index, /id="landing-find-btn"/);
   assert.match(index, /Who would you rather have\?/);
-  assert.match(css, /\.rather-overlay:not\(\[hidden\]\)\s*\{[^}]*display:\s*grid/s);
-  assert.doesNotMatch(css, /\.rather-overlay\s*\{[^}]*display:\s*grid/s);
+  assert.doesNotMatch(index, /id="rather-overlay"/);
+  assert.doesNotMatch(index, /id="landing-focus-btn"/);
+  assert.match(css, /\.landing-rather\s*\{/);
+  assert.doesNotMatch(css, /\.rather-overlay:not\(\[hidden\]\)/);
+  assert.match(app, /bootLandingRather/);
+  assert.doesNotMatch(app, /function chooseRatherPlayer[\s\S]*loadLeagueById/);
+});
+
+test("rankRatherPlayers prefers the crowd-shifted player", () => {
+  const ranked = rankRatherPlayers(
+    [
+      { assetId: "player:a", name: "A", value: 8000 },
+      { assetId: "player:b", name: "B", value: 7990 },
+    ],
+    { "player:b": 0.08, "player:a": -0.08 }
+  );
+  assert.equal(ranked[0].assetId, "player:b");
 });

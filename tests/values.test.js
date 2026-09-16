@@ -12,6 +12,9 @@ import {
   resolvePickAssetValue,
   fetchValuationBundles,
   pickValueBundle,
+  crowdShiftsFromVotes,
+  applyCrowdShift,
+  CROWD_MAX_ABS_SHIFT,
 } from "../docs/modules/values.js";
 
 test("parseCsvValues reads asset rows", () => {
@@ -99,4 +102,81 @@ test("fetchValuationBundles falls back from JSON to SF then sample CSV", async (
   const csvBundle = await fetchValuationBundles(csvFetch);
   assert.equal(csvBundle.sf.values["player:9"], 1111);
   assert.equal(csvBundle.oneQb.values["player:9"], 1111);
+});
+
+function evenVote(winnerId, loserId, at = 1_700_000_000_000) {
+  return { winnerId, loserId, format: "PPR 12-man Superflex", at };
+}
+
+test("crowd votes slightly move a player without replacing KeepTradeCut", () => {
+  const market = { "player:a": 8000, "player:b": 7900, "player:c": 5000 };
+  const star = { assetId: "player:a", assetType: "player", raw: { position: "WR" } };
+  const other = { assetId: "player:b", assetType: "player", raw: { position: "WR" } };
+  const baseA = getAssetValue(star, market);
+  const baseB = getAssetValue(other, market);
+
+  const shifts = crowdShiftsFromVotes([evenVote("player:a", "player:b")], market, { now: 1_700_000_000_000 });
+  const nudgedA = getAssetValue(star, market, { crowdShifts: shifts });
+  const nudgedB = getAssetValue(other, market, { crowdShifts: shifts });
+
+  assert.ok(nudgedA > baseA);
+  assert.ok(nudgedB < baseB);
+  assert.ok(nudgedA - baseA < baseA * 0.03);
+  assert.ok(baseB - nudgedB < baseB * 0.03);
+  assert.ok(Math.abs(shifts["player:a"]) <= CROWD_MAX_ABS_SHIFT);
+});
+
+test("KeepTradeCut updates re-anchor the board; votes are a residual not a reset", () => {
+  const votes = [evenVote("player:a", "player:b")];
+  const oldMarket = { "player:a": 8000, "player:b": 7900 };
+  const newMarket = { "player:a": 5100, "player:b": 7900 };
+  const star = { assetId: "player:a", assetType: "player", raw: { position: "WR" } };
+
+  const oldShifts = crowdShiftsFromVotes(votes, oldMarket, { now: 1_700_000_000_000 });
+  const newShifts = crowdShiftsFromVotes(votes, newMarket, { now: 1_700_000_000_000 });
+  const oldValue = getAssetValue(star, oldMarket, { crowdShifts: oldShifts });
+  const newBase = getAssetValue(star, newMarket);
+  const newValue = getAssetValue(star, newMarket, { crowdShifts: newShifts });
+
+  assert.ok(oldValue > 8000);
+  assert.ok(newValue < oldValue * 0.75);
+  assert.ok(newValue > newBase);
+  assert.ok(newValue < newBase * (1 + CROWD_MAX_ABS_SHIFT + 0.001));
+});
+
+test("repeated votes on the same pair diminish and stay inside the cap", () => {
+  const market = { "player:a": 6000, "player:b": 5980 };
+  const votes = Array.from({ length: 40 }, (_, i) => evenVote("player:a", "player:b", 1_700_000_000_000 + i));
+  const shifts = crowdShiftsFromVotes(votes, market, { now: 1_700_000_000_000 + 40 });
+  const once = crowdShiftsFromVotes([evenVote("player:a", "player:b")], market, { now: 1_700_000_000_000 });
+  assert.ok(shifts["player:a"] > once["player:a"]);
+  assert.ok(shifts["player:a"] <= CROWD_MAX_ABS_SHIFT);
+  const fortyTimes = applyCrowdShift("player:a", 6000, shifts);
+  assert.ok(fortyTimes <= Math.round(6000 * (1 + CROWD_MAX_ABS_SHIFT)));
+});
+
+test("upsets move more than chalk, junk votes are ignored", () => {
+  const market = { "player:fav": 9000, "player:dog": 4000, "player:x": 5000 };
+  const chalk = crowdShiftsFromVotes([evenVote("player:fav", "player:dog")], market, { now: 1_700_000_000_000 });
+  const upset = crowdShiftsFromVotes([evenVote("player:dog", "player:fav")], market, { now: 1_700_000_000_000 });
+  assert.ok(Math.abs(upset["player:dog"]) > Math.abs(chalk["player:fav"]));
+
+  const junk = crowdShiftsFromVotes([
+    { winnerId: "player:fav", loserId: "player:fav", at: 1 },
+    { winnerId: "pick:2026:r1:any", loserId: "player:x", at: 1 },
+    { winnerId: "", loserId: "player:x", at: 1 },
+    evenVote("player:missing", "player:x"),
+  ], market, { now: 1_700_000_000_000 });
+  assert.deepEqual(Object.keys(junk), []);
+});
+
+test("crowd nudge happens after the elite premium, not instead of it", () => {
+  const star = { assetId: "player:gibbs", assetType: "player", raw: { position: "RB" } };
+  const market = { "player:gibbs": 9000, "player:other": 8800 };
+  const elite = getAssetValue(star, market);
+  assert.equal(elite, Math.round(9000 * 1.32));
+  const shifts = crowdShiftsFromVotes([evenVote("player:gibbs", "player:other")], market, { now: 1_700_000_000_000 });
+  const nudged = getAssetValue(star, market, { crowdShifts: shifts });
+  assert.ok(nudged > elite);
+  assert.ok(nudged < elite * (1 + CROWD_MAX_ABS_SHIFT + 0.001));
 });
