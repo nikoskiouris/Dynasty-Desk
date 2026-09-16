@@ -11,9 +11,17 @@ import {
   decorateRatherPlayer,
   formatRatherDetail,
   formatRatherDetailLong,
+  formatRatherDraftLine,
   formatRatherHeadline,
+  formatRatherPlayerDetail,
+  formatRatherPlayerMeta,
+  formatRatherSeasonStats,
+  isRatherRookie,
+  ratherDepthChartFromNfl,
   listRatherPlayers,
+  lookupRatherDraftPick,
   pairKey,
+  parseRatherDraftPicks,
   pickRatherPair,
   playerInitials,
   pushRatherRecentKey,
@@ -105,16 +113,116 @@ test("decorateRatherPlayer adds photo, initials, and roster meta", () => {
   assert.equal(playerInitials("Ja'Marr Chase"), "JC");
 });
 
+test("rather cards show age plus last-season stats or rookie draft slot", () => {
+  assert.equal(formatRatherPlayerMeta({ position: "QB", team: "NE", age: 24 }), "QB · NE · 24y");
+  assert.equal(formatRatherPlayerMeta({ position: "WR", team: "WAS", age: 22, depthChart: "WR3" }), "WR3 · WAS · 22y");
+  assert.equal(formatRatherPlayerMeta({ position: "QB", team: "NE", age: 24, depthChart: "QB1" }), "QB1 · NE · 24y");
+  assert.equal(ratherDepthChartFromNfl({ depth_chart_order: 1, depth_chart_position: "QB" }, "QB"), "QB1");
+  assert.equal(ratherDepthChartFromNfl({ depth_chart_order: 1, depth_chart_position: "LWR" }, "WR"), "WR1");
+  assert.equal(ratherDepthChartFromNfl({ depth_chart_order: 3, depth_chart_position: "QB" }, "QB"), "QB3");
+  assert.equal(ratherDepthChartFromNfl({ position: "RB" }, "RB"), "");
+  assert.equal(
+    formatRatherSeasonStats({ gp: 17, pass_yd: 4394, pass_td: 31, pass_int: 8 }, "QB"),
+    "4,394 pass yds · 31 TD · 8 INT"
+  );
+  assert.equal(
+    formatRatherSeasonStats({ gp: 4, rec: 18, rec_yd: 271, rec_td: 2 }, "WR"),
+    "18 rec · 271 yds · 2 TD"
+  );
+  assert.equal(formatRatherDraftLine({ round: 1, pick: 3 }), "1st round · pick 3");
+  assert.equal(formatRatherDraftLine(null), "Rookie");
+  assert.equal(
+    formatRatherPlayerDetail({
+      isRookie: false,
+      stats: { gp: 17, pass_yd: 4394, pass_td: 31, pass_int: 8 },
+      position: "QB",
+      previousSeason: "2025",
+    }),
+    "2025 · 4,394 pass yds · 31 TD · 8 INT"
+  );
+  assert.equal(
+    formatRatherPlayerDetail({ isRookie: true, draft: { round: 1, pick: 3 } }),
+    "1st round · pick 3"
+  );
+  assert.equal(isRatherRookie({ years_exp: 0, metadata: { rookie_year: "2026" } }, "2026"), true);
+  assert.equal(isRatherRookie({ years_exp: 1, metadata: { rookie_year: "2025" } }, "2026"), false);
+
+  const vet = decorateRatherPlayer(
+    { assetId: "player:11564", playerId: "11564", name: "Drake Maye", value: 8510 },
+    { 11564: { position: "QB", team: "NE", age: 24, years_exp: 2, depth_chart_position: "QB", depth_chart_order: 1 } },
+    {
+      currentSeason: "2026",
+      previousSeason: "2025",
+      seasonStats: { 11564: { gp: 17, pass_yd: 4394, pass_td: 31, pass_int: 8 } },
+    }
+  );
+  assert.equal(vet.meta, "QB1 · NE · 24y");
+  assert.equal(vet.detail, "2025 · 4,394 pass yds · 31 TD · 8 INT");
+
+  const rookie = decorateRatherPlayer(
+    { assetId: "player:13287", playerId: "13287", name: "Jeremiyah Love", value: 7187 },
+    { 13287: { position: "RB", team: "ARI", age: 21, years_exp: 0, metadata: { rookie_year: "2026" }, depth_chart_position: "RB", depth_chart_order: 1 } },
+    {
+      currentSeason: "2026",
+      previousSeason: "2025",
+      draftPicks: { 13287: { year: 2026, round: 1, pick: 3, name: "Jeremiyah Love" } },
+      seasonStats: { 13287: { gp: 1, rush_yd: 41 } },
+    }
+  );
+  assert.equal(rookie.meta, "RB1 · ARI · 21y");
+  assert.equal(rookie.detail, "1st round · pick 3");
+  assert.match(rookie.detail, /pick 3/);
+  assert.doesNotMatch(rookie.detail, /rush yds/);
+});
+
+test("draft pick lookup reads bundled sleeper ids and name fallback", () => {
+  const picks = parseRatherDraftPicks({
+    picks: { 13287: { year: 2026, round: 1, pick: 3, name: "Jeremiyah Love" } },
+  });
+  assert.deepEqual(lookupRatherDraftPick("13287", picks), {
+    year: 2026,
+    round: 1,
+    pick: 3,
+    name: "Jeremiyah Love",
+  });
+  assert.equal(lookupRatherDraftPick("missing", picks, { full_name: "Jeremiyah Love" }).pick, 3);
+
+  const bundled = parseRatherDraftPicks(JSON.parse(readFileSync(join(docs, "data/nfl_draft_picks.json"), "utf8")));
+  assert.equal(bundled["13287"].round, 1);
+  assert.equal(bundled["13287"].pick, 3);
+});
+
 test("renderRatherMarkup shows headline, format detail, and two players", () => {
   const html = renderRatherMarkup({
-    left: decorateRatherPlayer({ assetId: "player:11564", playerId: "11564", name: "Drake Maye", value: 8510 }),
-    right: decorateRatherPlayer({ assetId: "player:11632", playerId: "11632", name: "Malik Nabers", value: 7223 }),
+    left: decorateRatherPlayer(
+      { assetId: "player:11564", playerId: "11564", name: "Drake Maye", value: 8510 },
+      { 11564: { position: "QB", team: "NE", age: 24, years_exp: 2, depth_chart_position: "QB", depth_chart_order: 1 } },
+      {
+        currentSeason: "2026",
+        previousSeason: "2025",
+        seasonStats: { 11564: { gp: 17, pass_yd: 4394, pass_td: 31, pass_int: 8 } },
+      }
+    ),
+    right: decorateRatherPlayer(
+      { assetId: "player:13287", playerId: "13287", name: "Jeremiyah Love", value: 7187 },
+      { 13287: { position: "RB", team: "ARI", age: 21, years_exp: 0, depth_chart_position: "RB", depth_chart_order: 1 } },
+      {
+        currentSeason: "2026",
+        previousSeason: "2025",
+        draftPicks: { 13287: { year: 2026, round: 1, pick: 3 } },
+      }
+    ),
   });
   assert.match(html, /Who would you rather have\?/);
   assert.match(html, /PPR 12-man Superflex/);
   assert.match(html, /full PPR scoring · 12-man league · Superflex QB/);
   assert.match(html, /Drake Maye/);
-  assert.match(html, /Malik Nabers/);
+  assert.match(html, /Jeremiyah Love/);
+  assert.match(html, /QB1 · NE · 24y/);
+  assert.match(html, /2025 · 4,394 pass yds · 31 TD · 8 INT/);
+  assert.match(html, /RB1 · ARI · 21y/);
+  assert.match(html, /1st round · pick 3/);
+  assert.match(html, /class="rather-stats"/);
   assert.doesNotMatch(html, /Dynasty asset/);
   assert.match(html, /data-rather-pick="player:11564"/);
   assert.match(html, /id="rather-skip"/);
@@ -174,6 +282,7 @@ test("index puts rather on the landing page and never auto-opens a league overla
   assert.doesNotMatch(index, /id="landing-focus-btn"/);
   assert.match(css, /\.landing-rather\s*\{/);
   assert.doesNotMatch(css, /\.rather-overlay:not\(\[hidden\]\)/);
+  assert.match(css, /\.rather-stats\s*\{/);
   assert.match(app, /bootLandingRather/);
   assert.doesNotMatch(app, /function chooseRatherPlayer[\s\S]*loadLeagueById/);
 });

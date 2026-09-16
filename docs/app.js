@@ -134,6 +134,7 @@ import {
 import {
   DEFAULT_RATHER_FORMAT,
   decorateRatherPlayer,
+  fetchRatherDraftPicks,
   listRatherPlayers,
   pickRatherPair,
   pushRatherRecentKey,
@@ -323,6 +324,14 @@ let leagueTradeSideCache = { key: "", sides: [] };
 let franchiseIndexCache = { key: "", index: null };
 let applyingHistory = false;
 let ratherPromptPair = null;
+let ratherSeasonStatsCache = { season: "", stats: null };
+let ratherPromptContext = {
+  nflPlayers: {},
+  seasonStats: {},
+  draftPicks: {},
+  currentSeason: "",
+  previousSeason: "",
+};
 
 function getAssetValue(asset, values = state.values) {
   return marketAssetValue(asset, values, {
@@ -13451,15 +13460,52 @@ async function bootLandingRather() {
   if (parseShareParams(window.location.search).leagueId) return;
   el.landingRather.innerHTML = renderLandingRatherPlaceholder();
   try {
-    if (!state.valueBundles?.sf?.values || !Object.keys(state.valueBundles.sf.values).length) {
-      state.valueBundles = await fetchValuationBundles();
-    }
+    const [, context] = await Promise.all([
+      (async () => {
+        if (!state.valueBundles?.sf?.values || !Object.keys(state.valueBundles.sf.values).length) {
+          state.valueBundles = await fetchValuationBundles();
+        }
+      })(),
+      loadRatherPromptContext(),
+    ]);
+    ratherPromptContext = context;
     refreshCrowdShifts();
     showNextRatherMatchup();
   } catch (err) {
     console.warn("Could not open rather matchup", err);
     el.landingRather.innerHTML = "";
   }
+}
+
+async function loadRatherPromptContext() {
+  const nflState = state.nflState || await apiGetWithRetry(`/state/nfl`, { timeoutMs: 8000, retries: 1 }).catch(() => null);
+  if (nflState) state.nflState = nflState;
+  const currentSeason = String(nflState?.league_season || nflState?.season || new Date().getUTCFullYear());
+  const previousSeason = String(nflState?.previous_season || Number(currentSeason) - 1 || new Date().getUTCFullYear() - 1);
+  const cachedPlayers = getPlayersCache()?.players || state.players || {};
+  const [nflPlayers, seasonStats, draftPicks] = await Promise.all([
+    Object.keys(cachedPlayers).length
+      ? Promise.resolve(cachedPlayers)
+      : loadPlayersWithCache().then((players) => {
+        if (players && Object.keys(players).length) state.players = players;
+        return players || {};
+      }).catch(() => ({})),
+    loadRatherSeasonStats(previousSeason).catch(() => ({})),
+    fetchRatherDraftPicks().catch(() => ({})),
+  ]);
+  return { nflPlayers, seasonStats, draftPicks, currentSeason, previousSeason };
+}
+
+async function loadRatherSeasonStats(season) {
+  const year = String(season || "").trim();
+  if (!year) return {};
+  if (ratherSeasonStatsCache.season === year && ratherSeasonStatsCache.stats) {
+    return ratherSeasonStatsCache.stats;
+  }
+  const stats = await apiGet(`/stats/nfl/regular/${encodeURIComponent(year)}`, { timeoutMs: 20000 });
+  const payload = stats && typeof stats === "object" ? stats : {};
+  ratherSeasonStatsCache = { season: year, stats: payload };
+  return payload;
 }
 
 function ratherMarketValues() {
@@ -13485,10 +13531,18 @@ function showNextRatherMatchup({ status = "" } = {}) {
     ratherPromptPair = null;
     return;
   }
-  const nflPlayers = getPlayersCache()?.players || state.players || {};
+  const extras = {
+    currentSeason: ratherPromptContext.currentSeason,
+    previousSeason: ratherPromptContext.previousSeason,
+    seasonStats: ratherPromptContext.seasonStats,
+    draftPicks: ratherPromptContext.draftPicks,
+  };
+  const nflPlayers = Object.keys(ratherPromptContext.nflPlayers || {}).length
+    ? ratherPromptContext.nflPlayers
+    : (getPlayersCache()?.players || state.players || {});
   ratherPromptPair = {
-    left: decorateRatherPlayer(picked.left, nflPlayers),
-    right: decorateRatherPlayer(picked.right, nflPlayers),
+    left: decorateRatherPlayer(picked.left, nflPlayers, extras),
+    right: decorateRatherPlayer(picked.right, nflPlayers, extras),
     key: picked.key,
   };
   el.landingRather.innerHTML = renderRatherMarkup(ratherPromptPair, DEFAULT_RATHER_FORMAT, { status });
