@@ -5,6 +5,10 @@
 [build.environment]
   PYTHON_VERSION = "3.12"
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 [[redirects]]
   from = "https://www.dynastyticker.com/*"
   to = "https://dynastyticker.com/:splat"

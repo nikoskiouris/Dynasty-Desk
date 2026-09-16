@@ -10,6 +10,7 @@ import {
   summarize,
   visitPeriodKeys,
   visitorHash,
+  wrapLambdaHandler,
 } from "../netlify/lib/traffic.js";
 
 const NOW = new Date("2026-09-16T18:00:00.000Z");
@@ -167,4 +168,32 @@ test("client IP prefers Netlify context then forwarded headers", () => {
   });
   assert.equal(clientIp(req, { ip: "1.2.3.4" }), "1.2.3.4");
   assert.equal(clientIp(req, {}), "8.8.4.4");
+});
+
+test("classic Netlify handler reads Lambda events and returns status plus body", async () => {
+  const store = memoryStore();
+  const handler = wrapLambdaHandler(createVisitHandler({
+    getStore: () => store,
+    nowFn: () => NOW,
+    salt: "test-salt",
+  }));
+  const posted = await handler({
+    httpMethod: "POST",
+    path: "/.netlify/functions/visit",
+    headers: {
+      host: "dynastyticker.com",
+      origin: "https://dynastyticker.com",
+      "user-agent": "Mozilla/5.0 Chrome/129.0.0.0",
+    },
+  }, { ip: "1.2.3.4" });
+  assert.equal(posted.statusCode, 200);
+  assert.equal(JSON.parse(posted.body).ok, true);
+
+  const read = await handler({
+    httpMethod: "GET",
+    path: "/.netlify/functions/visit",
+    headers: { host: "dynastyticker.com" },
+  });
+  assert.equal(read.statusCode, 200);
+  assert.deepEqual(JSON.parse(read.body).today, { views: 1, people: 1 });
 });

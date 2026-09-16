@@ -189,6 +189,8 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(netlify, /dynastyticker\.com/);
   assert.match(netlify, /from = "\/api\/visit"/);
   assert.match(netlify, /from = "\/api\/views"/);
+  assert.match(netlify, /directory = "netlify\/functions"/);
+  assert.match(readDocs("_redirects"), /\/api\/visit\s+\/\.netlify\/functions\/visit\s+200!/);
 
   const notFound = readDocs("404.html");
   assert.match(notFound, /Page not found/);

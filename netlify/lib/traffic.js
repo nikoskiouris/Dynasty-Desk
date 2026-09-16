@@ -208,6 +208,46 @@ function jsonResponse(body, { status = 200, cors = false } = {}) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+export function lambdaEventToRequest(event) {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(event?.headers || {})) {
+    if (value == null) continue;
+    headers.set(key, String(value));
+  }
+  const host = headers.get("host") || "dynastyticker.com";
+  const proto = headers.get("x-forwarded-proto") || "https";
+  const path = event?.path || "/";
+  const query = event?.rawQuery
+    || new URLSearchParams(event?.queryStringParameters || {}).toString();
+  const url = `${proto}://${host}${path}${query ? `?${query}` : ""}`;
+  return new Request(url, { method: event?.httpMethod || "GET", headers });
+}
+
+export function lambdaIp(event, context = {}) {
+  if (context?.ip) return String(context.ip).trim();
+  const headers = event?.headers || {};
+  const forwarded = headers["x-nf-client-connection-ip"]
+    || headers["X-Nf-Client-Connection-Ip"]
+    || headers["x-forwarded-for"]
+    || headers["X-Forwarded-For"]
+    || "";
+  return String(forwarded).split(",")[0].trim();
+}
+
+export function wrapLambdaHandler(visitHandler) {
+  return async function handler(event, context = {}) {
+    const response = await visitHandler(lambdaEventToRequest(event), {
+      ip: lambdaIp(event, context),
+    });
+    const body = await response.text();
+    const headers = {};
+    response.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+    return { statusCode: response.status, headers, body };
+  };
+}
+
 export function createVisitHandler({
   getStore,
   nowFn = () => new Date(),
