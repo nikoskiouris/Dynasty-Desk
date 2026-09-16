@@ -2,7 +2,7 @@
 import { formatPoints, formatRecord, ordinal } from "./season.js";
 
 export const RECAP_TONES = [
-  { id: "desk", label: "Broadcast desk", description: "Straight, clean, and quotable." },
+  { id: "desk", label: "Broadcast", description: "Straight, clean, and quotable." },
   { id: "hype", label: "Hype", description: "Everything is the biggest thing that has ever happened." },
   { id: "roast", label: "Roast", description: "Affectionate disrespect for the whole league." },
 ];
@@ -76,7 +76,7 @@ export function buildRecap({
     lines.push("");
   }
 
-  lines.push("TRADE DESK");
+  lines.push("TRADES");
   if (trades.length === 0) {
     lines.push(tone === "roast" ? "No trades. Twelve managers, zero courage." : tone === "hype" ? "The phones were quiet, but the market is loaded. Somebody blink." : "No completed trades this week.");
   } else {
@@ -99,7 +99,7 @@ function intro({ tone, model, weekLabel, provisional, games }) {
   }
   if (tone === "roast") return `${weekLabel} is in the books. ${teamCount} teams showed up, several of them regretted it.`;
   if (tone === "hype") return `${weekLabel} is FINAL and the league will never be the same. ${gameCount} games, ${gameCount} stories.`;
-  return `${weekLabel} is final. Here is the desk report for all ${teamCount} teams.`;
+  return `${weekLabel} is final. Here is the ticker report for all ${teamCount} teams.`;
 }
 
 function gameTag(game, tone, provisional) {
@@ -130,7 +130,7 @@ function signOff(tone, model, awards) {
   const mvp = awards.find((award) => award.id === "mvp");
   return mvp
     ? `Player of the Week honors go to ${mvp.detail.replace(/ carried .*$/, "")}. Back next week.`
-    : "Back next week with the full desk report.";
+    : "Back next week with the full ticker report.";
 }
 
 function pick(options, key) {

@@ -18,6 +18,7 @@ test("recap card model keeps the headline games, MVP, and title favorite", () =>
     url: "https://dynastyticker.com/?league=1&week=1",
   });
   assert.equal(model.kicker, "WEEK 1 · LIVE");
+  assert.equal(model.eyebrow, "Dynasty Ticker");
   assert.equal(model.games[0].leftName, "Niko");
   assert.equal(model.award.teamName, "Niko");
   assert.equal(model.favorite.name, "Niko");

@@ -29,7 +29,7 @@ test("recap trade window is the 7 days before the next week, not all season", ()
   assert.equal(selected.length, 1);
 });
 
-test("desk recap includes scoreboard, honors, and empty trade desk", () => {
+test("broadcast recap includes scoreboard, honors, and empty trades", () => {
   const text = buildRecap({
     leagueName: "Try Hard or Die Hard",
     week: 1,

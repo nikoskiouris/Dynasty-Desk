@@ -7,7 +7,7 @@ test("leagueStatusLabel humanizes sleeper status", () => {
   assert.equal(leagueStatusLabel(""), "league");
 });
 
-test("league picker markup lists seasons and marks the selected desk", () => {
+test("league picker markup lists seasons and marks the selected league", () => {
   const html = renderLeaguePickerMarkup([
     { league_id: "111", name: "Try Hard or Die Hard", season: "2026", total_rosters: 12, status: "in_season", avatar: "abc123" },
     { league_id: "222", name: "Old Room", season: "2025", total_rosters: 10, status: "complete" },

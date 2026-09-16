@@ -118,9 +118,9 @@ def make_og_image() -> None:
     chip = font(FONT_SEMI, 20)
     url_font = font(FONT_MED, 20)
 
-    draw.text((200, 108), "DYNASTY DESK", font=eyebrow, fill=BLUE)
+    draw.text((200, 108), "DYNASTY TICKER", font=eyebrow, fill=BLUE)
     draw.text((88, 214), "Your league, on a", font=title, fill=TEXT)
-    draw.text((88, 286), "broadcast desk.", font=title, fill=TEXT)
+    draw.text((88, 286), "live ticker.", font=title, fill=TEXT)
     draw.text((88, 372), "Live scores, playoff odds, awards, and a trade lab.", font=lede, fill=MUTED)
 
     chips = ["Live Sunday poll", "Monte Carlo odds", "KeepTradeCut values"]

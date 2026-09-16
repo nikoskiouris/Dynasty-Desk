@@ -1,6 +1,6 @@
 {
-  "name": "Dynasty Desk",
-  "short_name": "Dynasty Desk",
+  "name": "Dynasty Ticker",
+  "short_name": "Dynasty Ticker",
   "description": "Live scores, playoff odds, awards, and a dynasty trade lab for Sleeper leagues.",
   "start_url": "./",
   "scope": "./",

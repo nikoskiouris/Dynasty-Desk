@@ -214,6 +214,8 @@ test("renderRatherMarkup shows headline, format detail, and two players", () => 
     ),
   });
   assert.match(html, /Who would you rather have\?/);
+  assert.match(html, /Ticker Crowd/);
+  assert.doesNotMatch(html, /Desk Crowd/);
   assert.match(html, /PPR 12-man Superflex/);
   assert.match(html, /full PPR scoring · 12-man league · Superflex QB/);
   assert.match(html, /Drake Maye/);
@@ -278,6 +280,8 @@ test("index puts rather on the landing page and never auto-opens a league overla
   assert.match(index, /id="landing-username"/);
   assert.match(index, /id="landing-find-btn"/);
   assert.match(index, /Who would you rather have\?/);
+  assert.match(index, /Ticker Crowd/);
+  assert.doesNotMatch(index, /Desk Crowd/);
   assert.doesNotMatch(index, /id="rather-overlay"/);
   assert.doesNotMatch(index, /id="landing-focus-btn"/);
   assert.match(css, /\.landing-rather\s*\{/);

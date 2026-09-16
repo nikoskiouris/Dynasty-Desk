@@ -282,11 +282,11 @@ export function renderRatherMarkup(pair, format = DEFAULT_RATHER_FORMAT, options
   const right = pair?.right || {};
   const skipLabel = options.skipLabel || "Skip this matchup";
   const note = options.note
-    || "Your pick slightly nudges the desk board. The market prior is Sleeper trades mixed with KeepTradeCut.";
+    || "Your pick slightly nudges the ticker board. The market prior is Sleeper trades mixed with KeepTradeCut.";
   const status = options.status || "";
   return `
     <div class="rather-panel">
-      <span class="eyebrow">Desk Crowd</span>
+      <span class="eyebrow">Ticker Crowd</span>
       <h2 id="rather-title">${escapeHtml(formatRatherHeadline())}</h2>
       <p class="rather-format" id="rather-format">${escapeHtml(formatRatherDetail(format))}</p>
       <p class="rather-format-detail" id="rather-format-detail">${escapeHtml(formatRatherDetailLong(format))}</p>
@@ -305,7 +305,7 @@ export function renderRatherMarkup(pair, format = DEFAULT_RATHER_FORMAT, options
 export function renderLandingRatherPlaceholder() {
   return `
     <div class="rather-panel landing-rather-pending">
-      <span class="eyebrow">Desk Crowd</span>
+      <span class="eyebrow">Ticker Crowd</span>
       <h2 id="rather-title">${escapeHtml(formatRatherHeadline())}</h2>
       <p class="rather-format" id="rather-format">${escapeHtml(formatRatherDetail())}</p>
       <p class="rather-format-detail" id="rather-format-detail">${escapeHtml(formatRatherDetailLong())}</p>

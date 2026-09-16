@@ -943,7 +943,7 @@ function isReadyToGenerate() {
 function getGenerateHelpText() {
   if (!state.meRosterId) return "Load a league and choose your team first.";
   const mode = getTradeMode();
-  if (mode === "calculator") return "Pick a partner and tap assets on both sides. The desk grades the deal live.";
+  if (mode === "calculator") return "Pick a partner and tap assets on both sides. The calculator grades the deal live.";
   if (mode === "surprise") return "Ready. The app will find a three-team blockbuster.";
   if (mode === "shop") {
     return state.shopAsset
@@ -1038,7 +1038,7 @@ function renderLeagueHero() {
   if (!el.heroTitle) return;
   if (!state.leagueId || !state.league) {
     el.heroEyebrow.textContent = "Sleeper league intelligence";
-    el.heroTitle.textContent = "Your league, on a broadcast desk.";
+    el.heroTitle.textContent = "Your league, on a live ticker.";
     el.heroLede.textContent = "Live scoreboard and win probability, playoff odds from thousands of simulated seasons, weekly awards, an all-time record book, a roster explorer, and a dynasty trade lab. One link for the whole league.";
     if (el.leagueAvatar) el.leagueAvatar.innerHTML = `<span>D</span>`;
     return;
@@ -2749,7 +2749,7 @@ function renderPulseStrip(model, sim, profiles) {
       tone: "rose",
     },
     {
-      label: "Trade desk",
+      label: "Trades",
       page: "trades",
       room: "log",
       value: state.transactionsLoaded ? `${tradeCount} trade${tradeCount === 1 ? "" : "s"}` : "Syncing",
@@ -2807,7 +2807,7 @@ function renderScoreboardPanel(model, sim) {
   const nextWeek = index >= 0 && index < weeksWithGames.length - 1 ? weeksWithGames[index + 1] : null;
   const distributions = sim?.distributions || buildTeamDistributions(model, buildSimPriors(model));
   const caption = entry.status === "final"
-    ? "Final scores. Win probability shown is what the desk had before kickoff."
+    ? "Final scores. Win probability shown is what the ticker had before kickoff."
     : entry.status === "live"
       ? "Live scores from Sleeper. Probabilities are pre-game, from each roster's scoring profile."
       : "Pre-game win probability from each roster's scoring profile and simulated priors.";
@@ -3575,7 +3575,7 @@ function renderLoyaltyDashboard() {
       <div>
         <span class="eyebrow">Loyalty</span>
         <h3>${escapeHtml(roster.manager.displayName)}</h3>
-        <p class="muted">${loyaltyTierLabel(score)} desk · iron share ${iron}%${longest ? ` · ${escapeHtml(longest.name)} ${longest.consecutiveSeasons} szn` : ""}</p>
+        <p class="muted">${loyaltyTierLabel(score)} · iron share ${iron}%${longest ? ` · ${escapeHtml(longest.name)} ${longest.consecutiveSeasons} szn` : ""}</p>
         ${takeover ? `<p class="muted small takeover-note">Took over from ${escapeHtml(takeover.fromName)}.</p>` : ""}
       </div>
       <div class="loyalty-score">
@@ -3861,7 +3861,7 @@ function renderPassportDesk() {
           <span class="eyebrow">Passport control</span>
           <h2>${other ? `${escapeHtml(roster.manager.displayName)}'s career stamps` : "Career stamps"}</h2>
         </div>
-        <p class="section-copy">One passport per player on this roster, plus league journeymen. Origin is the first desk that held them; Now is who has them this season.</p>
+        <p class="section-copy">One passport per player on this roster, plus league journeymen. Origin is the first roster that held them; Now is who has them this season.</p>
       </div>
       ${passports.map((row) => renderPassportPage(row, { myManagerKey: managerKey, currentSeason })).join("") || `<p class="muted small">Need roster history to stamp passports.</p>`}
     </section>
@@ -4187,7 +4187,7 @@ function renderRecapPage() {
           <span class="eyebrow">Weekly Recap</span>
           <h2>Group-chat ready</h2>
         </div>
-        <p class="section-copy">Scores, honors, standings, playoff odds, and the trade desk in one paste. Copy text, save an image card, or send the dynastyticker.com link.</p>
+        <p class="section-copy">Scores, honors, standings, playoff odds, and the trade log in one paste. Copy text, save an image card, or send the dynastyticker.com link.</p>
       </div>
       <div class="recap-controls">
         <label class="recap-control">
@@ -4462,7 +4462,7 @@ function renderCalculatorVerdict(me, partner) {
   const myAssets = calcAssetsFor(me, "my");
   const theirAssets = calcAssetsFor(partner, "their");
   if (myAssets.length === 0 && theirAssets.length === 0) {
-    return `<p class="muted calc-hint">Add at least one asset to each side and the desk grades the deal: value balance, the piece that evens it up, power-score swing, and lineup impact for both rosters.</p>`;
+    return `<p class="muted calc-hint">Add at least one asset to each side and the calculator grades the deal: value balance, the piece that evens it up, power-score swing, and lineup impact for both rosters.</p>`;
   }
   if (Object.keys(state.values).length === 0) {
     return `<p class="muted calc-hint">Valuation data is still loading…</p>`;

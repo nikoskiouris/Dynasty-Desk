@@ -8,6 +8,7 @@ import {
   DEFAULT_TITLE,
   OG_IMAGE_URL,
   REPO_URL,
+  SITE_NAME,
   SITE_URL,
   STORAGE_NOTICE_KEY,
   applyDocumentMeta,
@@ -28,39 +29,39 @@ test("document titles and descriptions change with tab and league", () => {
   assert.equal(buildDocumentTitle({}), DEFAULT_TITLE);
   assert.equal(
     buildDocumentTitle({ page: "league", leagueName: "Try Hard or Die Hard", loaded: true }),
-    "League · Try Hard or Die Hard — Dynasty Desk"
+    "League · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "league", leagueName: "Try Hard or Die Hard", loaded: true, room: "scores" }),
-    "League · Try Hard or Die Hard — Dynasty Desk"
+    "League · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "recap", leagueName: "Try Hard or Die Hard", loaded: true }),
-    "Recap · Try Hard or Die Hard — Dynasty Desk"
+    "Recap · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "team", leagueName: "Try Hard or Die Hard", loaded: true }),
-    "Teams · Try Hard or Die Hard — Dynasty Desk"
+    "Teams · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "teams", leagueName: "Try Hard or Die Hard", loaded: true, room: "passports" }),
-    "Passports · Try Hard or Die Hard — Dynasty Desk"
+    "Passports · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "trades", leagueName: "Try Hard or Die Hard", loaded: true, room: "lab" }),
-    "Find deals · Try Hard or Die Hard — Dynasty Desk"
+    "Find deals · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "trader", leagueName: "Try Hard or Die Hard", loaded: true }),
-    "Trades · Try Hard or Die Hard — Dynasty Desk"
+    "Trades · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "history", leagueName: "Try Hard or Die Hard", loaded: true, room: "hall" }),
-    "History · Try Hard or Die Hard — Dynasty Desk"
+    "History · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "history", leagueName: "Try Hard or Die Hard", loaded: true, room: "records" }),
-    "Records · Try Hard or Die Hard — Dynasty Desk"
+    "Records · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.match(
     buildPageDescription({ page: "home", leagueName: "Try Hard or Die Hard", loaded: true }),
@@ -93,9 +94,9 @@ test("applyDocumentMeta writes title and social tags", () => {
       return null;
     },
   };
-  applyDocumentMeta(doc, { title: "Teams · Demo — Dynasty Desk", description: "Scout any roster." });
-  assert.equal(doc.title, "Teams · Demo — Dynasty Desk");
-  assert.equal(tags["og:title"].content, "Teams · Demo — Dynasty Desk");
+  applyDocumentMeta(doc, { title: "Teams · Demo — Dynasty Ticker", description: "Scout any roster." });
+  assert.equal(doc.title, "Teams · Demo — Dynasty Ticker");
+  assert.equal(tags["og:title"].content, "Teams · Demo — Dynasty Ticker");
   assert.equal(tags.description.content, "Scout any roster.");
   assert.equal(tags["twitter:description"].content, "Scout any roster.");
 });
@@ -177,11 +178,19 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(sitemap, /privacy\.html/);
   assert.match(sitemap, /terms\.html/);
   assert.equal(SITE_URL, "https://dynastyticker.com/");
-  assert.equal(REPO_URL, "https://github.com/nikoskiouris/Dynasty-Desk");
+  assert.equal(SITE_NAME, "Dynasty Ticker");
+  assert.equal(REPO_URL, "https://github.com/nikoskiouris/Dynasty-Ticker");
   assert.match(sitemap, /https:\/\/dynastyticker\.com\//);
   assert.match(index, /canonical" href="https:\/\/dynastyticker\.com\//);
+  assert.match(index, /Your league, on a live ticker/);
+  assert.match(index, /Ticker Crowd/);
+  assert.match(index, /github\.com\/nikoskiouris\/Dynasty-Ticker/);
   assert.doesNotMatch(index, /github\.io/);
   assert.doesNotMatch(index, /GitHub Pages/);
+  assert.doesNotMatch(index, /Dynasty Desk/);
+  assert.doesNotMatch(index, /Dynasty-Desk/);
+  assert.doesNotMatch(index, /broadcast desk/i);
+  assert.doesNotMatch(index, /Desk Crowd/);
   assert.doesNotMatch(sitemap, /secret-numbers/);
 
   const netlify = readFileSync(join(docs, "../netlify.toml"), "utf8");
@@ -191,26 +200,34 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   const notFound = readDocs("404.html");
   assert.match(notFound, /Page not found/);
   assert.match(notFound, /<h1>/);
+  assert.doesNotMatch(notFound, /Dynasty Desk/);
+  assert.doesNotMatch(notFound, /Dynasty-Desk/);
 
   const privacy = readDocs("privacy.html");
   assert.match(privacy, /localStorage/);
   assert.match(privacy, /No accounts/);
   assert.match(privacy, /GitHub issues/);
   assert.match(privacy, /who would you rather have/);
+  assert.match(privacy, /github\.com\/nikoskiouris\/Dynasty-Ticker/);
   assert.doesNotMatch(privacy, /GitHub Pages/);
   assert.doesNotMatch(privacy, /visit count/i);
   assert.doesNotMatch(privacy, /page-views-api/);
   assert.doesNotMatch(privacy, /Last Sleeper username/);
   assert.doesNotMatch(privacy, /Last league ID/);
+  assert.doesNotMatch(privacy, /Dynasty Desk/);
+  assert.doesNotMatch(privacy, /Dynasty-Desk/);
 
   const app = readDocs("app.js");
   assert.doesNotMatch(app, /dynasty_desk_last_username/);
   assert.doesNotMatch(app, /dynasty_desk_last_league/);
   assert.doesNotMatch(app, /Last league remembered/);
+  assert.doesNotMatch(app, /broadcast desk/i);
 
   const terms = readDocs("terms.html");
   assert.match(terms, /not affiliated/i);
   assert.match(terms, /as is/i);
+  assert.doesNotMatch(terms, /Dynasty Desk/);
+  assert.doesNotMatch(terms, /Dynasty-Desk/);
 
   assert.ok(statSync(join(docs, "og-image.jpg")).size < 120_000);
   assert.match(OG_IMAGE_URL, /og-image\.jpg$/);

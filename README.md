@@ -1,6 +1,6 @@
-# Dynasty Desk
+# Dynasty Ticker
 
-Sleeper dynasty league desk: live scores, standings, playoff odds, awards, archive, and a trade lab. Values are built from Sleeper dynasty trades across many leagues, mixed with KeepTradeCut. The site is static. It talks to Sleeper from the browser.
+Sleeper dynasty league ticker: live scores, standings, playoff odds, awards, archive, and a trade lab. Values are built from Sleeper dynasty trades across many leagues, mixed with KeepTradeCut. The site is static. It talks to Sleeper from the browser.
 
 ## What is in this repo
 - **Web app:** `docs/` — League Command Center at [dynastyticker.com](https://dynastyticker.com/).
@@ -26,7 +26,7 @@ Four pages. Each page has a row of rooms under it, so every feature is at most t
    - **Standings** — overall / divisions, all-play, luck index.
    - **Power** — dynasty value board (starters, depth, picks, age). Tap a team to open its scout card.
    - **Awards** — weekly honors (marked live if the week is still going) and season superlatives.
-   - **Recap** — group-chat paste in desk / hype / roast voice. Copy text, copy a recap link, or save the image card.
+   - **Recap** — group-chat paste in broadcast / hype / roast voice. Copy text, copy a recap link, or save the image card.
 2. **Teams** — every roster.
    - **Roster** — tap any team: power scout card, optimal lineup, bench, nicknames, pick vault, season log, jump into a trade.
    - **Loyalty** — kept / gone / new since last season, iron share, DNA keep rate.
@@ -44,7 +44,7 @@ Four pages. Each page has a row of rooms under it, so every feature is at most t
 Demo league: [Try Hard or Die Hard](https://sleeper.app/leagues/1315165104303513600) (`1315165104303513600`).
 
 ### Live Sunday scores
-The desk polls Sleeper matchups on the NFL window (Thu–Mon UTC) and whenever the current week already has points. Scoreboard, ticker, awards, and recap refresh. The 4000-season Monte Carlo does **not** rerun on every point tick. It refreshes when a week finals, remaining games change, or ~3 minutes have passed.
+The app polls Sleeper matchups on the NFL window (Thu–Mon UTC) and whenever the current week already has points. Scoreboard, ticker, awards, and recap refresh. The 4000-season Monte Carlo does **not** rerun on every point tick. It refreshes when a week finals, remaining games change, or ~3 minutes have passed.
 
 ### Value source
 Sleeper trades first, KeepTradeCut as the prior:
