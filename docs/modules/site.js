@@ -12,7 +12,7 @@ export const STORAGE_NOTICE_KEY = "dynasty_desk_storage_notice";
 
 export const DEFAULT_TITLE = "Dynasty Desk — Fantasy League Command Center";
 export const DEFAULT_DESCRIPTION =
-  "Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a group-chat recap for your league.";
+  "Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and a crowd board that starts from KeepTradeCut.";
 
 export const PAGE_META = {
   league: {

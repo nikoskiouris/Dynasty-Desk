@@ -332,10 +332,127 @@ export function adjustLeagueValue(asset, baseValue, league) {
   return value;
 }
 
+export const CROWD_LEARNING_RATE = 0.028;
+export const CROWD_MAX_ABS_SHIFT = 0.085;
+export const CROWD_PER_VOTE_LOG_CAP = 0.025;
+export const CROWD_PAIR_DECAY = 0.55;
+export const CROWD_HALF_LIFE_MS = 90 * 24 * 60 * 60 * 1000;
+export const CROWD_ESTIMATED_SCALE = 0.5;
+export const CROWD_FORMAT_MISMATCH_SCALE = 0.65;
+
+export function sanitizeCrowdVotes(votes) {
+  if (!Array.isArray(votes)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const vote of votes) {
+    const winnerId = String(vote?.winnerId || "");
+    const loserId = String(vote?.loserId || "");
+    if (!winnerId.startsWith("player:") || !loserId.startsWith("player:")) continue;
+    if (winnerId === loserId) continue;
+    const at = Number(vote?.at);
+    const stamp = Number.isFinite(at) && at > 0 ? at : 0;
+    const format = String(vote?.format || "");
+    const key = `${winnerId}|${loserId}|${stamp}|${format}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ winnerId, loserId, at: stamp, format });
+  }
+  return out.sort((a, b) => a.at - b.at || a.winnerId.localeCompare(b.winnerId) || a.loserId.localeCompare(b.loserId));
+}
+
+export function crowdFormatScale(voteFormat, valueFormat) {
+  const text = String(voteFormat || "").toLowerCase();
+  const voteSf = text.includes("superflex") || (!text.includes("1qb") && !text.includes("one qb"));
+  const wantSf = valueFormat !== "oneQb";
+  if (voteSf === wantSf) return 1;
+  return CROWD_FORMAT_MISMATCH_SCALE;
+}
+
+export function crowdShiftsFromVotes(votes, marketValues, options = {}) {
+  const now = Number(options.now);
+  const clock = Number.isFinite(now) && now > 0 ? now : Date.now();
+  const valueFormat = options.format === "oneQb" ? "oneQb" : "sf";
+  const cleaned = sanitizeCrowdVotes(votes);
+  const deltas = Object.create(null);
+  const pairCounts = Object.create(null);
+
+  for (const vote of cleaned) {
+    const winnerValue = Number(marketValues?.[vote.winnerId]);
+    const loserValue = Number(marketValues?.[vote.loserId]);
+    if (!Number.isFinite(winnerValue) || !Number.isFinite(loserValue) || winnerValue <= 0 || loserValue <= 0) {
+      continue;
+    }
+
+    const pair = [vote.winnerId, vote.loserId].sort().join("|");
+    const seen = pairCounts[pair] || 0;
+    pairCounts[pair] = seen + 1;
+
+    const age = Math.max(0, clock - vote.at);
+    const recency = vote.at ? 2 ** (-age / CROWD_HALF_LIFE_MS) : 1;
+    const pairDecay = CROWD_PAIR_DECAY ** seen;
+    const formatScale = crowdFormatScale(vote.format, valueFormat);
+
+    const winnerDelta = deltas[vote.winnerId] || 0;
+    const loserDelta = deltas[vote.loserId] || 0;
+    const logGap = (Math.log(winnerValue) + winnerDelta) - (Math.log(loserValue) + loserDelta);
+    const expected = 1 / (1 + Math.exp(-clampLogGap(logGap)));
+    const surprise = 1 - expected;
+    const step = Math.min(
+      CROWD_PER_VOTE_LOG_CAP,
+      CROWD_LEARNING_RATE * recency * pairDecay * formatScale * surprise,
+    );
+
+    deltas[vote.winnerId] = winnerDelta + step;
+    deltas[vote.loserId] = loserDelta - step;
+  }
+
+  const ids = Object.keys(deltas);
+  if (ids.length > 1) {
+    const mean = ids.reduce((sum, id) => sum + deltas[id], 0) / ids.length;
+    for (const id of ids) deltas[id] -= mean;
+  }
+
+  const shifts = Object.create(null);
+  for (const id of ids) {
+    const raw = Math.exp(deltas[id]) - 1;
+    shifts[id] = clampCrowdShift(raw);
+  }
+  return shifts;
+}
+
+export function applyCrowdShift(assetId, value, shifts, { scale = 1 } = {}) {
+  if (!Number.isFinite(value) || value <= 0) return value;
+  const shift = Number(shifts?.[assetId]);
+  if (!Number.isFinite(shift) || shift === 0) return value;
+  const weight = Number.isFinite(scale) ? Math.max(0, Math.min(1, scale)) : 1;
+  const capped = clampCrowdShift(shift * weight);
+  return Math.max(1, Math.round(value * (1 + capped)));
+}
+
 export function getAssetValue(asset, values, options = {}) {
-  const { valueNameMap = {}, pickCatalog = null, league = null } = options;
+  const { valueNameMap = {}, pickCatalog = null, league = null, crowdShifts = null } = options;
   const lookup = lookupMarketValue(asset, values, valueNameMap, pickCatalog);
-  return adjustLeagueValue(asset, lookup.value, league);
+  let value = adjustLeagueValue(asset, lookup.value, league);
+  const assetId = String(asset?.assetId || "");
+  const isPlayer = asset?.assetType === "player" || assetId.startsWith("player:");
+  if (isPlayer && crowdShifts) {
+    value = applyCrowdShift(assetId, value, crowdShifts, {
+      scale: lookup.estimated ? CROWD_ESTIMATED_SCALE : 1,
+    });
+  }
+  return value;
+}
+
+function clampLogGap(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(-20, Math.min(20, numeric));
+}
+
+function clampCrowdShift(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(-CROWD_MAX_ABS_SHIFT, Math.min(CROWD_MAX_ABS_SHIFT, numeric));
 }
 
 export function isEstimatedAsset(asset, values, options = {}) {
