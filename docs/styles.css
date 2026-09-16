@@ -6097,7 +6097,7 @@ body.rather-open .site-dock {
 }
 
 .rather-dialog {
-  width: min(34rem, 100%);
+  width: min(42rem, 100%);
 }
 
 .rather-panel {
@@ -6211,9 +6211,21 @@ button.rather-player:hover {
   line-height: 1.2;
 }
 
+.rather-meta,
+.rather-stats {
+  max-width: 15rem;
+  line-height: 1.35;
+}
+
 .rather-meta {
   color: var(--muted);
   font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.rather-stats {
+  color: var(--muted-strong);
+  font-size: 0.72rem;
   font-weight: 700;
 }
 

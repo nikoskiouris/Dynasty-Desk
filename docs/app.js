@@ -134,6 +134,7 @@ import {
   DEFAULT_RATHER_FORMAT,
   applyRatherOverlayHidden,
   decorateRatherPlayer,
+  fetchRatherDraftPicks,
   listRatherPlayers,
   pickRatherPair,
   pushRatherRecentKey,
@@ -321,6 +322,7 @@ let franchiseIndexCache = { key: "", index: null };
 let applyingHistory = false;
 let ratherPromptPair = null;
 let ratherLastFocus = null;
+let ratherSeasonStatsCache = { season: "", stats: null };
 
 function getAssetValue(asset, values = state.values) {
   return marketAssetValue(asset, values, {
@@ -13422,23 +13424,65 @@ async function bootRatherPrompt() {
   if (!el.ratherOverlay || !el.ratherBody) return;
   if (readRatherSessionDone()) return;
   try {
-    if (!state.valueBundles?.sf?.values || !Object.keys(state.valueBundles.sf.values).length) {
-      state.valueBundles = await fetchValuationBundles();
-    }
-    const names = state.valueBundles?.names || state.valueNameMap || {};
-    const values = state.valueBundles?.sf?.values || {};
+    const [valueBundles, context] = await Promise.all([
+      (async () => {
+        if (!state.valueBundles?.sf?.values || !Object.keys(state.valueBundles.sf.values).length) {
+          state.valueBundles = await fetchValuationBundles();
+        }
+        return state.valueBundles;
+      })(),
+      loadRatherPromptContext(),
+    ]);
+    const names = valueBundles?.names || state.valueNameMap || {};
+    const values = valueBundles?.sf?.values || {};
     const players = listRatherPlayers(values, names);
     const picked = pickRatherPair(players, { recentKeys: readRatherRecentKeys() });
     if (!picked) return;
-    const nflPlayers = getPlayersCache()?.players || state.players || {};
+    const extras = {
+      currentSeason: context.currentSeason,
+      previousSeason: context.previousSeason,
+      seasonStats: context.seasonStats,
+      draftPicks: context.draftPicks,
+    };
     openRatherPrompt({
-      left: decorateRatherPlayer(picked.left, nflPlayers),
-      right: decorateRatherPlayer(picked.right, nflPlayers),
+      left: decorateRatherPlayer(picked.left, context.nflPlayers, extras),
+      right: decorateRatherPlayer(picked.right, context.nflPlayers, extras),
       key: picked.key,
     });
   } catch (err) {
     console.warn("Could not open rather prompt", err);
   }
+}
+
+async function loadRatherPromptContext() {
+  const nflState = state.nflState || await apiGetWithRetry(`/state/nfl`, { timeoutMs: 8000, retries: 1 }).catch(() => null);
+  if (nflState) state.nflState = nflState;
+  const currentSeason = String(nflState?.league_season || nflState?.season || new Date().getUTCFullYear());
+  const previousSeason = String(nflState?.previous_season || Number(currentSeason) - 1 || new Date().getUTCFullYear() - 1);
+  const cachedPlayers = getPlayersCache()?.players || state.players || {};
+  const [nflPlayers, seasonStats, draftPicks] = await Promise.all([
+    Object.keys(cachedPlayers).length
+      ? Promise.resolve(cachedPlayers)
+      : loadPlayersWithCache().then((players) => {
+        if (players && Object.keys(players).length) state.players = players;
+        return players || {};
+      }).catch(() => ({})),
+    loadRatherSeasonStats(previousSeason).catch(() => ({})),
+    fetchRatherDraftPicks().catch(() => ({})),
+  ]);
+  return { nflPlayers, seasonStats, draftPicks, currentSeason, previousSeason };
+}
+
+async function loadRatherSeasonStats(season) {
+  const year = String(season || "").trim();
+  if (!year) return {};
+  if (ratherSeasonStatsCache.season === year && ratherSeasonStatsCache.stats) {
+    return ratherSeasonStatsCache.stats;
+  }
+  const stats = await apiGet(`/stats/nfl/regular/${encodeURIComponent(year)}`, { timeoutMs: 20000 });
+  const payload = stats && typeof stats === "object" ? stats : {};
+  ratherSeasonStatsCache = { season: year, stats: payload };
+  return payload;
 }
 
 function openRatherPrompt(pair) {

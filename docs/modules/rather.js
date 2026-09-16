@@ -8,6 +8,7 @@ export const RATHER_MIN_PLAYER_VALUE = 1800;
 export const RATHER_RECENT_LIMIT = 24;
 export const RATHER_VOTE_LIMIT = 200;
 export const RATHER_MAX_RANK_GAP = 4;
+export const RATHER_DRAFT_PICKS_PATH = "./data/nfl_draft_picks.json";
 
 export const DEFAULT_RATHER_FORMAT = Object.freeze({
   scoring: "PPR",
@@ -100,10 +101,137 @@ export function pickRatherPair(players, { recentKeys = [], random = Math.random 
   return picked;
 }
 
-export function decorateRatherPlayer(player, nflPlayers = {}) {
+export function ratherOrdinal(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "";
+  const rank = Math.round(numeric);
+  const mod100 = rank % 100;
+  if (mod100 >= 10 && mod100 <= 20) return `${rank}th`;
+  const suffix = { 1: "st", 2: "nd", 3: "rd" }[rank % 10] || "th";
+  return `${rank}${suffix}`;
+}
+
+export function playerAgeFromNfl(raw) {
+  if (raw?.age == null || raw?.age === "") return null;
+  const age = Number(raw.age);
+  return Number.isFinite(age) && age > 0 ? age : null;
+}
+
+export function isRatherRookie(raw, currentSeason) {
+  const years = Number(raw?.years_exp);
+  if (years === 0) return true;
+  const rookieYear = Number(raw?.metadata?.rookie_year);
+  const season = Number(currentSeason);
+  return Number.isFinite(rookieYear) && Number.isFinite(season) && rookieYear === season;
+}
+
+export function parseRatherDraftPicks(payload) {
+  if (!payload || typeof payload !== "object") return {};
+  if (payload.picks && typeof payload.picks === "object") return payload.picks;
+  return payload;
+}
+
+export async function fetchRatherDraftPicks(fetchImpl = globalThis.fetch) {
+  try {
+    const response = await fetchImpl(RATHER_DRAFT_PICKS_PATH, { cache: "no-store" });
+    if (!response?.ok) return {};
+    return parseRatherDraftPicks(await response.json());
+  } catch {
+    return {};
+  }
+}
+
+export function lookupRatherDraftPick(playerId, draftPicks = {}, nflPlayer = {}) {
+  const direct = draftPicks?.[String(playerId || "")];
+  if (isDraftRow(direct)) return normalizeDraftRow(direct);
+  const want = normalizeRatherName(nflPlayer?.full_name || `${nflPlayer?.first_name || ""} ${nflPlayer?.last_name || ""}`);
+  if (!want) return null;
+  const matches = Object.values(draftPicks || {}).filter((row) => (
+    isDraftRow(row) && normalizeRatherName(row.name) === want
+  ));
+  return matches.length === 1 ? normalizeDraftRow(matches[0]) : null;
+}
+
+export function formatRatherDraftLine(draft) {
+  if (!draft) return "Rookie";
+  const round = ratherOrdinal(draft.round);
+  const pick = Number(draft.pick);
+  if (round && Number.isFinite(pick)) return `${round} round · pick ${pick}`;
+  if (Number.isFinite(pick)) return `Pick ${pick}`;
+  return "Rookie";
+}
+
+export function formatRatherStatNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "";
+  if (Math.abs(numeric - Math.round(numeric)) < 1e-9) {
+    return Math.round(numeric).toLocaleString("en-US");
+  }
+  return numeric.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 0 });
+}
+
+export function formatRatherSeasonStats(stats, position) {
+  if (!stats || typeof stats !== "object") return "";
+  const played = Number(stats.gp) > 0 || Number(stats.gms_active) > 0 || Number(stats.pts_ppr) > 0;
+  if (!played) return "";
+
+  const pos = String(position || "").toUpperCase();
+  const parts = [];
+  if (pos === "QB") {
+    pushRatherStat(parts, stats.pass_yd, "pass yds");
+    pushRatherStat(parts, stats.pass_td, "TD", { keepZero: true });
+    pushRatherStat(parts, stats.pass_int, "INT", { keepZero: true });
+  } else if (pos === "RB") {
+    pushRatherStat(parts, stats.rush_yd, "rush yds");
+    pushRatherStat(parts, stats.rec, "rec");
+    const touchdowns = (Number(stats.rush_td) || 0) + (Number(stats.rec_td) || 0);
+    pushRatherStat(parts, touchdowns, "TD", { keepZero: true });
+  } else if (pos === "WR" || pos === "TE") {
+    pushRatherStat(parts, stats.rec, "rec");
+    pushRatherStat(parts, stats.rec_yd, "yds");
+    pushRatherStat(parts, stats.rec_td, "TD", { keepZero: true });
+  } else if (pos === "K") {
+    const made = Number(stats.fgm);
+    const attempts = Number(stats.fga);
+    if (Number.isFinite(made) && Number.isFinite(attempts)) {
+      parts.push(`${formatRatherStatNumber(made)}/${formatRatherStatNumber(attempts)} FG`);
+    }
+  }
+  if (!parts.length) {
+    pushRatherStat(parts, stats.pts_ppr, "PPR pts");
+  }
+  return parts.join(" · ");
+}
+
+export function formatRatherPlayerMeta({ position, team, age } = {}) {
+  const numericAge = Number(age);
+  const ageLabel = age != null && age !== "" && Number.isFinite(numericAge) && numericAge > 0
+    ? `${numericAge}y`
+    : "";
+  return [position, team, ageLabel].filter(Boolean).join(" · ");
+}
+
+export function formatRatherPlayerDetail({
+  isRookie = false,
+  draft = null,
+  stats = null,
+  position = "",
+  previousSeason = "",
+} = {}) {
+  if (isRookie) return formatRatherDraftLine(draft);
+  const line = formatRatherSeasonStats(stats, position);
+  if (line) return previousSeason ? `${previousSeason} · ${line}` : line;
+  return previousSeason ? `No ${previousSeason} stats` : "";
+}
+
+export function decorateRatherPlayer(player, nflPlayers = {}, extras = {}) {
   const raw = nflPlayers?.[player?.playerId] || {};
   const position = String(raw.position || raw.fantasy_positions?.[0] || "").toUpperCase();
   const team = String(raw.team || "").toUpperCase();
+  const age = playerAgeFromNfl(raw);
+  const isRookie = isRatherRookie(raw, extras.currentSeason);
+  const draft = lookupRatherDraftPick(player?.playerId, extras.draftPicks, raw);
+  const stats = extras.seasonStats?.[player?.playerId] || extras.seasonStats?.[String(player?.playerId)] || null;
   return {
     assetId: player.assetId,
     playerId: player.playerId,
@@ -111,9 +239,18 @@ export function decorateRatherPlayer(player, nflPlayers = {}) {
     value: player.value,
     position,
     team,
+    age,
+    isRookie,
     photoUrl: sleeperPlayerThumbUrl(player.playerId),
     initials: playerInitials(player.name),
-    meta: [position, team].filter(Boolean).join(" · "),
+    meta: formatRatherPlayerMeta({ position, team, age }),
+    detail: formatRatherPlayerDetail({
+      isRookie,
+      draft,
+      stats,
+      position,
+      previousSeason: extras.previousSeason,
+    }),
   };
 }
 
@@ -152,6 +289,9 @@ function renderRatherPlayerButton(player, side) {
   const meta = player?.meta
     ? `<small class="rather-meta">${escapeHtml(player.meta)}</small>`
     : "";
+  const detail = player?.detail
+    ? `<small class="rather-stats">${escapeHtml(player.detail)}</small>`
+    : "";
   return `
     <button
       type="button"
@@ -165,6 +305,7 @@ function renderRatherPlayerButton(player, side) {
       </span>
       <strong>${escapeHtml(name)}</strong>
       ${meta}
+      ${detail}
     </button>
   `;
 }
@@ -222,6 +363,34 @@ function clampUnit(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return 0;
   return Math.min(1, Math.max(0, numeric));
+}
+
+function isDraftRow(row) {
+  return Number.isFinite(Number(row?.round)) && Number.isFinite(Number(row?.pick));
+}
+
+function normalizeDraftRow(row) {
+  return {
+    year: Number(row.year) || null,
+    round: Number(row.round),
+    pick: Number(row.pick),
+    name: String(row.name || ""),
+  };
+}
+
+function normalizeRatherName(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9\s]/g, " ")
+    .replaceAll(/\s+/g, " ")
+    .trim();
+}
+
+function pushRatherStat(parts, value, label, { keepZero = false } = {}) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return;
+  if (numeric === 0 && !keepZero) return;
+  parts.push(`${formatRatherStatNumber(numeric)} ${label}`);
 }
 
 function readJson(storage, key) {
