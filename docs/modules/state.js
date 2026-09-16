@@ -95,8 +95,19 @@ export function createState() {
     sleeperUser: null,
     userLeagues: [],
     livePolling: false,
-    valueFormat: "sf",
+    value: "sf",
     valueBundles: { sf: { values: {}, nameMap: {} }, oneQb: { values: {}, nameMap: {} }, names: {} },
+    ktcBundles: { sf: { values: {}, nameMap: {} }, oneQb: { values: {}, nameMap: {} }, names: {} },
+    tradeMarketBundle: { sf: { values: {}, counts: {} }, oneQb: { values: {}, counts: {} }, names: {}, meta: null },
+    applyLeagueBoard: false,
+    leagueBoard: {
+      ready: false,
+      tradeCount: 0,
+      shifts: {},
+      biases: [],
+      examples: [],
+      summary: "",
+    },
   };
 }
 

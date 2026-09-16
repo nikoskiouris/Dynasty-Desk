@@ -339,6 +339,8 @@ export const CROWD_PAIR_DECAY = 0.55;
 export const CROWD_HALF_LIFE_MS = 90 * 24 * 60 * 60 * 1000;
 export const CROWD_ESTIMATED_SCALE = 0.5;
 export const CROWD_FORMAT_MISMATCH_SCALE = 0.65;
+export const LEAGUE_BOARD_MAX_ABS_SHIFT = 0.26;
+export const LEAGUE_BOARD_ESTIMATED_SCALE = 0.55;
 
 export function sanitizeCrowdVotes(votes) {
   if (!Array.isArray(votes)) return [];
@@ -429,15 +431,37 @@ export function applyCrowdShift(assetId, value, shifts, { scale = 1 } = {}) {
   return Math.max(1, Math.round(value * (1 + capped)));
 }
 
+export function applyLeagueShift(assetId, value, shifts, { scale = 1 } = {}) {
+  if (!Number.isFinite(value) || value <= 0) return value;
+  const shift = Number(shifts?.[assetId]);
+  if (!Number.isFinite(shift) || shift === 0) return value;
+  const weight = Number.isFinite(scale) ? Math.max(0, Math.min(1, scale)) : 1;
+  const capped = clampLeagueShift(shift * weight);
+  return Math.max(1, Math.round(value * (1 + capped)));
+}
+
 export function getAssetValue(asset, values, options = {}) {
-  const { valueNameMap = {}, pickCatalog = null, league = null, crowdShifts = null } = options;
+  const {
+    valueNameMap = {},
+    pickCatalog = null,
+    league = null,
+    crowdShifts = null,
+    leagueShifts = null,
+    applyLeagueBoard = false,
+  } = options;
   const lookup = lookupMarketValue(asset, values, valueNameMap, pickCatalog);
   let value = adjustLeagueValue(asset, lookup.value, league);
   const assetId = String(asset?.assetId || "");
   const isPlayer = asset?.assetType === "player" || assetId.startsWith("player:");
+  const isPick = asset?.assetType === "pick" || assetId.startsWith("pick:");
   if (isPlayer && crowdShifts) {
     value = applyCrowdShift(assetId, value, crowdShifts, {
       scale: lookup.estimated ? CROWD_ESTIMATED_SCALE : 1,
+    });
+  }
+  if (applyLeagueBoard && leagueShifts && (isPlayer || isPick)) {
+    value = applyLeagueShift(assetId, value, leagueShifts, {
+      scale: lookup.estimated ? LEAGUE_BOARD_ESTIMATED_SCALE : 1,
     });
   }
   return value;
@@ -453,6 +477,12 @@ function clampCrowdShift(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return 0;
   return Math.max(-CROWD_MAX_ABS_SHIFT, Math.min(CROWD_MAX_ABS_SHIFT, numeric));
+}
+
+function clampLeagueShift(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(-LEAGUE_BOARD_MAX_ABS_SHIFT, Math.min(LEAGUE_BOARD_MAX_ABS_SHIFT, numeric));
 }
 
 export function isEstimatedAsset(asset, values, options = {}) {

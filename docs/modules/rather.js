@@ -132,7 +132,7 @@ export function renderRatherMarkup(pair, format = DEFAULT_RATHER_FORMAT, options
   const right = pair?.right || {};
   const skipLabel = options.skipLabel || "Skip this matchup";
   const note = options.note
-    || "Your pick slightly nudges the desk board. KeepTradeCut stays the market prior.";
+    || "Your pick slightly nudges the desk board. The market prior is Sleeper trades mixed with KeepTradeCut.";
   const status = options.status || "";
   return `
     <div class="rather-panel">

@@ -84,6 +84,21 @@ import {
   leagueHasSuperflex,
   crowdShiftsFromVotes,
 } from "./modules/values.js";
+import {
+  composeValuationBundles,
+  fetchTradeMarketBundle,
+} from "./modules/trade-market.js";
+import {
+  ageBucketForAsset,
+  buildLeagueBoard,
+  emptyLeagueBoard,
+  isBoomBustAsset,
+  readApplyLeagueBoard,
+  renderLeagueBoardMarkup,
+  renderValueBoardBar,
+  shouldShowLeagueAlt,
+  writeApplyLeagueBoard,
+} from "./modules/league-board.js";
 import { createLivePoller, shouldPollLive, shouldRefreshSim, weekRowsFingerprint } from "./modules/live.js";
 import { buildRecapCardModel, drawRecapCard, renderRecapCardBlob, recapCardFilename } from "./modules/recap-card.js";
 import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber, clamp, renderTradeAssetLabel, renderTradeMove } from "./modules/html.js";
@@ -324,12 +339,16 @@ let franchiseIndexCache = { key: "", index: null };
 let applyingHistory = false;
 let ratherPromptPair = null;
 
-function getAssetValue(asset, values = state.values) {
+function getAssetValue(asset, values = state.values, extra = {}) {
+  const { applyLeagueBoard, ...rest } = extra;
   return marketAssetValue(asset, values, {
     valueNameMap: state.valueNameMap,
     pickCatalog: state.pickValueCatalog,
     league: state.league,
     crowdShifts: state.crowdShifts,
+    leagueShifts: state.leagueBoard?.shifts,
+    ...rest,
+    applyLeagueBoard: applyLeagueBoard ?? state.applyLeagueBoard,
   });
 }
 
@@ -466,6 +485,7 @@ el.seasonsDashboard?.addEventListener("click", handleHistoryCompareClick);
 el.seasonsDashboard?.addEventListener("change", handleHistoryCompareChange);
 
 applyTheme(readStoredTheme(), { persist: false });
+state.applyLeagueBoard = readApplyLeagueBoard();
 renderSessionSnapshot();
 syncTradeModeUi();
 syncStorageNotice();
@@ -1325,6 +1345,7 @@ async function runLeagueLoad(leagueId) {
     state.transactionsFailed = false;
     state.transactionWeeksLoaded = 0;
     state.transactionLoadError = "";
+    state.leagueBoard = emptyLeagueBoard();
     state.leagueHistory = [];
     state.historyTransactions = [];
     state.historyTransactionsLoaded = false;
@@ -1953,6 +1974,7 @@ async function loadLeagueTransactions(leagueId, league) {
     state.transactionsLoaded = true;
     state.transactionsFailed = loadedWeeks === 0;
     state.transactionLoadError = loadedWeeks === 0 ? "Sleeper did not return transaction weeks for this league." : "";
+    refreshLeagueBoard();
   } catch (err) {
     if (state.leagueId !== loadLeagueId) return;
     state.transactions = [];
@@ -2021,6 +2043,7 @@ async function loadLeagueHistoryTransactions(historyEntries = []) {
     state.historyTransactionLoadError = loadedLeagues === 0
       ? "Sleeper did not return archived transaction weeks for this league."
       : "";
+    refreshLeagueBoard();
   } catch (err) {
     if (state.leagueId !== activeLeagueId) return;
     state.historyTransactions = [];
@@ -2659,7 +2682,7 @@ function renderPowerRoom() {
   const profiles = buildPowerProfiles();
   el.powerBoardDashboard.innerHTML = profiles.length
     ? renderHomePowerBoard(profiles, model)
-    : `<p class="muted">Values are still syncing. The power board appears once KTC values load.</p>`;
+    : `<p class="muted">Values are still syncing. The power board appears once market values load.</p>`;
 }
 
 function renderPulseStrip(model, sim, profiles) {
@@ -3637,7 +3660,7 @@ function renderTradeDetail(row) {
           <span class="eyebrow">Trade file</span>
           <h2>${escapeHtml(row.season)} Week ${row.week || "?"} vs ${escapeHtml(row.partnerName)}</h2>
         </div>
-        <p class="section-copy">${escapeHtml(row.managerName)}'s side. Record, KTC, and later finishes from this week forward.</p>
+        <p class="section-copy">${escapeHtml(row.managerName)}'s side. Record, market value now, and later finishes from this week forward.</p>
       </div>
       <div class="trade-file-hero">
         <div class="loyalty-card">
@@ -3646,7 +3669,7 @@ function renderTradeDetail(row) {
           <small>${row.since.games ? `${Math.round(row.since.winPct * 100)}% · ${row.since.games} games later` : "Still waiting on the next kickoff"}</small>
         </div>
         <div class="loyalty-card">
-          <span>KTC now</span>
+          <span>Market now</span>
           <strong>${formatSignedNumber(Math.round(row.delta))}</strong>
           <small>Got ${formatNumber(Math.round(row.receivedNow))} · sent ${formatNumber(Math.round(row.sentNow))}</small>
         </div>
@@ -3712,13 +3735,17 @@ function renderTradeLogDesk() {
       : "";
   host.innerHTML = `
     ${renderLensPicker(roster, { label: "Trade file" })}
+    ${renderLeagueBoardMarkup(state.leagueBoard || emptyLeagueBoard(), {
+      applied: state.applyLeagueBoard,
+      formatNumber,
+    })}
     <section class="workspace-panel trade-analyzer">
       <div class="panel-heading">
         <div>
           <span class="eyebrow">Graded deals</span>
           <h2>${other ? `${escapeHtml(roster.manager.displayName)}'s trade file` : "Your trade file"}</h2>
         </div>
-        <p class="section-copy">Tap a deal for the recap, record since that week, and today's KTC. ${analyzed.length} in the archive.${syncNote ? ` ${syncNote}` : ""}</p>
+        <p class="section-copy">Tap a deal for the recap, record since that week, and today's market. ${analyzed.length} in the archive.${syncNote ? ` ${syncNote}` : ""}</p>
       </div>
       <div class="trade-log">
         ${analyzed.map((row) => `
@@ -3889,7 +3916,7 @@ function renderRosterSheet() {
           <strong>${escapeHtml(asset.name)}${nickname ? ` <em class="nickname">“${escapeHtml(nickname)}”</em>` : ""}</strong>
           <span>${escapeHtml(formatPlayerPositionLabel(asset))}${asset.raw?.team ? ` · ${escapeHtml(asset.raw.team)}` : ""}${Number.isFinite(playerAgeForAsset(asset)) ? ` · ${playerAgeForAsset(asset)}y` : ""}${injury ? ` · <span class="injury">${escapeHtml(injury)}</span>` : ""}</span>
         </div>
-        <span class="sheet-value mono">${formatNumber(getAssetValue(asset, values))}</span>
+        <span class="sheet-value mono">${renderAssetValuePlain(asset, values)}</span>
       </div>
     `;
   };
@@ -3934,7 +3961,7 @@ function renderRosterSheet() {
             <div class="sheet-row pick">
               <span class="sheet-slot">${escapeHtml(String(asset.raw?.season || ""))}</span>
               <div class="sheet-player"><strong>${escapeHtml(asset.name)}</strong><span>Round ${escapeHtml(String(asset.raw?.round || "?"))}</span></div>
-              <span class="sheet-value mono">${formatNumber(getAssetValue(asset, values))}</span>
+              <span class="sheet-value mono">${renderAssetValuePlain(asset, values)}</span>
             </div>
           `).join("")
           : `<p class="muted small">No draft picks owned.</p>`}
@@ -4324,6 +4351,11 @@ function renderCalculator() {
     .filter((roster) => roster.rosterId !== me.rosterId)
     .sort((a, b) => a.manager.displayName.localeCompare(b.manager.displayName));
   el.calculatorShell.innerHTML = `
+    ${renderValueBoardBar({
+      applied: state.applyLeagueBoard,
+      ready: Boolean(state.leagueBoard?.ready),
+      marketHint: marketBoardHint(),
+    })}
     <div class="panel-heading calc-heading">
       <div>
         <span class="eyebrow">Trade Calculator</span>
@@ -4694,6 +4726,14 @@ function handleWorkspaceClick(event) {
         feedback.classList.remove("hidden");
         setTimeout(() => feedback.classList.add("hidden"), 1600);
       });
+      break;
+    }
+    case "toggle-league-board": {
+      if (target.disabled) return;
+      state.applyLeagueBoard = !state.applyLeagueBoard;
+      writeApplyLeagueBoard(state.applyLeagueBoard);
+      renderActivePage();
+      renderSessionSnapshot();
       break;
     }
     default:
@@ -7554,7 +7594,7 @@ function buildAssetPickerMarkup(asset, { values, contextLabel } = {}) {
           ${contextLabel ? `<span class="asset-context">${contextLabel}</span>` : ""}
         </div>
       </div>
-      <span class="asset-value-badge">${formatNumber(getAssetValue(asset, values))}</span>
+      <span class="asset-value-badge-slot">${renderAssetValueBadge(asset, values)}</span>
     </div>
   `;
 }
@@ -12684,8 +12724,93 @@ function setButtonLoading(button, isLoading, loadingText = "Loading...") {
   button.textContent = isLoading ? loadingText : button.dataset.defaultLabel;
 }
 
+function marketBoardHint() {
+  const meta = state.valueBundles?.tradeMeta || state.tradeMarketBundle?.meta;
+  const trades = Number(meta?.tradeCount);
+  const leagues = Number(meta?.leagueCount);
+  if (Number.isFinite(trades) && trades > 0 && Number.isFinite(leagues) && leagues > 0) {
+    return `Sleeper trade market from ${formatNumber(trades)} completed dynasty trades across ${formatNumber(leagues)} leagues, mixed with KeepTradeCut.`;
+  }
+  if (state.applyLeagueBoard) {
+    return "Calculator, find-deals, and power now use this room's prices.";
+  }
+  return "Numbers are the Sleeper trade market mixed with KeepTradeCut. League prices stay on the side until you apply them.";
+}
+
+function refreshLeagueBoard() {
+  const trades = [...(state.transactions || []), ...(state.historyTransactions || [])];
+  if (!Object.keys(state.values || {}).length) {
+    state.leagueBoard = emptyLeagueBoard();
+    return state.leagueBoard;
+  }
+  state.leagueBoard = buildLeagueBoard({
+    trades,
+    resolveAsset: resolveLeagueBoardAsset,
+  });
+  return state.leagueBoard;
+}
+
+function resolveLeagueBoardAsset(token) {
+  if (token?.assetType === "player" || token?.playerId) {
+    const asset = buildTransactionPlayerAsset(token.playerId);
+    const marketValue = getAssetValue(asset, state.values, { applyLeagueBoard: false });
+    return {
+      ...token,
+      asset,
+      assetId: asset.assetId,
+      name: asset.name,
+      marketValue,
+      position: playerPositionForAsset(asset),
+      ageBucket: ageBucketForAsset(asset),
+      boomBust: isBoomBustAsset(asset, marketValue),
+    };
+  }
+  const asset = buildTransactionPickAsset(token.pick);
+  const marketValue = getAssetValue(asset, state.values, { applyLeagueBoard: false });
+  return {
+    ...token,
+    asset,
+    assetId: asset.assetId,
+    name: asset.name,
+    marketValue,
+    position: "PICK",
+    ageBucket: "pick",
+    boomBust: false,
+  };
+}
+
+function renderAssetValueBadge(asset, values = state.values) {
+  const used = getAssetValue(asset, values);
+  const market = getAssetValue(asset, values, { applyLeagueBoard: false });
+  const league = getAssetValue(asset, values, { applyLeagueBoard: true });
+  const showAlt = Boolean(state.leagueBoard?.ready) && shouldShowLeagueAlt(market, league);
+  const altLabel = state.applyLeagueBoard ? "market" : "your league";
+  const altValue = state.applyLeagueBoard ? market : league;
+  return `
+    <span class="asset-value-badge${showAlt ? " has-alt" : ""}">
+      <strong>${formatNumber(used)}</strong>
+      ${showAlt ? `<small class="value-alt">${altLabel} ${formatNumber(altValue)}</small>` : ""}
+    </span>
+  `;
+}
+
+function renderAssetValuePlain(asset, values = state.values) {
+  const used = getAssetValue(asset, values);
+  const market = getAssetValue(asset, values, { applyLeagueBoard: false });
+  const league = getAssetValue(asset, values, { applyLeagueBoard: true });
+  const showAlt = Boolean(state.leagueBoard?.ready) && shouldShowLeagueAlt(market, league);
+  const altLabel = state.applyLeagueBoard ? "market" : "your league";
+  const altValue = state.applyLeagueBoard ? market : league;
+  return `${formatNumber(used)}${showAlt ? `<small class="value-alt">${altLabel} ${formatNumber(altValue)}</small>` : ""}`;
+}
+
 function formatAssetSecondaryLabel(asset, values) {
   const parts = [formatNumber(getAssetValue(asset, values))];
+  const market = getAssetValue(asset, values, { applyLeagueBoard: false });
+  const league = getAssetValue(asset, values, { applyLeagueBoard: true });
+  if (state.leagueBoard?.ready && shouldShowLeagueAlt(market, league)) {
+    parts.push(state.applyLeagueBoard ? `mkt ${formatNumber(market)}` : `league ${formatNumber(league)}`);
+  }
   if (isEstimatedAsset(asset, values)) parts.push("est");
   if (asset.assetType === "player") {
     const position = formatPlayerPositionLabel(asset);
@@ -13300,7 +13425,13 @@ async function loadValues(optionalUrl) {
     return coerceValueMap(payload);
   }
 
-  state.valueBundles = await fetchValuationBundles();
+  const [ktcBundles, tradeBundle] = await Promise.all([
+    fetchValuationBundles(),
+    fetchTradeMarketBundle(),
+  ]);
+  state.ktcBundles = ktcBundles;
+  state.tradeMarketBundle = tradeBundle;
+  state.valueBundles = composeValuationBundles(ktcBundles, tradeBundle);
   return pickValueBundle(state.valueBundles, selectValueFormat(state.league));
 }
 
@@ -13350,6 +13481,7 @@ function applyValuationBundle(bundle, { rerender = true } = {}) {
   refreshPlayerPositionRanks();
   state.pickValueCatalog = buildPickValuationCatalog(state.values, state.valueNameMap);
   state.globalMaxPlayerValue = getGlobalMaxPlayerValue(state.values);
+  refreshLeagueBoard();
 
   if (state.league && state.rosters.length > 0 && state.users.length > 0) {
     state.normalizedRosters = normalizeRosters(
@@ -13452,7 +13584,13 @@ async function bootLandingRather() {
   el.landingRather.innerHTML = renderLandingRatherPlaceholder();
   try {
     if (!state.valueBundles?.sf?.values || !Object.keys(state.valueBundles.sf.values).length) {
-      state.valueBundles = await fetchValuationBundles();
+      const [ktcBundles, tradeBundle] = await Promise.all([
+        fetchValuationBundles(),
+        fetchTradeMarketBundle(),
+      ]);
+      state.ktcBundles = ktcBundles;
+      state.tradeMarketBundle = tradeBundle;
+      state.valueBundles = composeValuationBundles(ktcBundles, tradeBundle);
     }
     refreshCrowdShifts();
     showNextRatherMatchup();

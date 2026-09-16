@@ -1,6 +1,6 @@
 # Dynasty Desk
 
-Sleeper dynasty league desk: live scores, standings, playoff odds, awards, archive, and a trade lab. Values stay on KeepTradeCut. The site is static. It talks to Sleeper from the browser.
+Sleeper dynasty league desk: live scores, standings, playoff odds, awards, archive, and a trade lab. Values are built from Sleeper dynasty trades across many leagues, mixed with KeepTradeCut. The site is static. It talks to Sleeper from the browser.
 
 ## What is in this repo
 - **Web app (GitHub Pages):** `docs/` — League Command Center.
@@ -33,7 +33,7 @@ Four pages. Each page has a row of rooms under it, so every feature is at most t
    - **Passports** — career stamps for every player on the roster.
    - A **Viewing** picker on Loyalty and Passports switches which roster you are looking at.
 3. **Trades** — deals.
-   - **Log** — graded trade log with the trade wire. Tap a row to open the trade file (record since, KTC now, later finishes).
+   - **Log** — graded trade log with the trade wire. Tap a row to open the trade file (record since, market now, later finishes). Optional league board reads this room’s taste.
    - **Calculator** — build both sides by hand and get a verdict.
    - **Find deals** — shop an asset, target a player, or generate a blockbuster.
 4. **History** — the archive.
@@ -47,13 +47,16 @@ Demo league: [Try Hard or Die Hard](https://sleeper.app/leagues/1315165104303513
 The desk polls Sleeper matchups on the NFL window (Thu–Mon UTC) and whenever the current week already has points. Scoreboard, ticker, awards, and recap refresh. The 4000-season Monte Carlo does **not** rerun on every point tick. It refreshes when a week finals, remaining games change, or ~3 minutes have passed.
 
 ### Value source
-KeepTradeCut only, for now:
-- Superflex vs 1QB files (`docs/data/ktc_values_sf.csv`, `docs/data/ktc_values_1qb.csv`), plus optional `ktc_values.json`.
+Sleeper trades first, KeepTradeCut as the prior:
+- Superflex vs 1QB KeepTradeCut files (`docs/data/ktc_values_sf.csv`, `docs/data/ktc_values_1qb.csv`), plus optional `ktc_values.json`.
+- Sleeper trade market (`docs/data/sleeper_trade_values.json`) fitted from completed dynasty trades snowballed from public leagues.
+- Those two are blended so frequently traded players follow the Sleeper market; thin names stay closer to KeepTradeCut.
+- Optional **league board** inferred from this league’s own trades (positions, youth, boom-bust skill players, and specific names). Apply it when you want room prices.
 - TE premium bump from Sleeper `bonus_rec_te`.
 - Missing assets get a position/age estimate labeled **est**.
 - Elite players still get a premium so one star is not a pile of scraps.
 
-Refresh rankings with `python scripts/update_ktc_values.py`. Pages deploy tries that scrape and keeps the sample files if KTC is down.
+Refresh rankings with `python scripts/update_ktc_values.py`. Refresh the Sleeper trade market with `python scripts/update_sleeper_trade_market.py`. Pages deploy tries both scrapes and keeps the last files if a source is down.
 
 ## GitHub Pages
 

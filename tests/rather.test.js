@@ -119,7 +119,7 @@ test("renderRatherMarkup shows headline, format detail, and two players", () => 
   assert.match(html, /data-rather-pick="player:11564"/);
   assert.match(html, /id="rather-skip"/);
   assert.match(html, /Skip this matchup/);
-  assert.match(html, /KeepTradeCut stays the market prior/);
+  assert.match(html, /Sleeper trades mixed with KeepTradeCut/);
   assert.doesNotMatch(html, /8510/);
 });
 

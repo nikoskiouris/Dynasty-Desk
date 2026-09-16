@@ -180,3 +180,20 @@ test("crowd nudge happens after the elite premium, not instead of it", () => {
   assert.ok(nudged > elite);
   assert.ok(nudged < elite * (1 + CROWD_MAX_ABS_SHIFT + 0.001));
 });
+
+test("league board overlay is opt-in and stacks after the crowd nudge", () => {
+  const dart = { assetId: "player:pw", assetType: "player", raw: { position: "WR" } };
+  const values = { "player:pw": 4200 };
+  const base = getAssetValue(dart, values);
+  const leagueOn = getAssetValue(dart, values, {
+    leagueShifts: { "player:pw": 0.24 },
+    applyLeagueBoard: true,
+  });
+  const leagueOff = getAssetValue(dart, values, {
+    leagueShifts: { "player:pw": 0.24 },
+    applyLeagueBoard: false,
+  });
+  assert.equal(base, 4200);
+  assert.equal(leagueOff, 4200);
+  assert.equal(leagueOn, Math.round(4200 * 1.24));
+});

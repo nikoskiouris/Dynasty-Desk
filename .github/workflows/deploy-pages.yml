@@ -37,6 +37,10 @@ jobs:
         continue-on-error: true
         run: python scripts/update_ktc_values.py
 
+      - name: Refresh Sleeper trade market
+        continue-on-error: true
+        run: python scripts/update_sleeper_trade_market.py --max-leagues 48
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:

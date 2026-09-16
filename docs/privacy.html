@@ -48,7 +48,7 @@
         <p>Dynasty Desk is the open-source project at <a href="https://github.com/nikoskiouris/DynastyDesk">github.com/nikoskiouris/DynastyDesk</a>. Contact is GitHub issues on that repo, not a mailbox or street address.</p>
 
         <h2>What the app fetches</h2>
-        <p>When you search a username or load a league, your browser calls the public Sleeper API for league, roster, matchup, draft, transaction, and player data. KeepTradeCut-style values are bundled as static files in this repo. We do not proxy that traffic.</p>
+        <p>When you search a username or load a league, your browser calls the public Sleeper API for league, roster, matchup, draft, transaction, and player data. KeepTradeCut-style rankings and a Sleeper trade-market file are bundled as static files in this repo. We do not proxy that traffic.</p>
 
         <h2>What stays on your device</h2>
         <p>The desk uses <strong>browser localStorage</strong>, not cookies:</p>
@@ -56,7 +56,8 @@
           <li>Light / dark theme</li>
           <li>A short-lived cache of Sleeper NFL player metadata</li>
           <li>Whether you dismissed the storage notice</li>
-          <li>Anonymous “who would you rather have” ranking votes from the landing matchup. Those votes stay in this browser and slightly nudge local player values. They do not overwrite KeepTradeCut files.</li>
+          <li>Anonymous “who would you rather have” ranking votes from the landing matchup. Those votes stay in this browser and slightly nudge local player values. They do not overwrite KeepTradeCut or Sleeper trade-market files.</li>
+          <li>Whether you turned on the optional league board, which prices players from this league’s own completed trades.</li>
         </ul>
         <p>Clear site data in your browser to wipe it. We cannot read that storage from GitHub.</p>
 

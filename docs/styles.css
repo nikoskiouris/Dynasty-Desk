@@ -2876,6 +2876,79 @@ body:not(.league-loaded) .workspace-header {
   margin-bottom: 0;
 }
 
+.value-board-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-tint);
+}
+
+.value-board-bar p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.league-board-apply.is-on {
+  border-color: var(--team-a-border);
+  background: var(--team-a-soft);
+  color: var(--team-a);
+}
+
+.league-bias-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted-strong);
+}
+
+.league-board-examples {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.league-board-example {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+}
+
+.league-board-example span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.asset-value-badge.has-alt,
+.sheet-value.mono:has(.value-alt) {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.12rem;
+  border-radius: 12px;
+  line-height: 1.15;
+}
+
+.asset-value-badge.has-alt {
+  padding: 0.22rem 0.5rem;
+}
+
+.value-alt {
+  display: block;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: none;
+}
+
 .calc-partner {
   display: grid;
   gap: 0.3rem;
@@ -5713,8 +5786,14 @@ body.dock-visible {
 
 @media (max-width: 700px) {
   .trade-wire-grid,
-  .trade-file-hero {
+  .trade-file-hero,
+  .value-board-bar {
     grid-template-columns: 1fr;
+  }
+
+  .value-board-bar {
+    display: grid;
+    align-items: stretch;
   }
 }
 
