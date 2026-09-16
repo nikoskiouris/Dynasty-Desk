@@ -204,6 +204,7 @@ export function buildLeagueBoard({
     examples.push({
       assetId,
       name: sample.name,
+      assetType: sample.assetType,
       marketValue: Math.round(sample.marketValue),
       leagueValue: Math.max(1, Math.round(sample.marketValue * (1 + combined))),
       shift: combined,
@@ -221,7 +222,11 @@ export function buildLeagueBoard({
     biasRow("pick", "draft picks", posShifts.PICK),
   ].filter(Boolean).sort((a, b) => Math.abs(b.shift) - Math.abs(a.shift) || a.label.localeCompare(b.label));
 
-  examples.sort((a, b) => Math.abs(b.shift) - Math.abs(a.shift) || a.name.localeCompare(b.name));
+  examples.sort((a, b) => {
+    const aPlayer = String(a.assetId).startsWith("player:") ? 0 : 1;
+    const bPlayer = String(b.assetId).startsWith("player:") ? 0 : 1;
+    return aPlayer - bPlayer || Math.abs(b.shift) - Math.abs(a.shift) || a.name.localeCompare(b.name);
+  });
   const headline = biases[0];
   return {
     ready: true,
@@ -271,7 +276,8 @@ export function renderLeagueBoardMarkup(board, { applied = false, formatNumber =
           ${ready ? "" : "disabled"}
         >${escapeHtml(applyLabel)}</button>
       </div>
-      <p class="section-copy">${escapeHtml(board?.summary || emptyLeagueBoard().summary)} Market stays Sleeper trades from many dynasty leagues, mixed with KeepTradeCut. This overlay is just your room.${status ? ` ${escapeHtml(status)}.` : ""}</p>
+      <p class="section-copy">${escapeHtml(board?.summary || emptyLeagueBoard().summary)}</p>
+      <p class="muted small">Market stays Sleeper trades from many dynasty leagues, mixed with KeepTradeCut. This overlay is just your room.${status ? ` ${escapeHtml(status)}.` : ""}</p>
       ${biases.length ? `<ul class="league-bias-list">${biases.map((bias) => `<li>${escapeHtml(bias.sentence)}</li>`).join("")}</ul>` : ""}
       ${examples.length ? `<div class="league-board-examples">${examples.slice(0, 4).map((row) => `
         <article class="league-board-example">

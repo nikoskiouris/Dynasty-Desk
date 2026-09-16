@@ -12767,11 +12767,16 @@ function resolveLeagueBoardAsset(token) {
   }
   const asset = buildTransactionPickAsset(token.pick);
   const marketValue = getAssetValue(asset, state.values, { applyLeagueBoard: false });
+  const season = asset.raw?.season != null ? String(asset.raw.season) : "";
+  const round = Number(asset.raw?.round);
+  const pickName = Number.isFinite(round)
+    ? `${season} ${ordinal(round)}`.trim()
+    : String(token.assetId || "Pick");
   return {
     ...token,
     asset,
-    assetId: asset.assetId,
-    name: asset.name,
+    assetId: token.assetId || (Number.isFinite(round) ? `pick:${season}:r${round}:any` : asset.assetId),
+    name: pickName,
     marketValue,
     position: "PICK",
     ageBucket: "pick",
