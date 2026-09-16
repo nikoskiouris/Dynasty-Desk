@@ -1,11 +1,21 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Dynasty Desk — Fantasy League Command Center</title>
     <meta name="description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
-    <meta name="theme-color" content="#071018" />
+    <meta name="theme-color" content="#eef3f2" />
+    <script>
+      try {
+        var storedTheme = localStorage.getItem("dynasty_desk_theme");
+        if (storedTheme === "dark" || storedTheme === "light") {
+          document.documentElement.setAttribute("data-theme", storedTheme);
+          var themeColor = document.querySelector('meta[name="theme-color"]');
+          if (themeColor) themeColor.setAttribute("content", storedTheme === "dark" ? "#071018" : "#eef3f2");
+        }
+      } catch (err) {}
+    </script>
     <meta property="og:title" content="Dynasty Desk — Fantasy League Command Center" />
     <meta property="og:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
     <meta property="og:type" content="website" />
@@ -60,11 +70,11 @@
             type="button"
             id="mobile-theme-btn"
             class="mobile-icon-btn"
-            aria-pressed="false"
-            title="Toggle light and dark theme"
+            aria-pressed="true"
+            title="Dark mode"
           >
             <span id="mobile-theme-icon" class="theme-glyph" aria-hidden="true"></span>
-            <span class="sr-only" id="mobile-theme-label">Light mode</span>
+            <span class="sr-only" id="mobile-theme-label">Dark mode</span>
           </button>
         </div>
         <span id="mobile-share-feedback" class="feedback-chip mobile-share-feedback hidden" role="status">Link copied</span>
@@ -152,7 +162,7 @@
 
         <div class="rail-footer">
           <button id="share-link-btn" type="button" class="ghost-btn hidden" title="Copy a link that opens this league and team">Copy league link</button>
-          <button id="theme-toggle-btn" type="button" class="ghost-btn" aria-pressed="false" title="Toggle light and dark theme">Light mode</button>
+          <button id="theme-toggle-btn" type="button" class="ghost-btn" aria-pressed="true" title="Toggle light and dark theme">Dark mode</button>
           <span id="share-link-feedback" class="feedback-chip hidden">Link copied</span>
         </div>
       </aside>

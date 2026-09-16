@@ -140,7 +140,12 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /Who would you rather have\?/);
   assert.match(index, /PPR 12-man Superflex/);
   assert.match(index, /id="username-error"/);
-  assert.match(index, /data-theme="dark"/);
+  assert.match(index, /data-theme="light"/);
+  assert.match(index, /theme-color" content="#eef3f2"/);
+  assert.match(index, /dynasty_desk_theme/);
+  assert.match(index, />Dark mode</);
+  assert.match(index, /id="theme-toggle-btn"[^>]*aria-pressed="true"/);
+  assert.doesNotMatch(index, /data-theme="dark"/);
   assert.match(index, /family=Inter:/);
   for (const page of ["league", "teams", "trades", "history"]) {
     assert.match(index, new RegExp(`data-page="${page}"`));
@@ -206,6 +211,8 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   const notFound = readDocs("404.html");
   assert.match(notFound, /Page not found/);
   assert.match(notFound, /<h1>/);
+  assert.match(notFound, /theme-color" content="#eef3f2"/);
+  assert.match(notFound, /data-theme="light"/);
   assert.doesNotMatch(notFound, /demo league/i);
   assert.doesNotMatch(notFound, /1315165104303513600/);
   assert.doesNotMatch(notFound, /privacy\.html/);
@@ -213,6 +220,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(notFound, /Contact/);
 
   const privacy = readDocs("privacy.html");
+  assert.match(privacy, /theme-color" content="#eef3f2"/);
   assert.match(privacy, /localStorage/);
   assert.match(privacy, /No accounts/);
   assert.match(privacy, /GitHub issues/);
@@ -229,8 +237,14 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(app, /Last league remembered/);
 
   const terms = readDocs("terms.html");
+  assert.match(terms, /theme-color" content="#eef3f2"/);
   assert.match(terms, /not affiliated/i);
   assert.match(terms, /as is/i);
+
+  assert.match(readDocs("modules/state.js"), /export const DEFAULT_THEME = "light"/);
+  assert.match(readDocs("app.js"), /return DEFAULT_THEME/);
+  assert.match(readDocs("site.webmanifest"), /"theme_color": "#eef3f2"/);
+  assert.match(readDocs("styles.css"), /Daylight mint desk/);
 
   assert.ok(statSync(join(docs, "og-image.jpg")).size < 120_000);
   assert.match(OG_IMAGE_URL, /og-image\.jpg$/);

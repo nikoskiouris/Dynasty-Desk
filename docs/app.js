@@ -38,7 +38,7 @@ import {
   LIVE_SIM_REFRESH_MS,
   MATCHUP_FETCH_CHUNK,
 } from "./modules/constants.js";
-import { state, sleeper, THEME_STORAGE_KEY, PLAYERS_CACHE_KEY } from "./modules/state.js";
+import { state, sleeper, THEME_STORAGE_KEY, PLAYERS_CACHE_KEY, DEFAULT_THEME, THEME_COLORS } from "./modules/state.js";
 import { apiGet, apiGetWithRetry, fetchUserLeagues, mapInChunks } from "./modules/sleeper.js";
 import {
   classifyLeagueInput,
@@ -693,7 +693,7 @@ function readStoredTheme() {
   } catch {
     // Storage unavailable; fall through to the default.
   }
-  return "dark";
+  return DEFAULT_THEME;
 }
 
 function applyTheme(theme, { persist = true } = {}) {
@@ -701,7 +701,7 @@ function applyTheme(theme, { persist = true } = {}) {
   state.theme = nextTheme;
   document.documentElement.dataset.theme = nextTheme;
   const themeColor = document.querySelector('meta[name="theme-color"]');
-  if (themeColor) themeColor.content = nextTheme === "dark" ? "#071018" : "#eef3f2";
+  if (themeColor) themeColor.content = THEME_COLORS[nextTheme];
   if (el.themeToggleBtn) {
     el.themeToggleBtn.textContent = nextTheme === "dark" ? "Light mode" : "Dark mode";
     el.themeToggleBtn.setAttribute("aria-pressed", String(nextTheme === "light"));
@@ -719,6 +719,15 @@ function applyTheme(theme, { persist = true } = {}) {
     } catch {
       // Non-fatal.
     }
+  }
+  const recapCanvas = document.querySelector("#recap-card-canvas");
+  const recapCtx = recapCanvas?.getContext("2d");
+  if (recapCtx && state.recapCardModel) {
+    drawRecapCard(recapCtx, state.recapCardModel, {
+      width: recapCanvas.width,
+      height: recapCanvas.height,
+      theme: nextTheme,
+    });
   }
 }
 
@@ -4183,7 +4192,7 @@ function paintRecapCard(weekEntry, model, weekly) {
   const ctx = canvas?.getContext("2d");
   if (!ctx) return;
   const card = currentRecapCardModel(weekEntry, model, weekly);
-  drawRecapCard(ctx, card, { width: canvas.width, height: canvas.height });
+  drawRecapCard(ctx, card, { width: canvas.width, height: canvas.height, theme: state.theme });
   state.recapCardModel = card;
 }
 
@@ -4211,7 +4220,7 @@ async function saveRecapCard() {
   });
   const card = currentRecapCardModel(weekEntry, model, weekly);
   try {
-    const blob = await renderRecapCardBlob(card);
+    const blob = await renderRecapCardBlob(card, { theme: state.theme });
     const file = new File([blob], recapCardFilename(card), { type: "image/png" });
     if (navigator.canShare?.({ files: [file] }) && navigator.share) {
       await navigator.share({
