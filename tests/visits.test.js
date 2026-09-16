@@ -175,6 +175,15 @@ test("loadSecretNumbers reads four view totals and never tracks", async () => {
   for (const url of calls) assert.match(url, /\/views\?/);
 });
 
+test("loadSecretNumbers treats hung views as zero", async () => {
+  const counts = await loadSecretNumbers({
+    now: NOW,
+    timeoutMs: 20,
+    fetchFn: () => new Promise(() => {}),
+  });
+  assert.deepEqual(counts, [0, 0, 0, 0]);
+});
+
 test("the desk stores visits but never prints the total on public pages", () => {
   const index = readFileSync(join(docs, "index.html"), "utf8");
   assert.doesNotMatch(index, /id="landing-visits"/);
@@ -211,6 +220,7 @@ test("the unlisted numbers page is bare and unlabeled", () => {
   assert.match(html, /noindex/);
   assert.match(html, /loadSecretNumbers/);
   assert.match(html, /innerText/);
+  assert.match(html, /0<br>0<br>0<br>0/);
   assert.doesNotMatch(html, /stylesheet/);
   assert.doesNotMatch(html, /Dynasty/);
   assert.doesNotMatch(html, /today|week|year|all.time|users/i);

@@ -158,26 +158,43 @@ export function parseVisitCount(payload) {
   return Math.floor(value);
 }
 
+function raceTimeout(promise, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function fetchVisitCount(fetchFn, path, timeoutMs) {
+  try {
+    const response = await raceTimeout(fetchFn(visitCountUrlFor(path)), timeoutMs);
+    if (!response?.ok) return 0;
+    return parseVisitCount(await response.json());
+  } catch {
+    return 0;
+  }
+}
+
 export async function loadSecretNumbers({
   fetchFn = globalThis.fetch,
   now = new Date(),
+  timeoutMs = 5000,
 } = {}) {
   if (typeof fetchFn !== "function") return [0, 0, 0, 0];
+  const wait = Math.max(0, Number(timeoutMs) || 0);
   const periods = visitPeriodKeys(now);
-  const counts = [];
-  for (const kind of VISIT_KINDS) {
-    try {
-      const response = await fetchFn(visitCountUrlFor(visitPathFor(kind, periods)));
-      if (!response?.ok) {
-        counts.push(0);
-        continue;
-      }
-      counts.push(parseVisitCount(await response.json()));
-    } catch {
-      counts.push(0);
-    }
-  }
-  return counts;
+  return Promise.all(
+    VISIT_KINDS.map((kind) => fetchVisitCount(fetchFn, visitPathFor(kind, periods), wait)),
+  );
 }
 
 export function renderSecretNumbers(numbers) {
