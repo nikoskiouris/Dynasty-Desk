@@ -128,6 +128,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(index, /id="landing-visits"/);
   assert.doesNotMatch(index, /id="footer-visits"/);
   assert.doesNotMatch(index, /anonymous visit ping/);
+  assert.doesNotMatch(index, /secret-numbers/);
   assert.match(index, /Who would you rather have\?/);
   assert.match(index, /PPR 12-man Superflex/);
   assert.match(index, /id="username-error"/);
@@ -176,6 +177,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(sitemap, /terms\.html/);
   assert.equal(SITE_URL, "https://nikoskiouris.github.io/DynastyDesk/");
   assert.match(sitemap, /https:\/\/nikoskiouris\.github\.io\/DynastyDesk\//);
+  assert.doesNotMatch(sitemap, /secret-numbers/);
 
   const notFound = readDocs("404.html");
   assert.match(notFound, /Page not found/);
