@@ -17,6 +17,7 @@ import {
   formatRatherPlayerMeta,
   formatRatherSeasonStats,
   isRatherRookie,
+  ratherDepthChartFromNfl,
   listRatherPlayers,
   lookupRatherDraftPick,
   pairKey,
@@ -113,6 +114,11 @@ test("decorateRatherPlayer adds photo, initials, and roster meta", () => {
 
 test("rather cards show age plus last-season stats or rookie draft slot", () => {
   assert.equal(formatRatherPlayerMeta({ position: "QB", team: "NE", age: 24 }), "QB · NE · 24y");
+  assert.equal(formatRatherPlayerMeta({ position: "QB", team: "NE", age: 24, depthChart: "QB1" }), "QB · NE · 24y · QB1");
+  assert.equal(ratherDepthChartFromNfl({ depth_chart_order: 1, depth_chart_position: "QB" }, "QB"), "QB1");
+  assert.equal(ratherDepthChartFromNfl({ depth_chart_order: 1, depth_chart_position: "LWR" }, "WR"), "WR1");
+  assert.equal(ratherDepthChartFromNfl({ depth_chart_order: 3, depth_chart_position: "QB" }, "QB"), "QB3");
+  assert.equal(ratherDepthChartFromNfl({ position: "RB" }, "RB"), "");
   assert.equal(
     formatRatherSeasonStats({ gp: 17, pass_yd: 4394, pass_td: 31, pass_int: 8 }, "QB"),
     "4,394 pass yds · 31 TD · 8 INT"
@@ -141,19 +147,19 @@ test("rather cards show age plus last-season stats or rookie draft slot", () => 
 
   const vet = decorateRatherPlayer(
     { assetId: "player:11564", playerId: "11564", name: "Drake Maye", value: 8510 },
-    { 11564: { position: "QB", team: "NE", age: 24, years_exp: 2 } },
+    { 11564: { position: "QB", team: "NE", age: 24, years_exp: 2, depth_chart_position: "QB", depth_chart_order: 1 } },
     {
       currentSeason: "2026",
       previousSeason: "2025",
       seasonStats: { 11564: { gp: 17, pass_yd: 4394, pass_td: 31, pass_int: 8 } },
     }
   );
-  assert.equal(vet.meta, "QB · NE · 24y");
+  assert.equal(vet.meta, "QB · NE · 24y · QB1");
   assert.equal(vet.detail, "2025 · 4,394 pass yds · 31 TD · 8 INT");
 
   const rookie = decorateRatherPlayer(
     { assetId: "player:13287", playerId: "13287", name: "Jeremiyah Love", value: 7187 },
-    { 13287: { position: "RB", team: "ARI", age: 21, years_exp: 0, metadata: { rookie_year: "2026" } } },
+    { 13287: { position: "RB", team: "ARI", age: 21, years_exp: 0, metadata: { rookie_year: "2026" }, depth_chart_position: "RB", depth_chart_order: 1 } },
     {
       currentSeason: "2026",
       previousSeason: "2025",
@@ -161,7 +167,7 @@ test("rather cards show age plus last-season stats or rookie draft slot", () => 
       seasonStats: { 13287: { gp: 1, rush_yd: 41 } },
     }
   );
-  assert.equal(rookie.meta, "RB · ARI · 21y");
+  assert.equal(rookie.meta, "RB · ARI · 21y · RB1");
   assert.equal(rookie.detail, "1st round · pick 3");
   assert.match(rookie.detail, /pick 3/);
   assert.doesNotMatch(rookie.detail, /rush yds/);
@@ -188,7 +194,7 @@ test("renderRatherMarkup shows headline, format detail, and two players", () => 
   const html = renderRatherMarkup({
     left: decorateRatherPlayer(
       { assetId: "player:11564", playerId: "11564", name: "Drake Maye", value: 8510 },
-      { 11564: { position: "QB", team: "NE", age: 24, years_exp: 2 } },
+      { 11564: { position: "QB", team: "NE", age: 24, years_exp: 2, depth_chart_position: "QB", depth_chart_order: 1 } },
       {
         currentSeason: "2026",
         previousSeason: "2025",
@@ -197,7 +203,7 @@ test("renderRatherMarkup shows headline, format detail, and two players", () => 
     ),
     right: decorateRatherPlayer(
       { assetId: "player:13287", playerId: "13287", name: "Jeremiyah Love", value: 7187 },
-      { 13287: { position: "RB", team: "ARI", age: 21, years_exp: 0 } },
+      { 13287: { position: "RB", team: "ARI", age: 21, years_exp: 0, depth_chart_position: "RB", depth_chart_order: 1 } },
       {
         currentSeason: "2026",
         previousSeason: "2025",
@@ -210,9 +216,9 @@ test("renderRatherMarkup shows headline, format detail, and two players", () => 
   assert.match(html, /full PPR scoring · 12-man league · Superflex QB/);
   assert.match(html, /Drake Maye/);
   assert.match(html, /Jeremiyah Love/);
-  assert.match(html, /QB · NE · 24y/);
+  assert.match(html, /QB · NE · 24y · QB1/);
   assert.match(html, /2025 · 4,394 pass yds · 31 TD · 8 INT/);
-  assert.match(html, /RB · ARI · 21y/);
+  assert.match(html, /RB · ARI · 21y · RB1/);
   assert.match(html, /1st round · pick 3/);
   assert.match(html, /class="rather-stats"/);
   assert.doesNotMatch(html, /Dynasty asset/);

@@ -9,6 +9,7 @@ export const RATHER_RECENT_LIMIT = 24;
 export const RATHER_VOTE_LIMIT = 200;
 export const RATHER_MAX_RANK_GAP = 4;
 export const RATHER_DRAFT_PICKS_PATH = "./data/nfl_draft_picks.json";
+const WR_DEPTH_SLOTS = new Set(["WR", "LWR", "RWR", "SWR"]);
 
 export const DEFAULT_RATHER_FORMAT = Object.freeze({
   scoring: "PPR",
@@ -117,6 +118,16 @@ export function playerAgeFromNfl(raw) {
   return Number.isFinite(age) && age > 0 ? age : null;
 }
 
+export function ratherDepthChartFromNfl(raw, position = "") {
+  if (raw?.depth_chart_order == null || raw?.depth_chart_order === "") return "";
+  const order = Number(raw.depth_chart_order);
+  if (!Number.isFinite(order) || order <= 0) return "";
+  const fantasy = String(position || raw?.position || raw?.fantasy_positions?.[0] || "").toUpperCase();
+  const slot = String(raw?.depth_chart_position || "").toUpperCase();
+  const role = WR_DEPTH_SLOTS.has(slot) ? (fantasy || "WR") : (fantasy || slot);
+  return role ? `${role}${order}` : "";
+}
+
 export function isRatherRookie(raw, currentSeason) {
   const years = Number(raw?.years_exp);
   if (years === 0) return true;
@@ -203,12 +214,12 @@ export function formatRatherSeasonStats(stats, position) {
   return parts.join(" · ");
 }
 
-export function formatRatherPlayerMeta({ position, team, age } = {}) {
+export function formatRatherPlayerMeta({ position, team, age, depthChart } = {}) {
   const numericAge = Number(age);
   const ageLabel = age != null && age !== "" && Number.isFinite(numericAge) && numericAge > 0
     ? `${numericAge}y`
     : "";
-  return [position, team, ageLabel].filter(Boolean).join(" · ");
+  return [position, team, ageLabel, depthChart].filter(Boolean).join(" · ");
 }
 
 export function formatRatherPlayerDetail({
@@ -229,6 +240,7 @@ export function decorateRatherPlayer(player, nflPlayers = {}, extras = {}) {
   const position = String(raw.position || raw.fantasy_positions?.[0] || "").toUpperCase();
   const team = String(raw.team || "").toUpperCase();
   const age = playerAgeFromNfl(raw);
+  const depthChart = ratherDepthChartFromNfl(raw, position);
   const isRookie = isRatherRookie(raw, extras.currentSeason);
   const draft = lookupRatherDraftPick(player?.playerId, extras.draftPicks, raw);
   const stats = extras.seasonStats?.[player?.playerId] || extras.seasonStats?.[String(player?.playerId)] || null;
@@ -240,10 +252,11 @@ export function decorateRatherPlayer(player, nflPlayers = {}, extras = {}) {
     position,
     team,
     age,
+    depthChart,
     isRookie,
     photoUrl: sleeperPlayerThumbUrl(player.playerId),
     initials: playerInitials(player.name),
-    meta: formatRatherPlayerMeta({ position, team, age }),
+    meta: formatRatherPlayerMeta({ position, team, age, depthChart }),
     detail: formatRatherPlayerDetail({
       isRookie,
       draft,
