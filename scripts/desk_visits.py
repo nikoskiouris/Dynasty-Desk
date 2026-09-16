@@ -9,8 +9,8 @@ from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-SITE = "nikoskiouris.github.io"
-BASE = "/DynastyDesk"
+SITE = "dynastydesk.com"
+BASE = ""
 API = "https://page-views-api.ratneshc.com/api/v1/views"
 
 
@@ -36,7 +36,7 @@ def views(path: str) -> int:
 def main() -> int:
     now = datetime.now(timezone.utc)
     day, week, year = period_keys(now)
-    for path in (f"{BASE}/d/{day}", f"{BASE}/w/{week}", f"{BASE}/y/{year}", BASE):
+    for path in (f"{BASE}/d/{day}", f"{BASE}/w/{week}", f"{BASE}/y/{year}", BASE or "/"):
         print(views(path))
     return 0
 

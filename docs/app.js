@@ -4187,7 +4187,7 @@ function renderRecapPage() {
           <span class="eyebrow">Weekly Recap</span>
           <h2>Group-chat ready</h2>
         </div>
-        <p class="section-copy">Scores, honors, standings, playoff odds, and the trade desk in one paste. Copy text, save an image card, or send the free GitHub Pages link.</p>
+        <p class="section-copy">Scores, honors, standings, playoff odds, and the trade desk in one paste. Copy text, save an image card, or send the dynastydesk.com link.</p>
       </div>
       <div class="recap-controls">
         <label class="recap-control">

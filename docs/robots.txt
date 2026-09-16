@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://nikoskiouris.github.io/DynastyDesk/sitemap.xml
+Sitemap: https://dynastydesk.com/sitemap.xml
