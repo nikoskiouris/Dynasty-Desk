@@ -131,6 +131,7 @@ import {
   readStorageNoticeDismissed,
   writeStorageNoticeDismissed,
 } from "./modules/site.js";
+import { recordDeskVisit } from "./modules/visits.js";
 import {
   DEFAULT_RATHER_FORMAT,
   decorateRatherPlayer,
@@ -478,6 +479,7 @@ applyTheme(readStoredTheme(), { persist: false });
 renderSessionSnapshot();
 syncTradeModeUi();
 syncStorageNotice();
+void recordDeskVisit();
 bootFromUrl();
 void bootLandingRather();
 if (typeof history.scrollRestoration === "string") history.scrollRestoration = "manual";
