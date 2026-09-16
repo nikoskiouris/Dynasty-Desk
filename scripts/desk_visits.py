@@ -9,7 +9,7 @@ from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-SITE = "dynastydesk.com"
+SITE = "dynastyticker.com"
 BASE = ""
 API = "https://page-views-api.ratneshc.com/api/v1/views"
 

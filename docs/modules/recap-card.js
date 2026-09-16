@@ -195,7 +195,7 @@ export function drawRecapCard(ctx, model, { width = 1080, height = 1350 } = {}) 
 
   ctx.fillStyle = palette.muted;
   ctx.font = "600 22px Inter, system-ui, sans-serif";
-  const footer = model.url || "dynastydesk.com · tap to open the desk";
+  const footer = model.url || "dynastyticker.com · tap to open the desk";
   wrapText(ctx, footer, width - 144).slice(0, 3).forEach((line, index) => {
     ctx.fillText(line, 72, height - 90 + index * 28);
   });

@@ -6,8 +6,8 @@
   PYTHON_VERSION = "3.12"
 
 [[redirects]]
-  from = "https://www.dynastydesk.com/*"
-  to = "https://dynastydesk.com/:splat"
+  from = "https://www.dynastyticker.com/*"
+  to = "https://dynastyticker.com/:splat"
   status = 301
   force = true
 

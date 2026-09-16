@@ -37,9 +37,9 @@ function memoryStorage(start = new Map()) {
   };
 }
 
-test("visit URLs stay on the public dynastydesk.com path", () => {
+test("visit URLs stay on the public dynastyticker.com path", () => {
   assert.match(visitTrackUrl(NOW), /\/track\?/);
-  assert.match(visitTrackUrl(NOW), /dynastydesk\.com/);
+  assert.match(visitTrackUrl(NOW), /dynastyticker\.com/);
   assert.match(visitCountUrl(NOW), /\/views\?/);
   assert.doesNotMatch(visitTrackUrl(NOW), /github\.io/);
 });
@@ -55,15 +55,15 @@ test("period keys use UTC day, ISO week, and calendar year", () => {
   assert.equal(visitPathFor("all", periods), "/");
 });
 
-test("only the live dynastydesk.com host records a first visit", () => {
+test("only the live dynastyticker.com host records a first visit", () => {
   const storage = memoryStorage();
   assert.equal(isLiveDeskHost({ hostname: "127.0.0.1" }), false);
   assert.equal(isLiveDeskHost({ hostname: "nikoskiouris.github.io" }), false);
-  assert.equal(isLiveDeskHost({ hostname: "dynastydesk.com" }), true);
-  assert.equal(isLiveDeskHost({ hostname: "www.dynastydesk.com" }), true);
+  assert.equal(isLiveDeskHost({ hostname: "dynastyticker.com" }), true);
+  assert.equal(isLiveDeskHost({ hostname: "www.dynastyticker.com" }), true);
   assert.equal(readVisitCounted(storage), false);
   assert.equal(shouldTrackVisit({ location: { hostname: "localhost" }, storage, now: NOW }), false);
-  assert.equal(shouldTrackVisit({ location: { hostname: "dynastydesk.com" }, storage, now: NOW }), true);
+  assert.equal(shouldTrackVisit({ location: { hostname: "dynastyticker.com" }, storage, now: NOW }), true);
   writeVisitCounted(storage);
   assert.equal(storage.map.get(VISIT_COUNTED_KEY), "1");
   assert.deepEqual(pendingVisitKinds({ storage, now: NOW }), ["today", "week", "year"]);
@@ -79,7 +79,7 @@ test("recordDeskVisit pings today, week, year, and all-time on a first live visi
 
   assert.equal(await recordDeskVisit({
     fetchFn,
-    location: { hostname: "dynastydesk.com" },
+    location: { hostname: "dynastyticker.com" },
     storage,
     now: NOW,
   }), true);
@@ -97,7 +97,7 @@ test("recordDeskVisit pings today, week, year, and all-time on a first live visi
   calls.length = 0;
   assert.equal(await recordDeskVisit({
     fetchFn,
-    location: { hostname: "dynastydesk.com" },
+    location: { hostname: "dynastyticker.com" },
     storage,
     now: NOW,
   }), false);
@@ -118,7 +118,7 @@ test("a new UTC day only pings the day bucket", async () => {
       calls.push(url);
       return { ok: true };
     },
-    location: { hostname: "dynastydesk.com" },
+    location: { hostname: "dynastyticker.com" },
     storage,
     now: nextDay,
   });
@@ -148,7 +148,7 @@ test("a failed ping leaves the browser uncounted so it can retry", async () => {
     fetchFn: async () => {
       throw new Error("offline");
     },
-    location: { hostname: "dynastydesk.com" },
+    location: { hostname: "dynastyticker.com" },
     storage,
     now: NOW,
   });

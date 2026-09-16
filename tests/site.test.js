@@ -171,22 +171,22 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /terms\.html/);
 
   const robots = readDocs("robots.txt");
-  assert.match(robots, /Sitemap: https:\/\/dynastydesk\.com\/sitemap\.xml/);
+  assert.match(robots, /Sitemap: https:\/\/dynastyticker\.com\/sitemap\.xml/);
 
   const sitemap = readDocs("sitemap.xml");
   assert.match(sitemap, /privacy\.html/);
   assert.match(sitemap, /terms\.html/);
-  assert.equal(SITE_URL, "https://dynastydesk.com/");
+  assert.equal(SITE_URL, "https://dynastyticker.com/");
   assert.equal(REPO_URL, "https://github.com/nikoskiouris/Dynasty-Desk");
-  assert.match(sitemap, /https:\/\/dynastydesk\.com\//);
-  assert.match(index, /canonical" href="https:\/\/dynastydesk\.com\//);
+  assert.match(sitemap, /https:\/\/dynastyticker\.com\//);
+  assert.match(index, /canonical" href="https:\/\/dynastyticker\.com\//);
   assert.doesNotMatch(index, /github\.io/);
   assert.doesNotMatch(index, /GitHub Pages/);
   assert.doesNotMatch(sitemap, /secret-numbers/);
 
   const netlify = readFileSync(join(docs, "../netlify.toml"), "utf8");
   assert.match(netlify, /publish = "docs"/);
-  assert.match(netlify, /dynastydesk\.com/);
+  assert.match(netlify, /dynastyticker\.com/);
 
   const notFound = readDocs("404.html");
   assert.match(notFound, /Page not found/);

@@ -15,7 +15,7 @@ test("recap card model keeps the headline games, MVP, and title favorite", () =>
       { id: "mvp", title: "Player of the Week (so far)", teamName: "Niko", valueLabel: "38.4" },
     ],
     favorite: { name: "Niko", detail: "41% title" },
-    url: "https://dynastydesk.com/?league=1&week=1",
+    url: "https://dynastyticker.com/?league=1&week=1",
   });
   assert.equal(model.kicker, "WEEK 1 · LIVE");
   assert.equal(model.games[0].leftName, "Niko");

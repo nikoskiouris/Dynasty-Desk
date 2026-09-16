@@ -16,7 +16,7 @@ jobs:
           HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
         run: |
           if [ -z "$HOOK" ]; then
-            echo "Add repo secret NETLIFY_BUILD_HOOK so the daily scrape can rebuild dynastydesk.com."
+            echo "Add repo secret NETLIFY_BUILD_HOOK so the daily scrape can rebuild dynastyticker.com."
             echo "Netlify → Site → Build & deploy → Build hooks."
             exit 0
           fi

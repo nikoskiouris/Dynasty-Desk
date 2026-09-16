@@ -3,14 +3,14 @@
 Sleeper dynasty league desk: live scores, standings, playoff odds, awards, archive, and a trade lab. Values are built from Sleeper dynasty trades across many leagues, mixed with KeepTradeCut. The site is static. It talks to Sleeper from the browser.
 
 ## What is in this repo
-- **Web app:** `docs/` — League Command Center at [dynastydesk.com](https://dynastydesk.com/).
+- **Web app:** `docs/` — League Command Center at [dynastyticker.com](https://dynastyticker.com/).
 - **Kernels:** `docs/modules/` — parse, Sleeper client, values, live poll, recap card, season engine.
 - **Tests:** `tests/` — Node + Python. Run `npm test`.
 - **Python CLI:** `src/` — still there if you want terminal trade suggestions.
 
 ## Web app
 
-Open `docs/` locally (`npm run serve`) or [dynastydesk.com](https://dynastydesk.com/).
+Open `docs/` locally (`npm run serve`) or [dynastyticker.com](https://dynastyticker.com/).
 
 1. Type a **Sleeper username** and press **Find leagues**.
 2. Pick the league.
@@ -58,14 +58,14 @@ Sleeper trades first, KeepTradeCut as the prior:
 
 Refresh rankings with `python scripts/update_ktc_values.py`. Refresh the Sleeper trade market with `python scripts/update_sleeper_trade_market.py`. Live deploys try both scrapes and keep the last files if a source is down.
 
-## Live site (dynastydesk.com)
+## Live site (dynastyticker.com)
 
-The app is a static site. Host is **Netlify**, not GitHub Pages. Public URL: `https://dynastydesk.com/`.
+The app is a static site. Host is **Netlify**, not GitHub Pages. Public URL: `https://dynastyticker.com/`.
 
 1. Open [Netlify](https://app.netlify.com/), sign up with GitHub, **Add new site → Import an existing project**, pick this repo.
 2. Netlify reads `netlify.toml` (`publish = docs`). First deploy gives a `*.netlify.app` URL.
-3. **Domain management → Add custom domain:** `dynastydesk.com` and `www.dynastydesk.com`.
-4. In **GoDaddy** (this name is already registered there), paste the DNS records Netlify shows. Apex `A` / `www` `CNAME`. Wait for SSL.
+3. **Domain management → Add custom domain:** `dynastyticker.com` and `www.dynastyticker.com`.
+4. In **Namecheap** (you just bought this name there), paste the DNS records Netlify shows. Apex `A` / `www` `CNAME`. Wait for SSL.
 5. Optional: Netlify **Build hooks** → copy URL into GitHub secret `NETLIFY_BUILD_HOOK`. Daily workflow `.github/workflows/deploy-site.yml` hits it so values refresh.
 6. Repo **Settings → Pages**: turn GitHub Pages **off** so the old `github.io` URL dies.
 

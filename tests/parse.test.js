@@ -59,7 +59,7 @@ test("boot search fields stay blank unless the URL has a league", () => {
 
 test("share params map old recap/home tabs onto league", () => {
   const url = buildShareUrl({
-    origin: "https://dynastydesk.com",
+    origin: "https://dynastyticker.com",
     pathname: "/",
     leagueId: "1315165104303513600",
     meRosterId: 3,
@@ -90,7 +90,7 @@ test("share params map old recap/home tabs onto league", () => {
 
 test("share params move old trade rooms to their new pages", () => {
   const passportUrl = buildShareUrl({
-    origin: "https://dynastydesk.com",
+    origin: "https://dynastyticker.com",
     pathname: "/",
     leagueId: "1315165104303513600",
     tab: "trader",
@@ -101,7 +101,7 @@ test("share params move old trade rooms to their new pages", () => {
   assert.equal(parseShareParams(passportUrl.split("?")[1]).view, "passports");
 
   const logUrl = buildShareUrl({
-    origin: "https://dynastydesk.com",
+    origin: "https://dynastyticker.com",
     pathname: "/",
     leagueId: "1",
     tab: "trader",

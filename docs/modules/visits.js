@@ -5,7 +5,7 @@ export const VISIT_DAY_KEY = "dynasty_desk_visit_day";
 export const VISIT_WEEK_KEY = "dynasty_desk_visit_week";
 export const VISIT_YEAR_KEY = "dynasty_desk_visit_year";
 export const VISIT_API_BASE = "https://page-views-api.ratneshc.com/api/v1";
-export const VISIT_SITE = "dynastydesk.com";
+export const VISIT_SITE = "dynastyticker.com";
 export const VISIT_PATH = String(SITE_PATH || "/").replace(/\/+$/, "");
 export const VISIT_KINDS = ["today", "week", "year", "all"];
 
