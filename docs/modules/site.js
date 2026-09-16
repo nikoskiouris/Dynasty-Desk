@@ -2,10 +2,10 @@ import { DEFAULT_ROOMS, PAGE_HINTS, PAGE_LABELS, ROOM_HINTS, ROOM_LABELS } from 
 import { normalizeDeskTab, normalizeRoom } from "./parse.js";
 
 export const SITE_NAME = "Dynasty Desk";
-export const SITE_ORIGIN = "https://nikoskiouris.github.io";
-export const SITE_PATH = "/DynastyDesk/";
+export const SITE_ORIGIN = "https://dynastyticker.com";
+export const SITE_PATH = "/";
 export const SITE_URL = `${SITE_ORIGIN}${SITE_PATH}`;
-export const REPO_URL = "https://github.com/nikoskiouris/DynastyDesk";
+export const REPO_URL = "https://github.com/nikoskiouris/Dynasty-Desk";
 export const CONTACT_URL = `${REPO_URL}/issues`;
 export const OG_IMAGE_URL = `${SITE_URL}og-image.jpg`;
 export const STORAGE_NOTICE_KEY = "dynasty_desk_storage_notice";

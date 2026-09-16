@@ -1,0 +1,17 @@
+[build]
+  command = "bash scripts/refresh_market_data.sh"
+  publish = "docs"
+
+[build.environment]
+  PYTHON_VERSION = "3.12"
+
+[[redirects]]
+  from = "https://www.dynastyticker.com/*"
+  to = "https://dynastyticker.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404

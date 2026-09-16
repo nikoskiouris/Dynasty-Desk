@@ -1,0 +1,23 @@
+name: Refresh live site
+
+on:
+  schedule:
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+  repository_dispatch:
+    types: [deploy-site]
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Netlify build
+        env:
+          HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "Add repo secret NETLIFY_BUILD_HOOK so the daily scrape can rebuild dynastyticker.com."
+            echo "Netlify → Site → Build & deploy → Build hooks."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK"

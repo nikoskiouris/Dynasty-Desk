@@ -37,11 +37,11 @@ function memoryStorage(start = new Map()) {
   };
 }
 
-test("visit URLs stay on the public GitHub Pages path", () => {
+test("visit URLs stay on the public dynastyticker.com path", () => {
   assert.match(visitTrackUrl(NOW), /\/track\?/);
-  assert.match(visitTrackUrl(NOW), /DynastyDesk/);
+  assert.match(visitTrackUrl(NOW), /dynastyticker\.com/);
   assert.match(visitCountUrl(NOW), /\/views\?/);
-  assert.match(visitCountUrl(NOW), /nikoskiouris\.github\.io/);
+  assert.doesNotMatch(visitTrackUrl(NOW), /github\.io/);
 });
 
 test("period keys use UTC day, ISO week, and calendar year", () => {
@@ -52,16 +52,18 @@ test("period keys use UTC day, ISO week, and calendar year", () => {
   assert.match(visitPathFor("today", periods), /\/d\/2026-09-16$/);
   assert.match(visitPathFor("week", periods), /\/w\/2026-W38$/);
   assert.match(visitPathFor("year", periods), /\/y\/2026$/);
-  assert.equal(visitPathFor("all", periods), "/DynastyDesk");
+  assert.equal(visitPathFor("all", periods), "/");
 });
 
-test("only the live GitHub Pages host records a first visit", () => {
+test("only the live dynastyticker.com host records a first visit", () => {
   const storage = memoryStorage();
   assert.equal(isLiveDeskHost({ hostname: "127.0.0.1" }), false);
-  assert.equal(isLiveDeskHost({ hostname: "nikoskiouris.github.io" }), true);
+  assert.equal(isLiveDeskHost({ hostname: "nikoskiouris.github.io" }), false);
+  assert.equal(isLiveDeskHost({ hostname: "dynastyticker.com" }), true);
+  assert.equal(isLiveDeskHost({ hostname: "www.dynastyticker.com" }), true);
   assert.equal(readVisitCounted(storage), false);
   assert.equal(shouldTrackVisit({ location: { hostname: "localhost" }, storage, now: NOW }), false);
-  assert.equal(shouldTrackVisit({ location: { hostname: "nikoskiouris.github.io" }, storage, now: NOW }), true);
+  assert.equal(shouldTrackVisit({ location: { hostname: "dynastyticker.com" }, storage, now: NOW }), true);
   writeVisitCounted(storage);
   assert.equal(storage.map.get(VISIT_COUNTED_KEY), "1");
   assert.deepEqual(pendingVisitKinds({ storage, now: NOW }), ["today", "week", "year"]);
@@ -77,15 +79,15 @@ test("recordDeskVisit pings today, week, year, and all-time on a first live visi
 
   assert.equal(await recordDeskVisit({
     fetchFn,
-    location: { hostname: "nikoskiouris.github.io" },
+    location: { hostname: "dynastyticker.com" },
     storage,
     now: NOW,
   }), true);
   assert.equal(calls.length, 4);
-  assert.match(calls[0], /DynastyDesk%2Fd%2F2026-09-16/);
-  assert.match(calls[1], /DynastyDesk%2Fw%2F2026-W38/);
-  assert.match(calls[2], /DynastyDesk%2Fy%2F2026/);
-  assert.match(calls[3], /path=%2FDynastyDesk$/);
+  assert.match(calls[0], /path=%2Fd%2F2026-09-16/);
+  assert.match(calls[1], /path=%2Fw%2F2026-W38/);
+  assert.match(calls[2], /path=%2Fy%2F2026/);
+  assert.match(calls[3], /path=%2F$/);
   assert.doesNotMatch(calls.join("\n"), /\/views\?/);
   assert.equal(storage.map.get(VISIT_DAY_KEY), "2026-09-16");
   assert.equal(storage.map.get(VISIT_WEEK_KEY), "2026-W38");
@@ -95,7 +97,7 @@ test("recordDeskVisit pings today, week, year, and all-time on a first live visi
   calls.length = 0;
   assert.equal(await recordDeskVisit({
     fetchFn,
-    location: { hostname: "nikoskiouris.github.io" },
+    location: { hostname: "dynastyticker.com" },
     storage,
     now: NOW,
   }), false);
@@ -116,12 +118,12 @@ test("a new UTC day only pings the day bucket", async () => {
       calls.push(url);
       return { ok: true };
     },
-    location: { hostname: "nikoskiouris.github.io" },
+    location: { hostname: "dynastyticker.com" },
     storage,
     now: nextDay,
   });
   assert.equal(calls.length, 1);
-  assert.match(calls[0], /DynastyDesk%2Fd%2F2026-09-17/);
+  assert.match(calls[0], /path=%2Fd%2F2026-09-17/);
   assert.equal(storage.map.get(VISIT_DAY_KEY), "2026-09-17");
 });
 
@@ -146,7 +148,7 @@ test("a failed ping leaves the browser uncounted so it can retry", async () => {
     fetchFn: async () => {
       throw new Error("offline");
     },
-    location: { hostname: "nikoskiouris.github.io" },
+    location: { hostname: "dynastyticker.com" },
     storage,
     now: NOW,
   });
