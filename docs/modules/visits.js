@@ -6,7 +6,7 @@ export const VISIT_WEEK_KEY = "dynasty_desk_visit_week";
 export const VISIT_YEAR_KEY = "dynasty_desk_visit_year";
 export const VISIT_API_BASE = "https://page-views-api.ratneshc.com/api/v1";
 export const VISIT_SITE = "dynastydesk.com";
-export const VISIT_PATH = String(SITE_PATH || "/").replace(/\/+$/, "") || "/";
+export const VISIT_PATH = String(SITE_PATH || "/").replace(/\/+$/, "");
 export const VISIT_KINDS = ["today", "week", "year", "all"];
 
 function canonicalHost(hostname) {
@@ -52,10 +52,11 @@ export function utcIsoWeek(now = new Date()) {
 }
 
 export function visitPathFor(kind, periods = visitPeriodKeys()) {
-  if (kind === "today") return `${VISIT_PATH}/d/${periods.day}`;
-  if (kind === "week") return `${VISIT_PATH}/w/${periods.week}`;
-  if (kind === "year") return `${VISIT_PATH}/y/${periods.year}`;
-  return VISIT_PATH;
+  const root = VISIT_PATH;
+  if (kind === "today") return `${root}/d/${periods.day}`;
+  if (kind === "week") return `${root}/w/${periods.week}`;
+  if (kind === "year") return `${root}/y/${periods.year}`;
+  return root || "/";
 }
 
 export function visitTrackUrlFor(path) {
