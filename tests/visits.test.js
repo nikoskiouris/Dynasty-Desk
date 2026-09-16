@@ -128,6 +128,9 @@ test("the desk stores visits but never prints the total on public pages", () => 
   assert.doesNotMatch(index, /people have viewed this desk/);
   assert.doesNotMatch(index, /anonymous visit ping/);
   assert.doesNotMatch(index, /secret-numbers/);
+  assert.doesNotMatch(index, /privacy\.html/);
+  assert.doesNotMatch(index, /terms\.html/);
+  assert.doesNotMatch(index, /id="storage-notice"/);
 
   const app = readFileSync(join(docs, "app.js"), "utf8");
   assert.match(app, /recordDeskVisit/);

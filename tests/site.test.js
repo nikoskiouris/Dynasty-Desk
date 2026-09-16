@@ -124,13 +124,13 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /apple-touch-icon/);
   assert.match(index, /id="sticky-mobile-cta"/);
   assert.match(index, /id="sticky-find-btn"/);
+  assert.doesNotMatch(index, /id="storage-notice"/);
   assert.doesNotMatch(index, /id="landing-demo-btn"/);
   assert.doesNotMatch(index, /id="rail-demo-btn"/);
   assert.doesNotMatch(index, /id="sticky-demo-btn"/);
   assert.doesNotMatch(index, /id="copy-league-id-btn"/);
   assert.doesNotMatch(index, /Use demo league/);
   assert.doesNotMatch(index, /Open demo/);
-  assert.match(index, /id="storage-notice"/);
   assert.match(index, /id="landing-rather"/);
   assert.match(index, /id="landing-username"/);
   assert.doesNotMatch(index, /id="landing-visits"/);
@@ -140,7 +140,6 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /Who would you rather have\?/);
   assert.match(index, /PPR 12-man Superflex/);
   assert.match(index, /id="username-error"/);
-  assert.match(index, /privacy\.html/);
   assert.match(index, /data-theme="dark"/);
   assert.match(index, /family=Inter:/);
   for (const page of ["league", "teams", "trades", "history"]) {
@@ -175,14 +174,19 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(leagueInput, /value="[^"]+"/);
   assert.match(usernameInput, /autocomplete="off"/);
   assert.doesNotMatch(index, /last username, league/);
-  assert.match(index, /terms\.html/);
+  assert.doesNotMatch(index, /privacy\.html/);
+  assert.doesNotMatch(index, /terms\.html/);
+  assert.doesNotMatch(index, />Privacy</);
+  assert.doesNotMatch(index, />Terms</);
+  assert.doesNotMatch(index, />Contact</);
+  assert.doesNotMatch(index, /workspace-footer/);
 
   const robots = readDocs("robots.txt");
   assert.match(robots, /Sitemap: https:\/\/dynastyticker\.com\/sitemap\.xml/);
 
   const sitemap = readDocs("sitemap.xml");
-  assert.match(sitemap, /privacy\.html/);
-  assert.match(sitemap, /terms\.html/);
+  assert.doesNotMatch(sitemap, /privacy\.html/);
+  assert.doesNotMatch(sitemap, /terms\.html/);
   assert.equal(SITE_URL, "https://dynastyticker.com/");
   assert.equal(REPO_URL, "https://github.com/nikoskiouris/Dynasty-Desk");
   assert.match(sitemap, /https:\/\/dynastyticker\.com\//);
@@ -204,6 +208,9 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(notFound, /<h1>/);
   assert.doesNotMatch(notFound, /demo league/i);
   assert.doesNotMatch(notFound, /1315165104303513600/);
+  assert.doesNotMatch(notFound, /privacy\.html/);
+  assert.doesNotMatch(notFound, /terms\.html/);
+  assert.doesNotMatch(notFound, /Contact/);
 
   const privacy = readDocs("privacy.html");
   assert.match(privacy, /localStorage/);

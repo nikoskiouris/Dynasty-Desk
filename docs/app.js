@@ -138,11 +138,8 @@ import {
 } from "./modules/draft-picks.js";
 import {
   applyDocumentMeta,
-  applyStorageNoticeHidden,
   buildDocumentTitle,
   buildPageDescription,
-  readStorageNoticeDismissed,
-  writeStorageNoticeDismissed,
 } from "./modules/site.js";
 import { recordDeskVisit } from "./modules/visits.js";
 import {
@@ -302,8 +299,6 @@ const el = {
   generateError: document.querySelector("#generate-error"),
   stickyMobileCta: document.querySelector("#sticky-mobile-cta"),
   stickyFindBtn: document.querySelector("#sticky-find-btn"),
-  storageNotice: document.querySelector("#storage-notice"),
-  storageNoticeDismiss: document.querySelector("#storage-notice-dismiss"),
   mobileChromeTitle: document.querySelector("#mobile-chrome-title"),
   mobileRailToggle: document.querySelector("#mobile-rail-toggle"),
   mobileRailClose: document.querySelector("#mobile-rail-close"),
@@ -431,7 +426,6 @@ window.matchMedia(PHONE_LAYOUT_QUERY).addEventListener("change", () => {
 el.shareLinkBtn?.addEventListener("click", copyShareLink);
 el.landingUsernameForm?.addEventListener("submit", requestFindLeagues);
 el.stickyFindBtn?.addEventListener("click", focusUsernameSearch);
-el.storageNoticeDismiss?.addEventListener("click", dismissStorageNotice);
 el.sleeperUsername?.addEventListener("input", () => {
   syncUsernameFields(el.sleeperUsername);
   setUsernameError("");
@@ -483,7 +477,6 @@ applyTheme(readStoredTheme(), { persist: false });
 state.applyLeagueBoard = readApplyLeagueBoard();
 renderSessionSnapshot();
 syncTradeModeUi();
-syncStorageNotice();
 void recordDeskVisit();
 bootFromUrl();
 void bootLandingRather();
@@ -13695,22 +13688,10 @@ function bindRatherPhotos(root) {
   });
 }
 
-function syncStorageNotice() {
-  applyStorageNoticeHidden(el.storageNotice, readStorageNoticeDismissed());
-  syncSiteDock();
-}
-
-function dismissStorageNotice() {
-  writeStorageNoticeDismissed();
-  applyStorageNoticeHidden(el.storageNotice, true);
-  syncSiteDock();
-}
-
 function syncSiteDock() {
   const stickyOpen = isPhoneLayout() && !state.leagueId && !document.body.classList.contains("rail-open");
   if (el.stickyMobileCta) el.stickyMobileCta.hidden = !stickyOpen;
-  const noticeOpen = Boolean(el.storageNotice) && !el.storageNotice.hidden;
-  document.body.classList.toggle("dock-visible", stickyOpen || noticeOpen);
+  document.body.classList.toggle("dock-visible", stickyOpen);
 }
 
 function startLeagueLoadingUi() {
