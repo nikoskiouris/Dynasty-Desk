@@ -979,6 +979,22 @@ select.is-invalid {
   text-decoration: underline;
 }
 
+.visit-count {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.visit-count[hidden] {
+  display: none;
+}
+
+.visit-count strong {
+  color: var(--text);
+  font-weight: 800;
+}
+
 /* Ticker ------------------------------------------------------------------ */
 
 .ticker {
@@ -1167,6 +1183,14 @@ body:not(.league-loaded) .workspace-header {
 .landing-actions .legal-btn {
   width: auto;
   padding: 0.7rem 1.1rem;
+}
+
+.landing-copy .visit-count {
+  margin: 0.7rem 0 0;
+}
+
+.landing-copy .visit-count + .landing-search {
+  margin-top: 0.9rem;
 }
 
 .landing-loading {

@@ -125,6 +125,9 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /id="storage-notice"/);
   assert.match(index, /id="landing-rather"/);
   assert.match(index, /id="landing-username"/);
+  assert.match(index, /id="landing-visits"/);
+  assert.match(index, /id="footer-visits"/);
+  assert.match(index, /anonymous visit ping/);
   assert.match(index, /Who would you rather have\?/);
   assert.match(index, /PPR 12-man Superflex/);
   assert.match(index, /id="username-error"/);
@@ -183,6 +186,8 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(privacy, /No accounts/);
   assert.match(privacy, /GitHub issues/);
   assert.match(privacy, /who would you rather have/);
+  assert.match(privacy, /visit count/i);
+  assert.match(privacy, /page-views-api\.ratneshc\.com/);
   assert.doesNotMatch(privacy, /Last Sleeper username/);
   assert.doesNotMatch(privacy, /Last league ID/);
 

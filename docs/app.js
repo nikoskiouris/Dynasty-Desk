@@ -132,6 +132,10 @@ import {
   writeStorageNoticeDismissed,
 } from "./modules/site.js";
 import {
+  applyVisitCount,
+  loadDeskVisits,
+} from "./modules/visits.js";
+import {
   DEFAULT_RATHER_FORMAT,
   decorateRatherPlayer,
   listRatherPlayers,
@@ -292,6 +296,8 @@ const el = {
   stickyMobileCta: document.querySelector("#sticky-mobile-cta"),
   stickyFindBtn: document.querySelector("#sticky-find-btn"),
   stickyDemoBtn: document.querySelector("#sticky-demo-btn"),
+  landingVisits: document.querySelector("#landing-visits"),
+  footerVisits: document.querySelector("#footer-visits"),
   storageNotice: document.querySelector("#storage-notice"),
   storageNoticeDismiss: document.querySelector("#storage-notice-dismiss"),
   mobileChromeTitle: document.querySelector("#mobile-chrome-title"),
@@ -469,6 +475,7 @@ applyTheme(readStoredTheme(), { persist: false });
 renderSessionSnapshot();
 syncTradeModeUi();
 syncStorageNotice();
+void bootVisitCount();
 bootFromUrl();
 void bootLandingRather();
 if (typeof history.scrollRestoration === "string") history.scrollRestoration = "manual";
@@ -13555,6 +13562,17 @@ function bindRatherPhotos(root) {
 function syncStorageNotice() {
   applyStorageNoticeHidden(el.storageNotice, readStorageNoticeDismissed());
   syncSiteDock();
+}
+
+async function bootVisitCount() {
+  const nodes = [el.landingVisits, el.footerVisits].filter(Boolean);
+  if (!nodes.length) return;
+  try {
+    const count = await loadDeskVisits();
+    nodes.forEach((node) => applyVisitCount(node, count));
+  } catch {
+    nodes.forEach((node) => applyVisitCount(node, null));
+  }
 }
 
 function dismissStorageNotice() {

@@ -4,10 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Privacy policy — Dynasty Desk</title>
-    <meta name="description" content="How Dynasty Desk handles Sleeper data, browser storage, and contact. No accounts, no cookies, no ads, no analytics." />
+    <meta name="description" content="How Dynasty Desk handles Sleeper data, browser storage, a public visit count, and contact. No accounts, no cookies, no ads." />
     <meta name="theme-color" content="#eef3f7" />
     <meta property="og:title" content="Privacy policy — Dynasty Desk" />
-    <meta property="og:description" content="How Dynasty Desk handles Sleeper data, browser storage, and contact. No accounts, no cookies, no ads, no analytics." />
+    <meta property="og:description" content="How Dynasty Desk handles Sleeper data, browser storage, a public visit count, and contact. No accounts, no cookies, no ads." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://nikoskiouris.github.io/DynastyDesk/privacy.html" />
     <meta property="og:image" content="https://nikoskiouris.github.io/DynastyDesk/og-image.jpg" />
@@ -42,7 +42,7 @@
       <main class="legal-card legal-prose">
         <p class="eyebrow">Privacy</p>
         <h1>What this desk stores, and what it never sees.</h1>
-        <p class="muted">Last updated September 15, 2026. Dynasty Desk is a static GitHub Pages app. It talks to Sleeper from your browser. There is no Dynasty Desk account and no Dynasty Desk server of our own.</p>
+        <p class="muted">Last updated September 16, 2026. Dynasty Desk is a static GitHub Pages app. It talks to Sleeper from your browser. There is no Dynasty Desk account and no Dynasty Desk server of our own.</p>
 
         <h2>Who we are</h2>
         <p>Dynasty Desk is the open-source project at <a href="https://github.com/nikoskiouris/DynastyDesk">github.com/nikoskiouris/DynastyDesk</a>. Contact is GitHub issues on that repo, not a mailbox or street address.</p>
@@ -57,11 +57,15 @@
           <li>A short-lived cache of Sleeper NFL player metadata</li>
           <li>Whether you dismissed the storage notice</li>
           <li>Anonymous “who would you rather have” ranking votes from the landing matchup. Those votes stay in this browser and slightly nudge local player values. They do not overwrite KeepTradeCut files.</li>
+          <li>Whether this browser already counted toward the public visit total</li>
         </ul>
         <p>Clear site data in your browser to wipe it. We cannot read that storage from GitHub.</p>
 
+        <h2>Visit count</h2>
+        <p>The live GitHub Pages site shows how many people have opened the desk. On a browser’s first visit it pings a privacy-oriented counter at <a href="https://page-views-api.ratneshc.com/docs/getting-started">page-views-api.ratneshc.com</a>, then reads the public total. Local preview does not add to that total. The counter hashes IP and user-agent for a short window and does not keep them. It is a running people count, not a profile, heatmap, or ad graph.</p>
+
         <h2>Cookies, ads, analytics</h2>
-        <p>This app does not set first-party cookies, does not show ads, and does not install Google Analytics or other third-party trackers. GitHub Pages and the Sleeper API may log standard request metadata on their side. That is their infrastructure, not a pixel we added.</p>
+        <p>This app does not set first-party cookies, does not show ads, and does not install Google Analytics. GitHub Pages and the Sleeper API may log standard request metadata on their side. That is their infrastructure, not a pixel we added.</p>
 
         <h2>Share links</h2>
         <p>Share URLs are ordinary query strings (<code>league</code>, <code>me</code>, <code>tab</code>, <code>week</code>, <code>tone</code>). Anyone with the link can open the same public Sleeper league view. Do not put secrets in the URL. There are none to put.</p>
