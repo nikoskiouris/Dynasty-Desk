@@ -1,0 +1,27 @@
+Title
+Sit / start
+
+Priority
+P0
+
+Area
+Teams → Roster (or a new weekly lineup room)
+
+Depends on
+001-weekly-player-value
+
+Description
+For the user’s roster this week, say who to start and who to sit. Use the weekly player value from ticket 001, this league’s roster slots, and bye/injury when we have them.
+
+Show the close calls (WR3 vs FLEX) with a one-line reason: matchup, target share, opponent, last-week usage. Do not dump a full rankings table as the answer.
+
+Why
+Listed as a differentiator next to future rankings and buy-low/sell-high. Dynasty apps skip the weekly decision. This one should not.
+
+Current product
+“Optimal lineup” is best dynasty-value starters, not this week’s NFL slate. Recap blames leftover bench points after the fact. Nothing answers sit/start before kickoff.
+
+Acceptance
+- My team, this week: recommended starters vs bench, matching league roster slots.
+- Close calls have a reason tied to matchup or usage, not “higher dynasty value.”
+- Bye / missing opponent data does not silently start someone.
