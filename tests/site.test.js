@@ -125,6 +125,9 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
     "apple-touch-icon.png",
     "og-image.jpg",
     "site.webmanifest",
+    "brand/wordmark.svg",
+    "brand/wordmark-on-dark.svg",
+    "brand/mark.svg",
   ];
   for (const name of required) {
     assert.equal(existsSync(join(docs, name)), true, name);
@@ -148,6 +151,11 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /id="landing-username"/);
   assert.match(index, />What do you want to do\?</);
   assert.match(index, /id="landing-jobs"/);
+  assert.match(index, /brand\/wordmark\.svg/);
+  assert.match(index, /class="brand-wordmark/);
+  assert.match(index, /class="brand-lockup brand-lockup--landing"/);
+  assert.doesNotMatch(index, /class="brand-mark"/);
+  assert.doesNotMatch(index, /League Command Center/);
   assert.match(index, /id="landing-league-picker"/);
   assert.match(index, /id="start-dashboard"/);
   assert.doesNotMatch(index, /id="landing-features"/);
@@ -241,6 +249,9 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(notFound, /<h1>/);
   assert.match(notFound, /theme-color" content="#eef3f2"/);
   assert.match(notFound, /data-theme="light"/);
+  assert.match(notFound, /brand\/wordmark\.svg/);
+  assert.doesNotMatch(notFound, /class="brand-mark"/);
+  assert.doesNotMatch(notFound, /League Command Center/);
   assert.doesNotMatch(notFound, /demo league/i);
   assert.doesNotMatch(notFound, /1315165104303513600/);
   assert.doesNotMatch(notFound, /privacy\.html/);
@@ -249,6 +260,9 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
 
   const privacy = readDocs("privacy.html");
   assert.match(privacy, /theme-color" content="#eef3f2"/);
+  assert.match(privacy, /brand\/wordmark\.svg/);
+  assert.doesNotMatch(privacy, /class="brand-mark"/);
+  assert.doesNotMatch(privacy, /League Command Center/);
   assert.match(privacy, /localStorage/);
   assert.match(privacy, /No accounts/);
   assert.match(privacy, /GitHub issues/);
@@ -267,8 +281,15 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
 
   const terms = readDocs("terms.html");
   assert.match(terms, /theme-color" content="#eef3f2"/);
+  assert.match(terms, /brand\/wordmark\.svg/);
+  assert.doesNotMatch(terms, /class="brand-mark"/);
+  assert.doesNotMatch(terms, /League Command Center/);
   assert.match(terms, /not affiliated/i);
   assert.match(terms, /as is/i);
+
+  assert.doesNotMatch(readDocs("styles.css"), /\.brand-mark\s*\{/);
+  assert.doesNotMatch(readDocs("favicon.svg"), /\brx="/);
+  assert.match(readDocs("favicon.svg"), /fill="#4b4b51"/);
 
   assert.match(readDocs("modules/state.js"), /export const DEFAULT_THEME = "light"/);
   assert.match(readDocs("app.js"), /return DEFAULT_THEME/);

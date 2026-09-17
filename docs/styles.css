@@ -307,34 +307,64 @@ h5 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.6rem 0.5rem 1rem;
+  padding: 0.35rem 0.15rem 0.9rem;
   border-bottom: 1px solid var(--rail-line);
 }
 
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 2.4rem;
-  aspect-ratio: 1;
-  border-radius: var(--radius-sm);
-  background: var(--gradient);
-  color: var(--on-accent);
-  font-family: var(--font-display);
-  font-size: 1.15rem;
-  font-weight: 800;
-  box-shadow: 0 8px 20px var(--accent-glow);
-}
-
-.brand-panel .eyebrow {
-  color: var(--rail-muted);
-}
-
-.brand-panel strong {
+.brand-lockup {
   display: block;
-  color: var(--rail-text);
-  font-family: var(--font-display);
-  font-size: 0.98rem;
-  line-height: 1.1;
+  min-width: 0;
+  line-height: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.brand-lockup:hover {
+  opacity: 0.86;
+}
+
+.brand-wordmark {
+  display: block;
+  height: 1.4rem;
+  width: auto;
+  max-width: 100%;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.brand-wordmark--dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .brand-wordmark--light {
+  display: none;
+}
+
+:root[data-theme="dark"] .brand-wordmark--dark {
+  display: block;
+}
+
+.brand-lockup--rail {
+  flex: 1 1 auto;
+}
+
+.brand-lockup--rail .brand-wordmark {
+  height: 1.35rem;
+}
+
+.brand-lockup--landing {
+  display: block;
+  margin: 0 0 0.85rem;
+}
+
+.brand-lockup--landing .brand-wordmark {
+  height: 1.7rem;
+}
+
+.brand-lockup--header .brand-wordmark {
+  height: 1.12rem;
+  margin-bottom: 0.12rem;
 }
 
 .rail-module {
@@ -4934,8 +4964,8 @@ body:not(.league-loaded) .workspace-header {
     min-width: 0;
   }
 
-  .mobile-chrome-copy .eyebrow {
-    margin-bottom: 0;
+  .brand-lockup--landing {
+    display: none;
   }
 
   .mobile-chrome-copy strong {
@@ -5470,14 +5500,13 @@ body:not(.league-loaded) .workspace-header {
 .legal-brand {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  min-width: 0;
   color: inherit;
   text-decoration: none;
 }
 
-.legal-brand strong {
-  display: block;
-  font-family: var(--font-display);
+.legal-brand .brand-wordmark {
+  height: 1.45rem;
 }
 
 .legal-nav,
