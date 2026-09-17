@@ -47,6 +47,10 @@ test("document titles and descriptions change with tab and league", () => {
     "Passports · Try Hard or Die Hard — Dynasty Desk"
   );
   assert.equal(
+    buildDocumentTitle({ page: "teams", leagueName: "Try Hard or Die Hard", loaded: true, room: "call" }),
+    "Call · Try Hard or Die Hard — Dynasty Desk"
+  );
+  assert.equal(
     buildDocumentTitle({ page: "trades", leagueName: "Try Hard or Die Hard", loaded: true, room: "lab" }),
     "Find deals · Try Hard or Die Hard — Dynasty Desk"
   );
@@ -74,6 +78,7 @@ test("document titles and descriptions change with tab and league", () => {
     buildPageDescription({ page: "league", room: "recap", leagueName: "Demo", loaded: true }),
     /Group-chat recap/
   );
+  assert.match(buildPageDescription({ page: "teams", room: "call", loaded: true }), /tank/);
   assert.match(buildPageDescription({ page: "trades", room: "calculator", loaded: true }), /verdict/);
   assert.match(buildPageDescription({ page: "trades", room: "match", loaded: true }), /Match with teams/);
   assert.equal(buildPageDescription({}), DEFAULT_DESCRIPTION);
@@ -161,10 +166,11 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
     assert.match(index, new RegExp(`id="${page}-page"`));
   }
   assert.match(index, /id="room-nav"/);
-  for (const room of ["scores", "standings", "power", "awards", "recap", "roster", "loyalty", "passports", "log", "match", "calculator", "lab", "hall", "seasons", "records"]) {
+  for (const room of ["scores", "standings", "power", "awards", "recap", "roster", "call", "loyalty", "passports", "log", "match", "calculator", "lab", "hall", "seasons", "records"]) {
     assert.match(index, new RegExp(`data-room-panel="${room}"`), room);
   }
   assert.match(index, /id="passport-dashboard"/);
+  assert.match(index, /id="window-call-dashboard"/);
   assert.match(index, /id="trade-log-dashboard"/);
   assert.match(index, /id="trade-match-dashboard"/);
   assert.match(index, /id="match-generate-btn"/);
@@ -218,8 +224,10 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(netlify, /dynastyticker\.com/);
   assert.match(netlify, /from = "\/api\/visit"/);
   assert.match(netlify, /from = "\/api\/views"/);
+  assert.match(netlify, /from = "\/api\/rather-vote"/);
   assert.match(netlify, /directory = "netlify\/functions"/);
   assert.match(readDocs("_redirects"), /\/api\/visit\s+\/\.netlify\/functions\/visit\s+200!/);
+  assert.match(readDocs("_redirects"), /\/api\/rather-vote\s+\/\.netlify\/functions\/rather-vote\s+200!/);
 
   const notFound = readDocs("404.html");
   assert.match(notFound, /Page not found/);
@@ -238,6 +246,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(privacy, /No accounts/);
   assert.match(privacy, /GitHub issues/);
   assert.match(privacy, /who would you rather have/);
+  assert.match(privacy, /Public rather votes/);
   assert.doesNotMatch(privacy, /GitHub Pages/);
   assert.doesNotMatch(privacy, /visit count/i);
   assert.doesNotMatch(privacy, /page-views-api/);

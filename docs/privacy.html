@@ -42,7 +42,7 @@
       <main class="legal-card legal-prose">
         <p class="eyebrow">Privacy</p>
         <h1>What this desk stores, and what it never sees.</h1>
-        <p class="muted">Last updated September 16, 2026. Dynasty Desk is a static website at <a href="https://dynastyticker.com/">dynastyticker.com</a>. It talks to Sleeper from your browser. There is no Dynasty Desk account and no Dynasty Desk application server of our own.</p>
+        <p class="muted">Last updated September 17, 2026. Dynasty Desk is a static website at <a href="https://dynastyticker.com/">dynastyticker.com</a>. It talks to Sleeper from your browser. There is no Dynasty Desk account.</p>
 
         <h2>Who we are</h2>
         <p>Dynasty Desk is the open-source project at <a href="https://github.com/nikoskiouris/Dynasty-Desk">github.com/nikoskiouris/Dynasty-Desk</a>. Contact is GitHub issues on that repo, not a mailbox or street address.</p>
@@ -56,10 +56,13 @@
           <li>Light / dark theme</li>
           <li>A short-lived cache of Sleeper NFL player metadata</li>
           <li>Whether you dismissed the storage notice</li>
-          <li>Anonymous “who would you rather have” ranking votes from the landing matchup. Those votes stay in this browser and slightly nudge local player values. They do not overwrite KeepTradeCut or Sleeper trade-market files.</li>
+          <li>A local copy of “who would you rather have” picks if the public vote host is unreachable. Live votes are stored on the site host, not only in this browser.</li>
           <li>Whether you turned on the optional league board, which prices players from this league’s own completed trades.</li>
         </ul>
-        <p>Clear site data in your browser to wipe it. We cannot read that storage from the host.</p>
+        <p>Clear site data in your browser to wipe the local copy. We cannot read that storage from the host.</p>
+
+        <h2>Public rather votes</h2>
+        <p>Landing-page “who would you rather have” picks are stored anonymously on the site host so they can slightly nudge player values for everyone. A vote is two Sleeper player ids, a format label, and a timestamp. A hashed IP plus browser string is used only to slow spam. Votes do not overwrite KeepTradeCut or Sleeper trade-market files.</p>
 
         <h2>Cookies, ads, analytics</h2>
         <p>This app does not set first-party cookies, does not show ads, and does not install Google Analytics or other third-party trackers. The site host and the Sleeper API may log standard request metadata on their side. That is their infrastructure, not a pixel we added.</p>

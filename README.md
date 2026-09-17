@@ -29,6 +29,7 @@ Four pages. Each page has a row of rooms under it, so every feature is at most t
    - **Recap** — group-chat paste in desk / hype / roast voice. Copy text, copy a recap link, or save the image card.
 2. **Teams** — every roster.
    - **Roster** — tap any team: power scout card, optimal lineup, bench, nicknames, pick vault, season log, jump into a trade.
+   - **Call** — tank, all in, or stay in the middle, from playoff odds, lineup rank, age, and pick capital.
    - **Loyalty** — kept / gone / new since last season, iron share, DNA keep rate.
    - **Passports** — career stamps for every player on the roster.
    - A **Viewing** picker on Loyalty and Passports switches which roster you are looking at.

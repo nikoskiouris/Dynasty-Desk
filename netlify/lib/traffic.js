@@ -220,7 +220,14 @@ export function lambdaEventToRequest(event) {
   const query = event?.rawQuery
     || new URLSearchParams(event?.queryStringParameters || {}).toString();
   const url = `${proto}://${host}${path}${query ? `?${query}` : ""}`;
-  return new Request(url, { method: event?.httpMethod || "GET", headers });
+  const method = String(event?.httpMethod || "GET").toUpperCase();
+  const init = { method, headers };
+  if (method !== "GET" && method !== "HEAD") {
+    init.body = event?.isBase64Encoded && event?.body
+      ? Buffer.from(event.body, "base64").toString("utf8")
+      : (event?.body ?? "");
+  }
+  return new Request(url, init);
 }
 
 export function lambdaIp(event, context = {}) {

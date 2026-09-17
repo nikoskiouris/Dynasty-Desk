@@ -27,7 +27,20 @@ ONE_QB_OUTPUT_PATHS = (
 JSON_OUTPUT_PATH = Path("docs/data/ktc_values.json")
 TIMEOUT_SECONDS = 25
 MAX_PAGES = 24
+MIN_MAPPED_PLAYERS = 180
 PICK_POSITIONS = {"PICK", "RDP"}
+SENTINEL_NAME_KEYS = frozenset({
+    "jahmyr gibbs",
+    "bijan robinson",
+    "josh allen",
+    "ja marr chase",
+    "jayden daniels",
+    "ceedee lamb",
+})
+PICK_LABEL_RE = re.compile(
+    r"20\d{2}\s*(?:Pick\s*\d+\.\d+|(?:(?:Early|Mid|Late)\s+)?[1-4](?:st|nd|rd|th))",
+    re.IGNORECASE,
+)
 NAME_SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
 TEAM_ALIASES = {
     "ARI": "ARI",
@@ -220,11 +233,23 @@ def main() -> int:
         return 0 if fallback_values_exist() else 1
 
     sf_values = scrape_format(players, extra_params={"filters": KTC_FILTERS})
-    one_qb_values = scrape_format(players, extra_params={"filters": KTC_FILTERS, "format": 1}) or sf_values
+    one_qb_values = scrape_format(players, extra_params={"filters": KTC_FILTERS, "format": 1})
 
-    if not sf_values:
-        print("KTC scrape returned no Superflex rankings; leaving existing sample files in place.", file=sys.stderr)
+    if not accept_scrape(sf_values, players):
+        print(
+            f"KTC Superflex scrape looked broken ({mapped_player_count(sf_values)} players); "
+            "leaving existing files in place.",
+            file=sys.stderr,
+        )
         return 0 if fallback_values_exist() else 1
+
+    if not accept_scrape(one_qb_values, players):
+        print(
+            f"KTC 1QB scrape looked broken ({mapped_player_count(one_qb_values)} players); "
+            "keeping the last 1QB file or Superflex.",
+            file=sys.stderr,
+        )
+        one_qb_values = load_existing_json_format("oneQb") or sf_values
 
     for output_path in SF_OUTPUT_PATHS:
         write_values_csv(output_path, sf_values, players)
@@ -242,6 +267,34 @@ def main() -> int:
 
 def fallback_values_exist() -> bool:
     return Path("docs/data/ktc_values_sample.csv").exists()
+
+
+def mapped_player_count(values: dict) -> int:
+    return sum(1 for asset_id in (values or {}) if str(asset_id).startswith("player:"))
+
+
+def scrape_covers_sentinels(values: dict, players: dict) -> bool:
+    names = {
+        normalize_name(resolve_asset_name(asset_id, players))
+        for asset_id in (values or {})
+        if str(asset_id).startswith("player:")
+    }
+    return SENTINEL_NAME_KEYS.issubset(names)
+
+
+def accept_scrape(values: dict, players: dict) -> bool:
+    return mapped_player_count(values) >= MIN_MAPPED_PLAYERS and scrape_covers_sentinels(values, players)
+
+
+def load_existing_json_format(key: str) -> dict:
+    if not JSON_OUTPUT_PATH.exists():
+        return {}
+    try:
+        payload = json.loads(JSON_OUTPUT_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    values = payload.get(key) or {}
+    return values if isinstance(values, dict) else {}
 
 
 def scrape_format(players: dict, extra_params: dict | None = None) -> dict[str, int]:
@@ -266,7 +319,7 @@ def load_players() -> dict:
 
 def load_all_rankings(extra_params: dict | None = None) -> list[KtcRow]:
     rankings: list[KtcRow] = []
-    seen_first_ranks: set[int] = set()
+    seen_page_starts: set[tuple] = set()
     params = extra_params or {}
 
     for page in range(MAX_PAGES):
@@ -274,11 +327,11 @@ def load_all_rankings(extra_params: dict | None = None) -> list[KtcRow]:
         if not page_rows:
             break
 
-        first_rank = page_rows[0].rank
-        if first_rank in seen_first_ranks:
+        start_sig = tuple((row.rank, row.label) for row in page_rows[:3])
+        if start_sig in seen_page_starts:
             break
 
-        seen_first_ranks.add(first_rank)
+        seen_page_starts.add(start_sig)
         rankings.extend(page_rows)
 
     if not rankings:
@@ -371,11 +424,25 @@ def parse_rankings(lines: list[str]) -> list[KtcRow]:
         line = strip_inline_markup(lines[idx])
         if is_table_terminator(line):
             break
+
+        if looks_like_pick_label(line):
+            row, next_idx = parse_unnumbered_pick_row(lines, idx)
+            if row:
+                rows.append(row)
+                idx = next_idx
+                continue
+            idx += 1
+            continue
+
         if not re.fullmatch(r"\d+", line):
             idx += 1
             continue
 
         rank = int(line)
+        if rank > 700:
+            idx += 1
+            continue
+
         row_start = idx
         idx += 1
 
@@ -392,7 +459,7 @@ def parse_rankings(lines: list[str]) -> list[KtcRow]:
                 idx += 1
                 break
 
-            if token != "•":
+            if token not in {"•", "-"}:
                 label_parts.append(token)
             idx += 1
 
@@ -426,11 +493,7 @@ def find_table_start(lines: list[str]) -> int:
 
 
 def is_table_terminator(line: str) -> bool:
-    return line.startswith("Not seeing a player") or line in {
-        "INSIGHTS",
-        "Top 5 Risers (30 Days)",
-        "Top 5 Fallers (30 Days)",
-    }
+    return line.startswith("Not seeing a player")
 
 
 def strip_inline_markup(line: str) -> str:
@@ -444,11 +507,13 @@ def extract_position_token(token: str) -> str | None:
 
 
 def extract_value(lines: list[str], start_idx: int) -> tuple[int | None, int]:
-    integers: list[int] = []
+    integers: list[tuple[int, int]] = []
     idx = start_idx
     while idx < len(lines):
         token = strip_inline_markup(lines[idx])
         if is_table_terminator(token):
+            break
+        if integers and looks_like_pick_label(token):
             break
 
         if re.fullmatch(r"\d+", token) and idx + 1 < len(lines):
@@ -457,12 +522,13 @@ def extract_value(lines: list[str], start_idx: int) -> tuple[int | None, int]:
                 break
 
         if re.fullmatch(r"-?\d+", token):
-            integers.append(int(token))
-            if len(integers) >= 2 and integers[-1] >= 100:
-                return integers[-1], idx + 1
-
+            integers.append((int(token), idx + 1))
         idx += 1
 
+    candidates = [(value, end_idx) for value, end_idx in integers if value >= 100]
+    if candidates:
+        value, end_idx = candidates[-1]
+        return value, end_idx
     return None, idx
 
 
@@ -474,20 +540,58 @@ def looks_like_row_label(line: str) -> bool:
         return False
     if extract_position_token(token):
         return False
+    if looks_like_pick_label(token):
+        return False
     return any(char.isalpha() for char in token)
+
+
+def looks_like_pick_label(line: str) -> bool:
+    return bool(PICK_LABEL_RE.search(strip_inline_markup(line)))
+
+
+def parse_unnumbered_pick_row(lines: list[str], start_idx: int) -> tuple[KtcRow | None, int]:
+    label, _team = split_label_and_team(strip_inline_markup(lines[start_idx]), "PICK")
+    idx = start_idx + 1
+    if idx < len(lines) and extract_position_token(strip_inline_markup(lines[idx])) in PICK_POSITIONS:
+        idx += 1
+    value, next_idx = extract_value(lines, idx)
+    if value is None or not label:
+        return None, start_idx + 1
+    return KtcRow(rank=0, label=label, position="PICK", value=value, team="FA"), next_idx
 
 
 def split_label_and_team(label: str, position: str) -> tuple[str, str]:
     cleaned = re.sub(r"\s+", " ", label).strip()
     if position in PICK_POSITIONS:
-        cleaned = re.sub(r"\s*FA$", "", cleaned).strip()
+        cleaned = re.sub(r"\s*FA$", "", cleaned, flags=re.IGNORECASE).strip()
+        cleaned = re.sub(r"FA$", "", cleaned, flags=re.IGNORECASE).strip()
         return cleaned, "FA"
 
-    match = re.match(r"^(?P<name>.*?)(?:\s+)?(?P<team>R FA|FA|[A-Z]{2,4})$", cleaned)
+    cleaned = re.sub(r"^(?:\d{1,3}\s+)+", "", cleaned)
+    name, team = split_concatenated_team(cleaned)
+    if team:
+        return name, team
+
+    match = re.match(r"^(?P<name>.*?)(?:\s+)(?P<team>R FA|FA|[A-Z]{2,4})$", cleaned)
     if not match:
         return cleaned, ""
-
     return match.group("name").strip(), match.group("team").strip()
+
+
+def split_concatenated_team(label: str) -> tuple[str, str]:
+    if not label:
+        return "", ""
+    team_keys = sorted((key for key in TEAM_ALIASES if 2 <= len(key) <= 4), key=len, reverse=True)
+    for team in team_keys:
+        if not label.upper().endswith(team):
+            continue
+        prefix = label[: len(label) - len(team)]
+        name = prefix.rstrip()
+        if name.endswith("R") and len(name) >= 2 and name[-2].islower():
+            name = name[:-1].rstrip()
+        if name and re.search(r"[a-z]", name):
+            return name, team
+    return "", ""
 
 
 def canonical_team(team: str | None) -> str:
@@ -518,7 +622,8 @@ def strip_suffix_key(name_key: str) -> str:
 def name_keys(name: str | None) -> tuple[str, ...]:
     base = normalize_name(name)
     without_suffix = strip_suffix_key(base)
-    keys = [key for key in (base, without_suffix) if key]
+    compact = re.sub(r"\s+", "", base)
+    keys = [key for key in (base, without_suffix, compact) if key]
     deduped: list[str] = []
     seen = set()
     for key in keys:
@@ -579,6 +684,20 @@ def build_value_map(players: dict, rankings: list[KtcRow]) -> dict[str, int]:
 
 
 def parse_pick_asset(label: str) -> tuple[str | None, str | None]:
+    overall = re.search(
+        r"(?P<season>20\d{2})\s*Pick\s*(?P<round>\d+)\.(?P<slot>\d+)",
+        label,
+        flags=re.IGNORECASE,
+    )
+    if overall:
+        season = overall.group("season")
+        round_ = overall.group("round")
+        slot = int(overall.group("slot"))
+        bucket = "any"
+        if int(round_) == 1:
+            bucket = "early" if slot <= 4 else "mid" if slot <= 8 else "late"
+        return f"pick:{season}:r{round_}:any", bucket
+
     match = re.search(
         r"(?P<season>20\d{2})\s+(?:(?P<bucket>Early|Mid|Late)\s+)?(?P<round>[1-4])(?:st|nd|rd|th)",
         label,
