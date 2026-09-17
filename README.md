@@ -1,6 +1,6 @@
 # Dynasty Desk
 
-Sleeper dynasty league desk: live scores, standings, playoff odds, awards, archive, and a trade lab. Values are built from Sleeper dynasty trades across many leagues, mixed with KeepTradeCut. The site is static. It talks to Sleeper from the browser.
+Sleeper dynasty league desk: live scores, standings, playoff odds, awards, archive, trade match, and a trade lab. Values are built from Sleeper dynasty trades across many leagues, mixed with KeepTradeCut. The site is static. It talks to Sleeper from the browser.
 
 ## What is in this repo
 - **Web app:** `docs/` — League Command Center at [dynastyticker.com](https://dynastyticker.com/).
@@ -29,11 +29,13 @@ Four pages. Each page has a row of rooms under it, so every feature is at most t
    - **Recap** — group-chat paste in desk / hype / roast voice. Copy text, copy a recap link, or save the image card.
 2. **Teams** — every roster.
    - **Roster** — tap any team: power scout card, optimal lineup, bench, nicknames, pick vault, season log, jump into a trade.
+   - **Call** — tank, all in, or stay in the middle, from playoff odds, lineup rank, age, and pick capital.
    - **Loyalty** — kept / gone / new since last season, iron share, DNA keep rate.
    - **Passports** — career stamps for every player on the roster.
    - A **Viewing** picker on Loyalty and Passports switches which roster you are looking at.
 3. **Trades** — deals.
    - **Log** — graded trade log with the trade wire. Tap a row to open the trade file (record since, market now, later finishes). Optional league board reads this room’s taste.
+   - **Match** — pairs you with teams that have your holes, need your extras, or are tanking while you contend. Builds roster-fit trades, not leftover-third swaps.
    - **Calculator** — build both sides by hand and get a verdict.
    - **Find deals** — shop an asset, target a player, or generate a blockbuster.
 4. **History** — the archive.

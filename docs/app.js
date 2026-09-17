@@ -102,6 +102,14 @@ import { createLivePoller, shouldPollLive, shouldRefreshSim, weekRowsFingerprint
 import { buildRecapCardModel, drawRecapCard, renderRecapCardBlob, recapCardFilename } from "./modules/recap-card.js";
 import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber, clamp, renderTradeAssetLabel, renderTradeMove } from "./modules/html.js";
 import {
+  buildTradeMatchProfile,
+  describePartnerMatch,
+  packageLooksLikeFiller,
+  previewBestMatch,
+  proposeMatchDeals,
+  rankPartnerMatches,
+} from "./modules/trade-match.js";
+import {
   analyzePastTrades,
   analyzeLeagueTradeSides,
   biggestTradeMiss,
@@ -293,6 +301,11 @@ const el = {
   windowCallDashboard: document.querySelector("#window-call-dashboard"),
   passportDashboard: document.querySelector("#passport-dashboard"),
   tradeLogDashboard: document.querySelector("#trade-log-dashboard"),
+  tradeMatchNeeds: document.querySelector("#trade-match-needs"),
+  tradeMatchDashboard: document.querySelector("#trade-match-dashboard"),
+  matchGenerateBtn: document.querySelector("#match-generate-btn"),
+  matchGenerateHelp: document.querySelector("#match-generate-help"),
+  matchGenerateError: document.querySelector("#match-generate-error"),
   ticker: document.querySelector("#ticker"),
   tickerTrack: document.querySelector("#ticker-track"),
   calculatorSection: document.querySelector("#calculator-section"),
@@ -480,6 +493,7 @@ el.meSelect?.addEventListener("change", () => {
   state.mePickedByUser = true;
   state.lensRosterId = null;
   resetCalculatorState({ keepPartner: false });
+  clearTradeMatchCache();
   renderPlayerSearch();
   pruneSelectedOutgoingAssets();
   pruneExcludedOutgoingAssets();
@@ -489,6 +503,9 @@ el.meSelect?.addEventListener("change", () => {
   updateUrlState({ mode: "replace" });
 });
 el.generateBtn?.addEventListener("click", generateTradeIdeas);
+el.matchGenerateBtn?.addEventListener("click", () => {
+  void generateTradeMatches({ userRequested: true });
+});
 el.seasonsDashboard?.addEventListener("click", handleHistoryCompareClick);
 el.seasonsDashboard?.addEventListener("change", handleHistoryCompareChange);
 
@@ -697,6 +714,9 @@ function renderTradesRoom(room) {
   switch (room) {
     case "calculator":
       renderCalculator();
+      break;
+    case "match":
+      renderTradeMatchRoom();
       break;
     case "lab":
       break;
@@ -1058,7 +1078,7 @@ function renderLeagueHero() {
   if (!state.leagueId || !state.league) {
     el.heroEyebrow.textContent = "Sleeper league intelligence";
     el.heroTitle.textContent = "Your league, on a broadcast desk.";
-    el.heroLede.textContent = "Live scoreboard and win probability, playoff odds from thousands of simulated seasons, weekly awards, an all-time record book, a roster explorer, and a dynasty trade lab. One link for the whole league.";
+    el.heroLede.textContent = "Live scoreboard and win probability, playoff odds from thousands of simulated seasons, weekly awards, an all-time record book, a roster explorer, trade match, and a dynasty trade lab. One link for the whole league.";
     if (el.leagueAvatar) el.leagueAvatar.innerHTML = `<span>D</span>`;
     return;
   }
@@ -1382,6 +1402,7 @@ async function runLeagueLoad(leagueId) {
     leagueTradeSideCache = { key: "", sides: [] };
     state.standingsView = "overall";
     resetCalculatorState({ keepPartner: false });
+    clearTradeMatchCache();
     if (el.playerSearch) el.playerSearch.value = "";
     hideAppPages();
     if (el.resultsList) el.resultsList.innerHTML = "";
@@ -2748,6 +2769,7 @@ function renderPulseStrip(model, sim, profiles) {
     .filter((team) => team.streak?.type === "W" && team.streak.length >= 2)
     .sort((a, b) => b.streak.length - a.streak.length)[0] || null;
   const topPower = profiles[0] || null;
+  const matchPreview = buildTradeMatchPreview(profiles);
   const myCall = getMyWindowCall({ profiles, model, sim });
   const tiles = [
     {
@@ -2799,16 +2821,25 @@ function renderPulseStrip(model, sim, profiles) {
         detail: hotTeam ? `${hotTeam.streak.length} straight wins` : topPower ? `${topPower.score}/100 power score` : "values syncing",
         tone: "rose",
       },
-    {
-      label: "Trade desk",
-      page: "trades",
-      room: "log",
-      value: state.transactionsLoaded ? `${tradeCount} trade${tradeCount === 1 ? "" : "s"}` : "Syncing",
-      detail: Number.isFinite(deadline) && deadline > 0
-        ? model.currentWeek > deadline && !model.seasonComplete ? `deadline passed (Week ${deadline})` : `deadline Week ${deadline}`
-        : "no trade deadline",
-      tone: "blue",
-    },
+    matchPreview
+      ? {
+        label: "Trade match",
+        page: "trades",
+        room: "match",
+        value: `${matchPreview.need} hole`,
+        detail: `${matchPreview.managerName} · ${matchPreview.laneLabel}`,
+        tone: "gold",
+      }
+      : {
+        label: "Trade desk",
+        page: "trades",
+        room: "log",
+        value: state.transactionsLoaded ? `${tradeCount} trade${tradeCount === 1 ? "" : "s"}` : "Syncing",
+        detail: Number.isFinite(deadline) && deadline > 0
+          ? model.currentWeek > deadline && !model.seasonComplete ? `deadline passed (Week ${deadline})` : `deadline Week ${deadline}`
+          : "no trade deadline",
+        tone: "blue",
+      },
   ];
   return `
     <div class="pulse-grid">
@@ -7823,6 +7854,341 @@ function buildAssetPickerMarkup(asset, { values, contextLabel } = {}) {
       <span class="asset-value-badge-slot">${renderAssetValueBadge(asset, values)}</span>
     </div>
   `;
+}
+
+function clearTradeMatchCache() {
+  state.tradeMatch = {
+    key: "",
+    loading: false,
+    error: "",
+    payload: null,
+  };
+  syncMatchGenerateState();
+}
+
+function tradeMatchCacheKey(rosterId = state.meRosterId) {
+  return [
+    state.leagueId || "",
+    rosterId || "",
+    Object.keys(state.values || {}).length,
+    state.playerMetadataLoaded ? "players" : "names",
+  ].join(":");
+}
+
+function buildTradeMatchProfiles(powerProfiles = null) {
+  const profiles = powerProfiles || buildPowerProfiles();
+  const demand = {};
+  profiles.forEach((profile) => {
+    (profile.positionSummaries || []).forEach((entry) => {
+      if (demand[entry.position] != null) return;
+      demand[entry.position] = getPositionStarterDemand(state.league, entry.position);
+    });
+  });
+  return profiles
+    .map((powerProfile) => {
+      const roster = findNormalizedRoster(powerProfile.rosterId);
+      if (!roster) return null;
+      return buildTradeMatchProfile({
+        roster,
+        powerProfile,
+        values: state.values,
+        getAssetValue,
+        playerPositionForAsset,
+        playerPositionsForAsset,
+        playerAgeForAsset,
+        positionDemand: demand,
+      });
+    })
+    .filter(Boolean);
+}
+
+function buildTradeMatchPreview(powerProfiles = null) {
+  const meRoster = getMyRoster();
+  if (!meRoster || !Object.keys(state.values || {}).length) return null;
+  const matchProfiles = buildTradeMatchProfiles(powerProfiles);
+  const mine = matchProfiles.find((profile) => String(profile.rosterId) === String(meRoster.rosterId));
+  if (!mine) return null;
+  return previewBestMatch(
+    mine,
+    matchProfiles.filter((profile) => String(profile.rosterId) !== String(meRoster.rosterId))
+  );
+}
+
+function syncMatchGenerateState() {
+  const ready = Boolean(state.meRosterId && state.leagueId);
+  if (el.matchGenerateBtn && !el.matchGenerateBtn.classList.contains("loading")) {
+    el.matchGenerateBtn.disabled = !ready;
+  }
+  if (el.matchGenerateHelp) {
+    el.matchGenerateHelp.textContent = !state.leagueId
+      ? "Load a league and pick your team."
+      : !state.meRosterId
+        ? "Choose your team first."
+        : "Looks at holes, surplus, and contend vs tank. No leftover thirds.";
+  }
+}
+
+function setMatchGenerateError(message) {
+  setFieldError(null, el.matchGenerateError, message);
+}
+
+function renderTradeMatchRoom() {
+  syncMatchGenerateState();
+  renderTradeMatchNeeds();
+  const key = tradeMatchCacheKey();
+  if (state.tradeMatch.loading) {
+    renderTradeMatchDashboard();
+    return;
+  }
+  if (state.tradeMatch.key === key && state.tradeMatch.payload) {
+    renderTradeMatchDashboard();
+    return;
+  }
+  if (state.meRosterId && state.leagueId && !state.playerMetadataLoaded && !state.playerMetadataFailed) {
+    if (el.tradeMatchDashboard) {
+      el.tradeMatchDashboard.innerHTML = `<p class="muted">Matching holes against the rest of the league…</p>`;
+    }
+    return;
+  }
+  if (state.meRosterId && state.leagueId) {
+    void generateTradeMatches();
+    return;
+  }
+  renderTradeMatchDashboard();
+}
+
+function renderTradeMatchNeeds() {
+  if (!el.tradeMatchNeeds) return;
+  const meRoster = getMyRoster();
+  if (!meRoster) {
+    el.tradeMatchNeeds.innerHTML = `<p class="muted">Pick your team to see holes and extra parts.</p>`;
+    return;
+  }
+  if (!Object.keys(state.values || {}).length) {
+    el.tradeMatchNeeds.innerHTML = `<p class="muted">Values are still loading.</p>`;
+    return;
+  }
+  if (!state.playerMetadataLoaded && !state.playerMetadataFailed) {
+    el.tradeMatchNeeds.innerHTML = `<p class="muted">Player names are still syncing.</p>`;
+    return;
+  }
+  const mine = buildTradeMatchProfiles().find((profile) => String(profile.rosterId) === String(meRoster.rosterId));
+  if (!mine) {
+    el.tradeMatchNeeds.innerHTML = `<p class="muted">Need roster values before match can grade holes.</p>`;
+    return;
+  }
+  const chips = [
+    mine.laneLabel,
+    mine.weakestPosition ? `Need ${mine.weakestPosition.position}` : "",
+    mine.strongestPosition ? `Extra ${mine.strongestPosition.position}` : "",
+    mine.timeline === "contending" ? "Win-now window" : mine.timeline === "rebuilding" ? "Tank / future" : "Flexible",
+  ].filter(Boolean);
+  const needLine = mine.needs.length
+    ? `Holes: ${mine.needs.map((row) => `${row.position} (${row.rankLabel || row.grade})`).join(", ")}.`
+    : "No loud positional hole. Match will look for a contend/tank window instead.";
+  const surplusLine = mine.surplus.length
+    ? `You can spare ${mine.surplus.map((row) => row.position).join(", ")}.`
+    : "No obvious surplus; any deal still has to help your starters.";
+  el.tradeMatchNeeds.innerHTML = `
+    <div class="match-need-card">
+      <div class="power-badge-row">
+        ${chips.map((chip) => `<span class="power-badge">${escapeHtml(chip)}</span>`).join("")}
+      </div>
+      <p>${escapeHtml(needLine)} ${escapeHtml(surplusLine)}</p>
+    </div>
+  `;
+}
+
+function renderTradeMatchDashboard() {
+  if (!el.tradeMatchDashboard) return;
+  if (state.tradeMatch.loading) {
+    el.tradeMatchDashboard.innerHTML = `<p class="muted">Matching holes against the rest of the league…</p>`;
+    return;
+  }
+  if (state.tradeMatch.error) {
+    el.tradeMatchDashboard.innerHTML = `<p class="muted">${escapeHtml(state.tradeMatch.error)}</p>`;
+    return;
+  }
+  const payload = state.tradeMatch.payload;
+  if (!payload) {
+    el.tradeMatchDashboard.innerHTML = `<p class="muted">Find matches to pair your roster with complementary teams.</p>`;
+    return;
+  }
+  if (!payload.groups?.length) {
+    el.tradeMatchDashboard.innerHTML = `<p class="muted">${escapeHtml(payload.emptyText || "No complementary teams turned up a real roster-fit trade.")}</p>`;
+    return;
+  }
+  el.tradeMatchDashboard.innerHTML = payload.groups.map((group) => `
+    <article class="match-partner-card">
+      <div class="match-partner-heading">
+        <div>
+          <span class="eyebrow">${escapeHtml(group.laneLabel || "Match")}</span>
+          <h3>${escapeHtml(group.title)}</h3>
+        </div>
+        <div class="power-badge-row">
+          ${(group.tags || []).map((tag) => `<span class="power-badge">${escapeHtml(tag)}</span>`).join("")}
+        </div>
+      </div>
+      <p class="muted small">${escapeHtml(group.subtitle)}</p>
+      ${
+        group.ideas.length > 0
+          ? group.ideas.map((idea, idx) => renderTradeCard(idea, idx, state.values)).join("")
+          : `<p class="muted small idea-group-empty">${escapeHtml(group.emptyText || "Need fit is there, but no package stayed fair without filler.")}</p>`
+      }
+    </article>
+  `).join("");
+}
+
+async function generateTradeMatches({ userRequested = false } = {}) {
+  const meRoster = getMyRoster();
+  if (!meRoster) {
+    setMatchGenerateError("Load a league and choose your team first.");
+    return;
+  }
+  if (state.tradeMatch.loading) return;
+
+  setMatchGenerateError("");
+  state.tradeMatch.loading = true;
+  state.tradeMatch.error = "";
+  renderTradeMatchDashboard();
+
+  try {
+    setButtonLoading(el.matchGenerateBtn, true, "Matching teams...");
+    await ensureValuesLoaded("");
+    await waitForNextPaint();
+    if (!state.playerMetadataLoaded && !state.playerMetadataFailed) {
+      state.tradeMatch.payload = null;
+      return;
+    }
+    const key = tradeMatchCacheKey(meRoster.rosterId);
+    if (!userRequested && state.tradeMatch.key === key && state.tradeMatch.payload) {
+      return;
+    }
+    state.tradeMatch.key = key;
+    const fairnessPct = DEFAULT_FAIRNESS_PCT;
+    const matchProfiles = buildTradeMatchProfiles();
+    const myProfile = matchProfiles.find((profile) => String(profile.rosterId) === String(meRoster.rosterId));
+    if (!myProfile) {
+      state.tradeMatch.payload = { groups: [], emptyText: "Could not grade your roster for match." };
+      return;
+    }
+
+    const ranked = rankPartnerMatches(
+      myProfile,
+      matchProfiles.filter((profile) => String(profile.rosterId) !== String(meRoster.rosterId))
+    );
+    const leagueStrengthBaseline = buildLeagueStrengthBaseline({
+      league: state.league,
+      rosters: state.normalizedRosters,
+      values: state.values,
+    });
+
+    const groups = ranked.map(({ profile: theirProfile, match }) => {
+      const rawDeals = proposeMatchDeals({
+        myProfile,
+        theirProfile,
+        match,
+        values: state.values,
+        getAssetValue,
+        playerPositionForAsset,
+        playerPositionsForAsset,
+        playerAgeForAsset,
+        fairnessPct,
+        maxResults: 8,
+      });
+      const ideas = [];
+      rawDeals.forEach((deal) => {
+        if (packageLooksLikeFiller(deal.myAssets, deal.theirAssets, state.values, getAssetValue)) return;
+        const packageResult = calculatePackageAdjustment({
+          myValues: deal.myAssets.map((asset) => getAssetValue(asset, state.values)),
+          theirValues: deal.theirAssets.map((asset) => getAssetValue(asset, state.values)),
+          globalMaxValue: getGlobalMaxPlayerValue(
+            state.values,
+            Math.max(...deal.myAssets.concat(deal.theirAssets).map((asset) => getAssetValue(asset, state.values)), 0)
+          ),
+        });
+        const pctDiff = Number(calculatePctDiff(packageResult.myAdjustedValue, packageResult.theirAdjustedValue).toFixed(2));
+        if (pctDiff > Math.max(fairnessPct, 26)) return;
+
+        const idea = enrichTradeIdea({
+          idea: {
+            myAssets: deal.myAssets,
+            theirAssets: deal.theirAssets,
+            ...packageResult,
+            pctDiff,
+            labScore: clamp(Math.round(deal.helpScore), 1, 99),
+            tags: deal.tags,
+            summary: deal.summary,
+            pitch: deal.pitch,
+            counterpartyName: theirProfile.managerName,
+            counterpartyRosterId: theirProfile.rosterId,
+            matchKind: deal.kind,
+            myHelp: deal.myHelp,
+          },
+          myRoster: meRoster,
+          theirRoster: theirProfile.roster,
+          values: state.values,
+          leagueStrengthBaseline,
+        });
+        if (!tradeMatchIdeaHelps(idea, myProfile, deal)) return;
+        ideas.push(idea);
+      });
+
+      return {
+        title: theirProfile.managerName,
+        laneLabel: theirProfile.laneLabel,
+        subtitle: describePartnerMatch(match, myProfile),
+        tags: [
+          match.twoWay ? "Two-way" : "",
+          match.timelinePairing === "contend-rebuild" || match.timelinePairing === "rebuild-contend" ? "Contend / tank" : "",
+          ...(match.takePositions || []).map((position) => `Get ${position}`),
+          ...(match.givePositions || []).map((position) => `Send ${position}`),
+        ].filter(Boolean).slice(0, 4),
+        ideas: ideas
+          .sort((a, b) => {
+            const loudest = myProfile.weakestPosition?.position;
+            if (loudest) {
+              const aHit = (a.myHelp?.patchedNeeds || []).some((row) => row.position === loudest) ? 1 : 0;
+              const bHit = (b.myHelp?.patchedNeeds || []).some((row) => row.position === loudest) ? 1 : 0;
+              if (aHit !== bHit) return bHit - aHit;
+            }
+            const bySize = (a.myAssets.length + a.theirAssets.length) - (b.myAssets.length + b.theirAssets.length);
+            if (Math.abs(bySize) >= 2) return bySize;
+            return compareEnrichedTradeIdeas(a, b);
+          })
+          .slice(0, 2),
+        emptyText: "The rosters fit, but every fair package still looked like filler. Try Find deals on a specific name.",
+      };
+    });
+
+    const withDeals = groups.filter((group) => group.ideas.length > 0);
+    state.tradeMatch.payload = {
+      groups: withDeals.length ? withDeals : groups.slice(0, 3),
+      emptyText: ranked.length === 0
+        ? "No complementary windows jumped out. Your roster may already be balanced, or the league is clustered the same way."
+        : "Those complementary teams showed up, but no package helped your lineup without leftover thirds.",
+    };
+  } catch (err) {
+    state.tradeMatch.error = `Could not build matches. ${err.message}`;
+    state.tradeMatch.payload = null;
+  } finally {
+    state.tradeMatch.loading = false;
+    setButtonLoading(el.matchGenerateBtn, false);
+    syncMatchGenerateState();
+    if (state.activePage === "trades" && getRoom("trades") === "match") {
+      renderTradeMatchNeeds();
+      renderTradeMatchDashboard();
+    }
+  }
+}
+
+function tradeMatchIdeaHelps(idea, myProfile, deal) {
+  if (deal?.myHelp?.helped === false) return false;
+  if (myProfile.timeline !== "contending") return true;
+  const starterDelta = (idea.impactAnalysis?.mySide.after.starterValue || 0) - (idea.impactAnalysis?.mySide.before.starterValue || 0);
+  const powerDelta = idea.powerUpgrade?.delta ?? 0;
+  const holePatched = Boolean(deal?.myHelp?.patchedNeeds?.length) || idea.powerUpgrade?.badges?.includes("Hole Patched");
+  return holePatched || starterDelta >= -150 || powerDelta >= 0;
 }
 
 async function generateTradeIdeas() {

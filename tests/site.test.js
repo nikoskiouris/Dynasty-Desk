@@ -55,6 +55,10 @@ test("document titles and descriptions change with tab and league", () => {
     "Find deals · Try Hard or Die Hard — Dynasty Desk"
   );
   assert.equal(
+    buildDocumentTitle({ page: "trades", leagueName: "Try Hard or Die Hard", loaded: true, room: "match" }),
+    "Match · Try Hard or Die Hard — Dynasty Desk"
+  );
+  assert.equal(
     buildDocumentTitle({ page: "trader", leagueName: "Try Hard or Die Hard", loaded: true }),
     "Trades · Try Hard or Die Hard — Dynasty Desk"
   );
@@ -76,6 +80,7 @@ test("document titles and descriptions change with tab and league", () => {
   );
   assert.match(buildPageDescription({ page: "teams", room: "call", loaded: true }), /tank/);
   assert.match(buildPageDescription({ page: "trades", room: "calculator", loaded: true }), /verdict/);
+  assert.match(buildPageDescription({ page: "trades", room: "match", loaded: true }), /Match with teams/);
   assert.equal(buildPageDescription({}), DEFAULT_DESCRIPTION);
 });
 
@@ -161,11 +166,16 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
     assert.match(index, new RegExp(`id="${page}-page"`));
   }
   assert.match(index, /id="room-nav"/);
-  for (const room of ["scores", "standings", "power", "awards", "recap", "roster", "call", "loyalty", "passports", "log", "calculator", "lab", "hall", "seasons", "records"]) {
+  for (const room of ["scores", "standings", "power", "awards", "recap", "roster", "call", "loyalty", "passports", "log", "match", "calculator", "lab", "hall", "seasons", "records"]) {
     assert.match(index, new RegExp(`data-room-panel="${room}"`), room);
   }
   assert.match(index, /id="passport-dashboard"/);
+  assert.match(index, /id="window-call-dashboard"/);
   assert.match(index, /id="trade-log-dashboard"/);
+  assert.match(index, /id="trade-match-dashboard"/);
+  assert.match(index, /id="match-generate-btn"/);
+  assert.match(index, />Find matches</);
+  assert.match(index, /Match, log, calculator/);
   assert.match(index, /id="records-dashboard"/);
   assert.match(index, /id="mobile-share-btn"/);
   assert.doesNotMatch(index, /id="trader-menu"/);
