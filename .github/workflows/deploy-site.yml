@@ -1,8 +1,8 @@
 name: Refresh live site
 
+# Manual only. A scheduled production deploy costs 15 Netlify credits every day.
+# Market files refresh when develop is promoted to prod.
 on:
-  schedule:
-    - cron: "15 6 * * *"
   workflow_dispatch:
   repository_dispatch:
     types: [deploy-site]
@@ -57,5 +57,5 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-          DEPLOY_MESSAGE: "daily refresh ${{ needs.pick-release.outputs.tag }}"
+          DEPLOY_MESSAGE: "manual refresh ${{ needs.pick-release.outputs.tag }}"
         run: bash scripts/deploy_live_site.sh
