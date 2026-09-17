@@ -1,7 +1,7 @@
 {
   "name": "Dynasty Ticker",
   "short_name": "Dynasty Ticker",
-  "description": "Live scores, playoff odds, awards, and a dynasty trade lab for Sleeper leagues.",
+  "description": "Your Sleeper dynasty league. Scores, trades, roster scout, and history.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

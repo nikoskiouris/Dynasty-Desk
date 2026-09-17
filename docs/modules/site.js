@@ -10,9 +10,9 @@ export const CONTACT_URL = `${REPO_URL}/issues`;
 export const OG_IMAGE_URL = `${SITE_URL}og-image.jpg`;
 export const STORAGE_NOTICE_KEY = "dynasty_ticker_storage_notice";
 
-export const DEFAULT_TITLE = "Dynasty Ticker — Fantasy League Command Center";
+export const DEFAULT_TITLE = "Dynasty Ticker — Your Sleeper dynasty league";
 export const DEFAULT_DESCRIPTION =
-  "Search a Sleeper username. Open live scores, playoff odds, awards, trade match, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut.";
+  "Pick a job, then open your Sleeper dynasty league. Live scores, roster scout, trade tools, and league history.";
 
 export function tickerDurationSeconds(itemCount) {
   const count = Math.max(0, Number(itemCount) || 0);

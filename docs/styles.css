@@ -1113,15 +1113,140 @@ body:not(.league-loaded) .workspace-header {
 }
 
 .landing-copy h2 {
-  margin: 0 0 0.85rem;
+  margin: 0 0 0.45rem;
   font-size: clamp(1.55rem, 3vw, 2.15rem);
   letter-spacing: -0.045em;
   line-height: 1.05;
 }
 
-.landing-copy > p {
+.landing-copy > p,
+.landing-lede,
+.landing-job-hint {
   max-width: 38rem;
   color: var(--muted-strong);
+}
+
+.landing-lede {
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.landing-job-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.desk-jobs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0 0 0.95rem;
+}
+
+.desk-jobs-board {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.desk-jobs-board h2 {
+  margin: 0;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.desk-jobs-hint {
+  margin: 0 0 0.2rem;
+}
+
+.desk-jobs-kicker {
+  margin: 0.55rem 0 0.1rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.desk-job {
+  display: grid;
+  gap: 0.18rem;
+  align-content: start;
+  width: 100%;
+  min-height: 0;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font-weight: 700;
+  text-align: left;
+  box-shadow: none;
+}
+
+.desk-job:hover {
+  transform: none;
+  filter: none;
+  border-color: var(--line-strong);
+}
+
+.desk-job.active,
+.desk-job.active:hover {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  box-shadow: inset 0 0 0 1px var(--blue);
+}
+
+.desk-job strong {
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  letter-spacing: -0.02em;
+}
+
+.desk-job small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.desk-jobs-more .desk-job {
+  padding: 0.65rem 0.7rem;
+}
+
+.desk-jobs-more .desk-job strong {
+  font-size: 0.86rem;
+}
+
+.start-dashboard {
+  padding: 0.15rem 0 0.4rem;
+}
+
+.landing-league-picker {
+  margin-top: 0.85rem;
+}
+
+.landing-league-picker .league-pick {
+  border-color: var(--line);
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.landing-league-picker .league-pick:hover,
+.landing-league-picker .league-pick.current,
+.landing-league-picker .league-pick.selected {
+  border-color: var(--team-a-border);
+  background: var(--team-a-soft);
+}
+
+.landing-hero:has(.landing-league-picker:not(.hidden)) {
+  grid-template-columns: 1fr;
+}
+
+.landing-hero:has(.landing-league-picker:not(.hidden)) .landing-rather {
+  display: none;
 }
 
 .landing-search {
@@ -5201,8 +5326,30 @@ body:not(.league-loaded) .workspace-header {
   }
 
   .landing-copy h2 {
-    margin: 0 0 0.7rem;
+    margin: 0 0 0.45rem;
     font-size: 1.28rem;
+  }
+
+  .landing-lede {
+    margin: 0 0 0.7rem;
+    font-size: 0.88rem;
+  }
+
+  .desk-jobs {
+    gap: 0.45rem;
+    margin: 0 0 0.75rem;
+  }
+
+  .desk-job {
+    padding: 0.65rem 0.7rem;
+  }
+
+  .desk-job strong {
+    font-size: 0.84rem;
+  }
+
+  .desk-job small {
+    font-size: 0.7rem;
   }
 
   .landing-search-row {

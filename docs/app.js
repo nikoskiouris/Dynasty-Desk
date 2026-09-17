@@ -101,6 +101,7 @@ import {
 import { createLivePoller, shouldPollLive, shouldRefreshSim, weekRowsFingerprint } from "./modules/live.js";
 import { buildRecapCardModel, drawRecapCard, renderRecapCardBlob, recapCardFilename } from "./modules/recap-card.js";
 import { copyTextToClipboard, escapeHtml, formatNumber, formatSignedNumber, clamp, renderTradeAssetLabel, renderTradeMove } from "./modules/html.js";
+import { jobById, landingSearchHint, renderDeskJobsMarkup } from "./modules/jobs.js";
 import {
   buildTradeMatchProfile,
   describePartnerMatch,
@@ -290,6 +291,7 @@ const el = {
   pageTabButtons: document.querySelectorAll(".page-tab"),
   pages: Object.fromEntries(PAGE_IDS.map((page) => [page, document.querySelector(`#${page}-page`)])),
   scoresDashboard: document.querySelector("#scores-dashboard"),
+  startDashboard: document.querySelector("#start-dashboard"),
   standingsDashboard: document.querySelector("#standings-dashboard"),
   powerBoardDashboard: document.querySelector("#power-board-dashboard"),
   teamsGrid: document.querySelector("#teams-grid"),
@@ -318,6 +320,9 @@ const el = {
   landingUsername: document.querySelector("#landing-username"),
   landingUsernameForm: document.querySelector("#landing-username-form"),
   landingUsernameError: document.querySelector("#landing-username-error"),
+  landingJobs: document.querySelector("#landing-jobs"),
+  landingJobHint: document.querySelector("#landing-job-hint"),
+  landingLeaguePicker: document.querySelector("#landing-league-picker"),
   landingRather: document.querySelector("#landing-rather"),
   landingLoading: document.querySelector("#landing-loading"),
   landingLoadingText: document.querySelector("#landing-loading-text"),
@@ -388,14 +393,9 @@ function isEstimatedAsset(asset, values = state.values) {
 }
 
 el.usernameSearchForm?.addEventListener("submit", requestFindLeagues);
-el.leaguePicker?.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-league-id]");
-  if (!button) return;
-  const leagueId = parseLeagueId(button.dataset.leagueId);
-  if (!leagueId) return;
-  if (el.leagueId) el.leagueId.value = leagueId;
-  void loadLeagueById(leagueId);
-});
+el.leaguePicker?.addEventListener("click", handleLeaguePickClick);
+el.landingLeaguePicker?.addEventListener("click", handleLeaguePickClick);
+el.landingJobs?.addEventListener("click", handleLandingJobClick);
 el.leagueLoadForm?.addEventListener("submit", requestLoadLeague);
 el.loadLeagueBtn?.addEventListener("pointerdown", handleLoadLeaguePointerDown);
 el.loadLeagueBtn?.addEventListener("click", requestLoadLeague);
@@ -578,6 +578,7 @@ function showAppPages() {
   el.mobileShareBtn?.classList.remove("hidden");
   const pending = state.pendingPlace;
   state.pendingPlace = null;
+  state.pendingJobId = "";
   const page = pending && PAGE_IDS.includes(pending.page) ? pending.page : state.activePage || DEFAULT_PAGE;
   if (pending?.room) setRoom(page, pending.room);
   setActivePage(page, { history: "replace", scroll: "top" });
@@ -677,6 +678,9 @@ function renderActivePage() {
 
 function renderLeagueRoom(room) {
   switch (room) {
+    case "start":
+      renderStartRoom();
+      break;
     case "standings":
       renderStandingsRoom();
       break;
@@ -1047,7 +1051,7 @@ function scrollActiveTabIntoView() {
 function renderSessionSnapshot() {
   document.body.classList.toggle("league-loaded", Boolean(state.leagueId));
   if (el.mobileChromeTitle) {
-    el.mobileChromeTitle.textContent = state.leagueName || "League Command Center";
+    el.mobileChromeTitle.textContent = state.leagueName || "Your Sleeper league";
   }
   if (el.chromeLeagueLabel) {
     el.chromeLeagueLabel.textContent = state.leagueName || "Not loaded";
@@ -1077,9 +1081,9 @@ function describeSeasonWeek() {
 function renderLeagueHero() {
   if (!el.heroTitle) return;
   if (!state.leagueId || !state.league) {
-    el.heroEyebrow.textContent = "Sleeper league intelligence";
-    el.heroTitle.textContent = "Your league, on a live ticker.";
-    el.heroLede.textContent = "Live scoreboard and win probability, playoff odds from thousands of simulated seasons, weekly awards, an all-time record book, a roster explorer, trade match, and a dynasty trade lab. One link for the whole league.";
+    el.heroEyebrow.textContent = "Sleeper dynasty league";
+    el.heroTitle.textContent = "Your league. Pick a job.";
+    el.heroLede.textContent = "See this week, scout a roster, make a trade, or open league history.";
     if (el.leagueAvatar) el.leagueAvatar.innerHTML = `<span>D</span>`;
     return;
   }
@@ -1201,6 +1205,45 @@ function syncTradeModeUi() {
   renderSessionSnapshot();
 }
 
+function handleLeaguePickClick(event) {
+  const button = event.target.closest("[data-league-id]");
+  if (!button) return;
+  const leagueId = parseLeagueId(button.dataset.leagueId);
+  if (!leagueId) return;
+  if (el.leagueId) el.leagueId.value = leagueId;
+  void loadLeagueById(leagueId);
+}
+
+function handleLandingJobClick(event) {
+  const button = event.target.closest("[data-job]");
+  if (!button || !el.landingJobs?.contains(button)) return;
+  selectLandingJob(button.dataset.job);
+}
+
+function selectLandingJob(jobId) {
+  const job = jobById(jobId, { includeMore: false });
+  if (!job) return;
+  const nextId = state.pendingJobId === job.id ? "" : job.id;
+  state.pendingJobId = nextId;
+  state.pendingPlace = nextId ? { page: job.page, room: job.room } : null;
+  syncLandingJobUi();
+  if (nextId) {
+    el.landingUsername?.focus();
+    el.landingUsernameForm?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function syncLandingJobUi() {
+  const selected = state.pendingJobId;
+  el.landingJobs?.querySelectorAll("[data-job]").forEach((button) => {
+    const on = button.dataset.job === selected;
+    button.classList.toggle("active", on);
+    button.setAttribute("aria-pressed", String(on));
+  });
+  const job = jobById(selected, { includeMore: false });
+  if (el.landingJobHint) el.landingJobHint.textContent = landingSearchHint(job);
+}
+
 function requestLoadLeague(event) {
   event?.preventDefault?.();
   const classified = classifyLeagueInput(el.leagueId?.value || el.sleeperUsername?.value);
@@ -1282,7 +1325,7 @@ async function runUserLeagueSearch(username) {
       setStatus(`One league found. Opening ${state.userLeagues[0].name || "league"}…`, { loading: true });
     } else {
       setStatus(`Found ${state.userLeagues.length} leagues for ${user.display_name || username}. Pick one.`);
-      if (isPhoneLayout()) setMobileRailOpen(true);
+      el.landingLeaguePicker?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   } catch (err) {
     renderLeaguePicker([]);
@@ -1296,14 +1339,13 @@ async function runUserLeagueSearch(username) {
 }
 
 function renderLeaguePicker(leagues, season) {
-  if (!el.leaguePicker) return;
-  if (!leagues?.length) {
-    el.leaguePicker.classList.add("hidden");
-    el.leaguePicker.innerHTML = "";
-    return;
-  }
-  el.leaguePicker.classList.remove("hidden");
-  el.leaguePicker.innerHTML = renderLeaguePickerMarkup(leagues, season, state.leagueId);
+  const hosts = [...new Set([el.leaguePicker, el.landingLeaguePicker].filter(Boolean))];
+  if (!hosts.length) return;
+  const html = leagues?.length ? renderLeaguePickerMarkup(leagues, season, state.leagueId) : "";
+  hosts.forEach((host) => {
+    host.classList.toggle("hidden", !html);
+    host.innerHTML = html;
+  });
 }
 
 function startFindLeaguesUi() {
@@ -2723,6 +2765,22 @@ function leagueRoomEmptyState(host, copy) {
     return false;
   }
   return true;
+}
+
+function renderStartRoom() {
+  const host = el.startDashboard;
+  if (!host) return;
+  if (!state.league || state.normalizedRosters.length === 0) {
+    host.innerHTML = `<p class="muted">Load a league to pick a job.</p>`;
+    return;
+  }
+  const me = String(getMyRoster()?.manager?.displayName || "").trim();
+  host.innerHTML = renderDeskJobsMarkup({
+    heading: me ? `What do you want to do, ${me}?` : "What do you want to do?",
+    hint: "Pick a job. Everything else stays one tap away in the tabs.",
+    more: true,
+    action: "go",
+  });
 }
 
 function renderScoresRoom() {

@@ -34,7 +34,7 @@ test("document titles and descriptions change with tab and league", () => {
   );
   assert.equal(
     buildDocumentTitle({ page: "league", leagueName: "Try Hard or Die Hard", loaded: true, room: "scores" }),
-    "League · Try Hard or Die Hard — Dynasty Ticker"
+    "Scores · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "recap", leagueName: "Try Hard or Die Hard", loaded: true }),
@@ -46,11 +46,11 @@ test("document titles and descriptions change with tab and league", () => {
   );
   assert.equal(
     buildDocumentTitle({ page: "teams", leagueName: "Try Hard or Die Hard", loaded: true, room: "passports" }),
-    "Passports · Try Hard or Die Hard — Dynasty Ticker"
+    "Player stamps · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "teams", leagueName: "Try Hard or Die Hard", loaded: true, room: "call" }),
-    "Call · Try Hard or Die Hard — Dynasty Ticker"
+    "Tank or contend · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "trades", leagueName: "Try Hard or Die Hard", loaded: true, room: "lab" }),
@@ -58,7 +58,7 @@ test("document titles and descriptions change with tab and league", () => {
   );
   assert.equal(
     buildDocumentTitle({ page: "trades", leagueName: "Try Hard or Die Hard", loaded: true, room: "match" }),
-    "Match · Try Hard or Die Hard — Dynasty Ticker"
+    "Partners · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "trader", leagueName: "Try Hard or Die Hard", loaded: true }),
@@ -81,7 +81,8 @@ test("document titles and descriptions change with tab and league", () => {
     /Group-chat recap/
   );
   assert.match(buildPageDescription({ page: "teams", room: "call", loaded: true }), /tank/);
-  assert.match(buildPageDescription({ page: "trades", room: "calculator", loaded: true }), /verdict/);
+  assert.match(buildPageDescription({ page: "trades", room: "calculator", loaded: true }), /two-team calculator/);
+  assert.match(buildPageDescription({ page: "trades", room: "log", loaded: true }), /Graded past deals/);
   assert.match(buildPageDescription({ page: "trades", room: "match", loaded: true }), /Match with teams/);
   assert.equal(buildPageDescription({}), DEFAULT_DESCRIPTION);
 });
@@ -145,7 +146,10 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(index, /Open demo/);
   assert.match(index, /id="landing-rather"/);
   assert.match(index, /id="landing-username"/);
-  assert.match(index, />Open your league</);
+  assert.match(index, />What do you want to do\?</);
+  assert.match(index, /id="landing-jobs"/);
+  assert.match(index, /id="landing-league-picker"/);
+  assert.match(index, /id="start-dashboard"/);
   assert.doesNotMatch(index, /id="landing-features"/);
   assert.doesNotMatch(index, /class="landing-features"/);
   assert.doesNotMatch(index, /step-badge accent/);
@@ -168,7 +172,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
     assert.match(index, new RegExp(`id="${page}-page"`));
   }
   assert.match(index, /id="room-nav"/);
-  for (const room of ["scores", "standings", "power", "awards", "recap", "roster", "call", "loyalty", "passports", "log", "match", "calculator", "lab", "hall", "seasons", "records"]) {
+  for (const room of ["start", "scores", "standings", "power", "awards", "recap", "roster", "call", "loyalty", "passports", "log", "match", "calculator", "lab", "hall", "seasons", "records"]) {
     assert.match(index, new RegExp(`data-room-panel="${room}"`), room);
   }
   assert.match(index, /id="passport-dashboard"/);
@@ -177,7 +181,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /id="trade-match-dashboard"/);
   assert.match(index, /id="match-generate-btn"/);
   assert.match(index, />Find matches</);
-  assert.match(index, /Match, log, calculator/);
+  assert.match(index, /Calculator, partners, deals/);
   assert.match(index, /id="records-dashboard"/);
   assert.match(index, /id="mobile-share-btn"/);
   assert.doesNotMatch(index, /id="trader-menu"/);
