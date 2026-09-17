@@ -13648,7 +13648,10 @@ function showNextRatherMatchup({ status = "" } = {}) {
   const names = state.valueBundles?.names || state.valueNameMap || {};
   const values = ratherMarketValues();
   const players = rankRatherPlayers(listRatherPlayers(values, names), state.crowdShifts);
-  const picked = pickRatherPair(players, { recentKeys: readRatherRecentKeys() });
+  const picked = pickRatherPair(players, {
+    recentKeys: readRatherRecentKeys(),
+    shifts: state.crowdShifts,
+  });
   if (!picked) {
     el.landingRather.innerHTML = "";
     ratherPromptPair = null;
