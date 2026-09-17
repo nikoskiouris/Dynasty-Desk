@@ -23,6 +23,7 @@ export function createState() {
     leagueHistory: [],
     normalizedRosters: [],
     meRosterId: null,
+    mePickedByUser: false,
     targetAsset: null,
     shopAsset: null,
     valuationsPromise: null,
