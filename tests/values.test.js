@@ -61,8 +61,31 @@ test("missing market numbers are estimated and labeled", () => {
   const asset = { assetId: "player:unknown", assetType: "player", raw: { position: "WR", age: 24 } };
   assert.equal(isEstimatedAsset(asset, {}), true);
   assert.ok(getAssetValue(asset, {}) > 1000);
+  assert.ok(getAssetValue(asset, {}) < 2000);
   const known = { assetId: "player:1", assetType: "player", raw: { position: "WR" } };
   assert.equal(isEstimatedAsset(known, { "player:1": 3333 }), false);
+});
+
+test("a missing RB is not priced like a starter over a missing QB", () => {
+  const kaleb = { assetId: "player:missing-rb", assetType: "player", raw: { position: "RB", age: 23 } };
+  const jayden = { assetId: "player:missing-qb", assetType: "player", raw: { position: "QB", age: 25 } };
+  const kalebVal = getAssetValue(kaleb, {});
+  const jaydenVal = getAssetValue(jayden, {});
+  assert.ok(kalebVal < 2000);
+  assert.ok(jaydenVal > kalebVal);
+});
+
+test("missing sleeper id still uses the KeepTradeCut name", () => {
+  const jayden = {
+    assetId: "player:stale",
+    assetType: "player",
+    name: "Jayden Daniels",
+    raw: { position: "QB", age: 25, full_name: "Jayden Daniels" },
+  };
+  const values = { "player:11566": 7008 };
+  const names = { "player:11566": "Jayden Daniels" };
+  assert.equal(isEstimatedAsset(jayden, values, { valueNameMap: names }), false);
+  assert.equal(getAssetValue(jayden, values, { valueNameMap: names }), Math.round(7008 * 1.21));
 });
 
 test("elite premium still applies on KTC hits", () => {

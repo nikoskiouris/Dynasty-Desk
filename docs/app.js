@@ -157,6 +157,7 @@ import {
   buildRatherBoard,
   decorateRatherPlayer,
   fetchRatherDraftPicks,
+  formatRatherDetail,
   listRatherPlayers,
   pickRatherPair,
   pushRatherRecentKey,
@@ -166,6 +167,7 @@ import {
   renderLandingRatherPlaceholder,
   renderRatherMarkup,
 } from "./modules/rather.js";
+import { fetchRatherCrowdVotes, submitRatherCrowdVote } from "./modules/rather-crowd.js";
 
 const OUTGOING_POOL_LIMIT = 18;
 const DEFAULT_MAX_OUTGOING_PACKAGE_SIZE = 5;
@@ -497,6 +499,15 @@ syncTradeModeUi();
 void recordDeskVisit();
 bootFromUrl();
 void bootLandingRather();
+void hydrateCrowdVotes().then((ok) => {
+  if (!ok) return;
+  refreshCrowdShifts();
+  refreshPlayerPositionRanks();
+  if (state.leagueId) {
+    renderActivePage();
+    renderSessionSnapshot();
+  }
+});
 if (typeof history.scrollRestoration === "string") history.scrollRestoration = "manual";
 window.addEventListener("popstate", (event) => applyDeskPopState(event.state));
 if (isPhoneLayout()) setMobileRailOpen(false);
@@ -13808,6 +13819,7 @@ async function bootLandingRather() {
       loadRatherPromptContext(),
     ]);
     ratherPromptContext = context;
+    await hydrateCrowdVotes();
     refreshCrowdShifts();
     refreshPlayerPositionRanks();
     showNextRatherMatchup();
@@ -13854,10 +13866,24 @@ function ratherMarketValues() {
     : state.values;
 }
 
+function crowdVoteSource() {
+  if (state.crowdVotesLive && Array.isArray(state.crowdVotes)) return state.crowdVotes;
+  return readRatherVotes();
+}
+
 function refreshCrowdShifts() {
-  state.crowdShifts = crowdShiftsFromVotes(readRatherVotes(), ratherMarketValues(), {
+  state.crowdShifts = crowdShiftsFromVotes(crowdVoteSource(), ratherMarketValues(), {
     format: state.valueFormat || "sf",
   });
+}
+
+async function hydrateCrowdVotes() {
+  if (state.crowdVotesLive && Array.isArray(state.crowdVotes)) return true;
+  const remote = await fetchRatherCrowdVotes();
+  if (!Array.isArray(remote)) return false;
+  state.crowdVotes = remote;
+  state.crowdVotesLive = true;
+  return true;
 }
 
 function showNextRatherMatchup({ status = "" } = {}) {
@@ -13915,18 +13941,33 @@ function chooseRatherPlayer(winnerId) {
   const winnerName = winnerId === pair.left?.assetId ? pair.left?.name : pair.right?.name;
   const loserName = loserId === pair.left?.assetId ? pair.left?.name : pair.right?.name;
   if (winnerId && loserId) {
-    recordRatherVote({
+    const vote = {
       winnerId,
       loserId,
-      format: DEFAULT_RATHER_FORMAT,
+      format: formatRatherDetail(DEFAULT_RATHER_FORMAT),
       at: Date.now(),
-    });
+    };
+    recordRatherVote({ ...vote, format: DEFAULT_RATHER_FORMAT });
+    if (state.crowdVotesLive) {
+      state.crowdVotes = [vote, ...(state.crowdVotes || [])];
+    }
     refreshCrowdShifts();
     refreshPlayerPositionRanks();
     if (state.leagueId) {
       renderActivePage();
       renderSessionSnapshot();
     }
+    void submitRatherCrowdVote(vote).then((remote) => {
+      if (!Array.isArray(remote)) return;
+      state.crowdVotes = remote;
+      state.crowdVotesLive = true;
+      refreshCrowdShifts();
+      refreshPlayerPositionRanks();
+      if (state.leagueId) {
+        renderActivePage();
+        renderSessionSnapshot();
+      }
+    });
   }
   if (pair.key) pushRatherRecentKey(pair.key);
   const names = state.valueBundles?.names || state.valueNameMap || {};
