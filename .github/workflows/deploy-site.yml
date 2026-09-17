@@ -7,17 +7,55 @@ on:
   repository_dispatch:
     types: [deploy-site]
 
+concurrency:
+  group: deploy-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
-  trigger:
+  pick-release:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
     steps:
-      - name: Trigger Netlify build
+      - name: Read latest published release
+        id: release
         env:
-          HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -z "$HOOK" ]; then
-            echo "Add repo secret NETLIFY_BUILD_HOOK so the daily scrape can rebuild dynastyticker.com."
-            echo "Netlify → Site → Build & deploy → Build hooks."
+          if ! tag=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name); then
+            echo "No published GitHub release yet. Live site stays put until you cut one."
+            echo "tag=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          curl -fsS -X POST "$HOOK"
+          echo "Refreshing last release: $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: pick-release
+    if: needs.pick-release.outputs.tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout last release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.pick-release.outputs.tag }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Deploy last release with fresh market files
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          DEPLOY_MESSAGE: "daily refresh ${{ needs.pick-release.outputs.tag }}"
+        run: bash scripts/deploy_live_site.sh

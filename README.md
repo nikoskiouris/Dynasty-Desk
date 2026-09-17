@@ -62,14 +62,19 @@ Refresh rankings with `python scripts/update_ktc_values.py`. Refresh the Sleeper
 
 The app is a static site. Host is **Netlify**, not GitHub Pages. Public URL: `https://dynastyticker.com/`.
 
+**Merging to `main` does not publish the website.** Keep merging PRs. The live site updates only when you cut a GitHub Release. A daily job then refreshes market files from that last release (it does not ship unreleased `main`).
+
 1. Open [Netlify](https://app.netlify.com/), sign up with GitHub, **Add new site → Import an existing project**, pick this repo.
 2. Netlify reads `netlify.toml` (`publish = docs`). First deploy gives a `*.netlify.app` URL.
 3. **Domain management → Add custom domain:** `dynastyticker.com` and `www.dynastyticker.com`.
 4. In **Namecheap** (you just bought this name there), paste the DNS records Netlify shows. Apex `A` / `www` `CNAME`. Wait for SSL.
-5. Optional: Netlify **Build hooks** → copy URL into GitHub secret `NETLIFY_BUILD_HOOK`. Daily workflow `.github/workflows/deploy-site.yml` hits it so values refresh.
-6. Repo **Settings → Pages**: turn GitHub Pages **off** so the old `github.io` URL dies.
+5. Repo **Settings → Secrets and variables → Actions**, add:
+   - `NETLIFY_AUTH_TOKEN` — Netlify user access token (User settings → Applications → New access token).
+   - `NETLIFY_SITE_ID` — Site API ID (Site configuration → Site details).
+6. In Netlify **Build & deploy**, turn **Deploy Previews** off and **Stop auto publishing** if those toggles are still on. `netlify.toml` already skips git builds and refuses leftover build hooks, but the UI flags stop Netlify from even starting those jobs.
+7. Repo **Settings → Pages**: turn GitHub Pages **off** so the old `github.io` URL dies.
 
-Tests: `.github/workflows/test.yml`.
+Cut a release: GitHub → **Releases → Draft a new release** (tag the commit you want live). Workflow `.github/workflows/deploy-release.yml` scrapes values on GitHub Actions and uploads `docs/` plus functions with the Netlify CLI. Daily refresh: `.github/workflows/deploy-site.yml`. Tests: `.github/workflows/test.yml`.
 
 ### Traffic (how many people, how many hits)
 
