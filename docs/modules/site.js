@@ -21,7 +21,7 @@ export const PAGE_META = {
   },
   teams: {
     title: PAGE_LABELS.teams,
-    description: "Scout any roster: optimal lineup, bench, pick vault, roster DNA, luck charms, and player passports.",
+    description: "Scout any roster: tank-or-contend call, optimal lineup, bench, pick vault, roster DNA, and player passports.",
   },
   trades: {
     title: PAGE_LABELS.trades,
@@ -36,6 +36,9 @@ export const PAGE_META = {
 const ROOM_DESCRIPTIONS = {
   league: {
     recap: "Group-chat recap of scores, awards, standings, and odds. Copy text or save an image card.",
+  },
+  teams: {
+    call: "Desk call for this roster: tank, go all in, or stay in the middle. Built from playoff odds, lineup rank, age, and pick capital.",
   },
 };
 

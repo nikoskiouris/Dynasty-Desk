@@ -47,6 +47,10 @@ test("document titles and descriptions change with tab and league", () => {
     "Passports · Try Hard or Die Hard — Dynasty Desk"
   );
   assert.equal(
+    buildDocumentTitle({ page: "teams", leagueName: "Try Hard or Die Hard", loaded: true, room: "call" }),
+    "Call · Try Hard or Die Hard — Dynasty Desk"
+  );
+  assert.equal(
     buildDocumentTitle({ page: "trades", leagueName: "Try Hard or Die Hard", loaded: true, room: "lab" }),
     "Find deals · Try Hard or Die Hard — Dynasty Desk"
   );
@@ -70,6 +74,7 @@ test("document titles and descriptions change with tab and league", () => {
     buildPageDescription({ page: "league", room: "recap", leagueName: "Demo", loaded: true }),
     /Group-chat recap/
   );
+  assert.match(buildPageDescription({ page: "teams", room: "call", loaded: true }), /tank/);
   assert.match(buildPageDescription({ page: "trades", room: "calculator", loaded: true }), /verdict/);
   assert.equal(buildPageDescription({}), DEFAULT_DESCRIPTION);
 });
@@ -156,7 +161,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
     assert.match(index, new RegExp(`id="${page}-page"`));
   }
   assert.match(index, /id="room-nav"/);
-  for (const room of ["scores", "standings", "power", "awards", "recap", "roster", "loyalty", "passports", "log", "calculator", "lab", "hall", "seasons", "records"]) {
+  for (const room of ["scores", "standings", "power", "awards", "recap", "roster", "call", "loyalty", "passports", "log", "calculator", "lab", "hall", "seasons", "records"]) {
     assert.match(index, new RegExp(`data-room-panel="${room}"`), room);
   }
   assert.match(index, /id="passport-dashboard"/);
