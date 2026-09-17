@@ -1,0 +1,27 @@
+name: Stop Netlify git builds
+
+# Git ignore scripts still start a canceled production deploy. This site-level
+# switch is what prevents Netlify from creating the job at all.
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: stop-netlify-git-builds
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  stop-git-builds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stop Netlify git-connected builds
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: bash scripts/netlify_stop_git_builds.sh

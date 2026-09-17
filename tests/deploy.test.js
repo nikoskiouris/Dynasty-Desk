@@ -48,6 +48,7 @@ test("live deploy script uses Netlify CLI, not a build hook", () => {
   assert.match(script, /--no-build/);
   assert.match(script, /--functions=netlify\/functions/);
   assert.match(script, /refresh_market_data\.sh/);
+  assert.match(script, /netlify_stop_git_builds\.sh/);
   assert.doesNotMatch(script, /NETLIFY_BUILD_HOOK/);
   assert.doesNotMatch(script, /curl/);
 
@@ -109,6 +110,33 @@ test("push to prod cuts a GitHub Release", () => {
   assert.match(dry.stdout, /Would create release prod-/);
 });
 
+test("Netlify git builds are stopped at the site so merges never start a job", () => {
+  accessSync(join(root, "scripts/netlify_stop_git_builds.sh"), constants.X_OK);
+  const script = read("scripts/netlify_stop_git_builds.sh");
+  assert.match(script, /stop_builds/);
+  assert.match(script, /api\.netlify\.com\/api\/v1\/sites/);
+  assert.doesNotMatch(script, /stop auto publishing/i);
+
+  const workflow = read(".github/workflows/stop-netlify-git-builds.yml");
+  assert.match(workflow, /netlify_stop_git_builds\.sh/);
+  assert.match(workflow, /push:/);
+
+  const missing = bash("scripts/netlify_stop_git_builds.sh", {
+    NETLIFY_AUTH_TOKEN: "",
+    NETLIFY_SITE_ID: "",
+  });
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /NETLIFY_AUTH_TOKEN/);
+
+  const dry = bash("scripts/netlify_stop_git_builds.sh", {
+    NETLIFY_AUTH_TOKEN: "fake",
+    NETLIFY_SITE_ID: "site-id",
+    NETLIFY_STOP_BUILDS_DRY_RUN: "1",
+  });
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.match(dry.stdout, /Would stop Netlify git builds/);
+});
+
 test("agents land work on develop and release from prod", () => {
   const agents = read("AGENTS.md");
   assert.match(agents, /Open PRs against \*\*`develop`\*\*/);
@@ -119,6 +147,8 @@ test("agents land work on develop and release from prod", () => {
   assert.match(readme, /Work on `develop`/);
   assert.match(readme, /merged into `prod`/);
   assert.match(readme, /do \*\*not\*\* mean credits were spent/i);
+  assert.match(readme, /Stopped builds/);
+  assert.doesNotMatch(readme, /Stop auto publishing so Netlify does not start/);
 
   const tests = read(".github/workflows/test.yml");
   assert.match(tests, /"develop"/);

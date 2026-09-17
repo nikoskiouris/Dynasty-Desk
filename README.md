@@ -64,7 +64,7 @@ The app is a static site. Host is **Netlify**, not GitHub Pages. Public URL: `ht
 
 **Work on `develop`. Live site updates only when `develop` is merged into `prod`.** That merge cuts a GitHub Release. GitHub Actions then scrapes market files and uploads with the Netlify CLI. Merges to `develop` (or leftover `main`) do not publish.
 
-Netlify emails on a GitHub merge do **not** mean credits were spent. On credit plans, a **successful production deploy** costs 15 credits. Skipped and failed git deploys cost 0. If git auto-publish is still on, Netlify still starts a job, skips it, and may email you. Turn that off so the inbox stays quiet. Bandwidth, web requests, and functions still use credits when people visit the site.
+Netlify emails on a GitHub merge do **not** mean credits were spent. On credit plans, a **successful production deploy** costs 15 credits. Skipped, canceled, and failed git deploys cost 0, but they still start a job and still email you. **Stop builds** (not “stop auto publishing”) is the switch that prevents the job from existing. This repo turns that on through the Netlify API. Bandwidth, web requests, and functions still use credits when people visit the site.
 
 1. GitHub → **Settings → General → Default branch:** `develop`.
 2. Open [Netlify](https://app.netlify.com/), sign up with GitHub, **Add new site → Import an existing project**, pick this repo.
@@ -74,7 +74,7 @@ Netlify emails on a GitHub merge do **not** mean credits were spent. On credit p
 6. Repo **Settings → Secrets and variables → Actions**, add:
    - `NETLIFY_AUTH_TOKEN` — Netlify user access token (User settings → Applications → New access token).
    - `NETLIFY_SITE_ID` — Site API ID (Site configuration → Site details).
-7. In Netlify **Build & deploy**, turn **Deploy Previews** off and **Stop auto publishing** so Netlify does not start a job on every git push. Then **Deploy notifications**: turn email off for deploy started/failed/skipped. `netlify.toml` already skips git builds and refuses leftover build hooks.
+7. GitHub Actions runs `.github/workflows/stop-netlify-git-builds.yml` so Netlify **Build status = Stopped builds**. Confirm in Netlify: **Project configuration → Build & deploy → Continuous deployment → Build settings → Stopped builds**. Do **not** use “Stop auto publishing”; that still starts a canceled production job. `netlify.toml` skip/refuse scripts are only a backup.
 8. Repo **Settings → Pages**: turn GitHub Pages **off** so the old `github.io` URL dies.
 
 Cut a release: open a PR from `develop` into `prod` and merge it (or push `develop` to `prod`). Workflow `.github/workflows/cut-release.yml` publishes a GitHub Release. `.github/workflows/deploy-release.yml` then uploads `docs/` plus functions with the Netlify CLI. Optional manual refresh of the last release: `.github/workflows/deploy-site.yml`. Tests: `.github/workflows/test.yml`.
