@@ -1,6 +1,7 @@
 import { SITE_ORIGIN } from "./site.js";
 
 export const RATHER_VOTE_PATH = "/api/rather-vote";
+export const RATHER_SUBMIT_RETRIES = 2;
 
 function canonicalHost(hostname) {
   return String(hostname || "").trim().toLowerCase().replace(/^www\./, "");
@@ -37,6 +38,7 @@ export function parseRatherCrowdVotes(payload) {
   const rows = Array.isArray(payload?.votes) ? payload.votes : [];
   return rows
     .map((vote) => ({
+      eventId: String(vote?.eventId || ""),
       winnerId: String(vote?.winnerId || ""),
       loserId: String(vote?.loserId || ""),
       format: String(vote?.format || ""),
@@ -59,26 +61,42 @@ export async function fetchRatherCrowdVotes({
   }
 }
 
+function createEventId() {
+  try {
+    if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
+  } catch {
+    // Fall through to a collision-resistant browser-safe fallback.
+  }
+  return `vote_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+}
+
 export async function submitRatherCrowdVote(vote, {
   fetchFn = globalThis.fetch,
   location = globalThis.location,
 } = {}) {
   if (typeof fetchFn !== "function" || !isLiveRatherHost(location)) return null;
-  try {
-    const response = await fetchFn(ratherVoteUrl(location), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        winnerId: vote?.winnerId,
-        loserId: vote?.loserId,
-        format: vote?.format,
-        at: vote?.at,
-      }),
-      keepalive: true,
-    });
-    if (!response?.ok) return null;
-    return parseRatherCrowdVotes(await response.json());
-  } catch {
-    return null;
+  const eventId = String(vote?.eventId || "").trim() || createEventId();
+  const body = JSON.stringify({
+    eventId,
+    winnerId: vote?.winnerId,
+    loserId: vote?.loserId,
+    format: vote?.format,
+  });
+
+  for (let attempt = 0; attempt <= RATHER_SUBMIT_RETRIES; attempt += 1) {
+    try {
+      const response = await fetchFn(ratherVoteUrl(location), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+        keepalive: true,
+      });
+      const payload = await response.json().catch(() => null);
+      if (response?.ok && payload?.saved === true) return parseRatherCrowdVotes(payload);
+      if (response?.status !== 503 || payload?.retryable !== true) return null;
+    } catch {
+      if (attempt >= RATHER_SUBMIT_RETRIES) return null;
+    }
   }
+  return null;
 }
