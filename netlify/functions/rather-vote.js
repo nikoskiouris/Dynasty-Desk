@@ -1,8 +1,8 @@
 import { getStore } from "@netlify/blobs";
-import { createRatherVoteHandler, wrapLambdaHandler } from "../lib/rather-crowd.js";
+import { createRatherVoteHandler } from "../lib/rather-crowd.js";
 
-export const handler = wrapLambdaHandler(
-  createRatherVoteHandler({
-    getStore: () => getStore({ name: "desk-rather", consistency: "strong" }),
-  }),
-);
+const ratherVoteHandler = createRatherVoteHandler({
+  getStore: () => getStore("desk-rather"),
+});
+
+export default ratherVoteHandler;
