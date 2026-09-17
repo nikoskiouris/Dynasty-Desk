@@ -1,0 +1,27 @@
+Title
+Future dynasty rankings: names one year out, not pick labels
+
+Priority
+P0 — starred in the note
+
+Area
+Values / pick vault / power / rather
+
+Description
+For the next rookie class only (one year out, not a full 2028+ board), stop talking about “2027 1st.” Show the prospect that pick currently maps to, as a ranking, not a fake dollar value.
+
+Example from the note: instead of “2027 1st,” show Jeremiah Smith and a rank (WR1 in the 2027 class, or overall future rank). Maybe a range if the pick is mid/late. Do not invent a KTC-style number for a player who is not in the NFL yet.
+
+Keep current-year drafted names as they are (Cam Ward on a used 2026 1st). This ticket is the *next* class still sitting as picks.
+
+Why
+“Future dynasty rankings — just a year out (instead of saying 2027 1st it says Jeremiah Smith with a value maybe just a ranking rather than a numeric value).”
+
+Current product
+Used picks can show the drafted player plus value. Undrafted future picks stay “2027 1st from X” with a pick-market number. No prospect board.
+
+Acceptance
+- Next-year 1sts (and probably 2nds) show a prospect name + class rank, not only “2027 1st.”
+- Rank is ordinal (1st, WR2), not a made-up 8,400 value.
+- Later years stay pick labels until we deliberately extend this.
+- Source of the prospect board is named on the page (so it is not a mystery algo).
