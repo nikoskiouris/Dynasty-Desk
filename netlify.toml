@@ -1,3 +1,5 @@
+# Git pushes never publish. Live deploys come from GitHub Actions on a prod release.
+# netlify.toml ignore/command are a backup if git builds get turned back on.
 [build]
   command = "bash ./scripts/netlify-git-build.sh"
   ignore = "bash ./scripts/netlify-ignore.sh"

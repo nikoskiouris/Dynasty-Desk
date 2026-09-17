@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Publish this checkout to dynastyticker.com via Netlify CLI.
 # Runs the scrape on GitHub Actions, then uploads docs/ + functions.
-# Does not start a Netlify git build (those skip/fail on purpose).
+# Git-connected Netlify builds stay stopped; this is a file upload, not a git job.
 set -euo pipefail
 
 if [[ -z "${NETLIFY_AUTH_TOKEN:-}" || -z "${NETLIFY_SITE_ID:-}" ]]; then
@@ -14,6 +14,8 @@ fi
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
+
+bash scripts/netlify_stop_git_builds.sh
 
 npm install
 
