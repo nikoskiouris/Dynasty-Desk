@@ -6210,6 +6210,13 @@ body.dock-visible {
   display: none;
 }
 
+.rather-matchup {
+  margin: 0.2rem 0 0.45rem;
+  color: var(--muted-strong);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
 .rather-status {
   margin: 0 0 0.35rem;
   color: var(--blue);
