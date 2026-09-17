@@ -4,12 +4,12 @@ export const MATCH_SURPLUS_PERCENTILE = 0.62;
 export const MATCH_EDGE_PERCENTILE = 0.75;
 export const MATCH_MIN_HEADLINE_VALUE = 2200;
 export const MATCH_MIN_GLUE_VALUE = 1600;
-export const MATCH_NEED_DELTA = 400;
-export const MATCH_FAIRNESS_PCT = 22;
+export const MATCH_NEED_DELTA = 250;
+export const MATCH_FAIRNESS_PCT = 24;
 export const MATCH_LATE_ROUND = 3;
 export const MATCH_MAX_ASSETS_PER_SIDE = 2;
 export const MATCH_MAX_PARTNERS = 5;
-export const MATCH_MAX_DEALS_PER_PARTNER = 2;
+export const MATCH_MAX_DEALS_PER_PARTNER = 4;
 export const MATCH_MIN_PARTNER_SCORE = 18;
 
 export function classifyMatchTimeline(laneId) {
@@ -303,6 +303,20 @@ export function evaluateTradeHelp({
   };
 }
 
+export function inspectMatchPools(myProfile, theirProfile, helpers) {
+  const theirSellable = listSellableAssets(theirProfile, myProfile, helpers);
+  const mySellable = listSellableAssets(myProfile, theirProfile, helpers);
+  const incoming = listWantedAssets(myProfile, theirProfile, theirSellable, helpers);
+  const outgoing = listWantedAssets(theirProfile, myProfile, mySellable, helpers);
+  const summarize = (entries) => entries.map((entry) => `${entry.asset.name} (${entry.position || (entry.isPick ? `R${entry.pickRound}` : "?")}, ${Math.round(entry.value)})`);
+  return {
+    mySellable: summarize(mySellable),
+    theirSellable: summarize(theirSellable),
+    incoming: summarize(incoming),
+    outgoing: summarize(outgoing),
+  };
+}
+
 export function proposeMatchDeals({
   myProfile,
   theirProfile,
@@ -347,6 +361,9 @@ export function proposeMatchDeals({
       const theirAssets = balanced.incoming.map((entry) => entry.asset);
       if (packageLooksLikeFiller(myAssets, theirAssets, values, getAssetValue)) continue;
       if (hasAssetOverlap(myAssets, theirAssets)) continue;
+      if (!packageServesMatch(balanced.incoming, myProfile, { role: "incoming", pairing: resolvedMatch.timelinePairing })) continue;
+      if (!packageServesMatch(balanced.outgoing, theirProfile, { role: "outgoing", pairing: resolvedMatch.timelinePairing })) continue;
+      if (sellsUnreplacedNeed(balanced.outgoing, balanced.incoming, myProfile)) continue;
 
       const myHelp = evaluateTradeHelp({
         profile: myProfile,
@@ -382,7 +399,7 @@ export function proposeMatchDeals({
         pctDiff,
         kind,
         matchScore: resolvedMatch.score,
-        helpScore: scoreDealHelp(myHelp, theirHelp, pctDiff, myValue, theirValue),
+        helpScore: scoreDealHelp(myHelp, theirHelp, pctDiff, myValue, theirValue, myAssets.length, theirAssets.length),
         myHelp,
         theirHelp,
         tags: buildMatchDealTags(resolvedMatch, myHelp, kind),
@@ -557,6 +574,23 @@ function combinationsOfSize(items, size) {
   return out;
 }
 
+function packageServesMatch(entries, beneficiaryProfile, { pairing }) {
+  const needPositions = new Set((beneficiaryProfile?.needs || []).map((row) => row.position));
+  if (entries.some((entry) => entry.positions.some((position) => needPositions.has(position)))) return true;
+  if (pairing === "contend-rebuild" && entries.some((entry) => entry.isPick || entry.isYouth || entry.isWinNow)) return true;
+  if (pairing === "rebuild-contend" && entries.some((entry) => entry.isVeteran || entry.isPick || entry.isYouth)) return true;
+  return false;
+}
+
+function sellsUnreplacedNeed(outgoing, incoming, profile) {
+  const needPositions = (profile?.needs || []).map((row) => row.position);
+  return needPositions.some((position) => {
+    const sending = outgoing.some((entry) => entry.positions.includes(position) && entry.value >= MATCH_MIN_HEADLINE_VALUE);
+    if (!sending) return false;
+    return !incoming.some((entry) => entry.positions.includes(position) && entry.value >= MATCH_MIN_HEADLINE_VALUE);
+  });
+}
+
 function complementaryPositions(needs, surplus) {
   const surplusByPosition = new Map((surplus || []).map((row) => [row.position, row]));
   return (needs || [])
@@ -603,7 +637,7 @@ function classifyMatchDealKind(match, myHelp, theirHelp) {
   return "fit";
 }
 
-function scoreDealHelp(myHelp, theirHelp, pctDiff, myValue, theirValue) {
+function scoreDealHelp(myHelp, theirHelp, pctDiff, myValue, theirValue, myCount = 1, theirCount = 1) {
   let score = 70;
   score += myHelp.patchedNeeds.reduce((sum, row) => sum + Math.min(18, row.delta / 120), 0);
   score += theirHelp.patchedNeeds.reduce((sum, row) => sum + Math.min(14, row.delta / 140), 0);
@@ -613,6 +647,9 @@ function scoreDealHelp(myHelp, theirHelp, pctDiff, myValue, theirValue) {
   score -= myHelp.harmedNeeds.length * 16;
   score -= theirHelp.harmedNeeds.length * 12;
   score += Math.min(theirValue, myValue) / 1800;
+  score += (3 - myCount) * 8 + (3 - theirCount) * 8;
+  if (myCount === 1 && theirCount === 1) score += 18;
+  if (myCount + theirCount <= 3) score += 6;
   return score;
 }
 

@@ -7837,7 +7837,7 @@ async function generateTradeMatches({ userRequested = false } = {}) {
         playerPositionsForAsset,
         playerAgeForAsset,
         fairnessPct,
-        maxResults: 4,
+        maxResults: 8,
       });
       const ideas = [];
       rawDeals.forEach((deal) => {
@@ -7851,7 +7851,7 @@ async function generateTradeMatches({ userRequested = false } = {}) {
           ),
         });
         const pctDiff = Number(calculatePctDiff(packageResult.myAdjustedValue, packageResult.theirAdjustedValue).toFixed(2));
-        if (pctDiff > fairnessPct) return;
+        if (pctDiff > Math.max(fairnessPct, 26)) return;
 
         const idea = enrichTradeIdea({
           idea: {
@@ -7886,7 +7886,13 @@ async function generateTradeMatches({ userRequested = false } = {}) {
           ...(match.takePositions || []).map((position) => `Get ${position}`),
           ...(match.givePositions || []).map((position) => `Send ${position}`),
         ].filter(Boolean).slice(0, 4),
-        ideas: ideas.sort(compareEnrichedTradeIdeas).slice(0, 2),
+        ideas: ideas
+          .sort((a, b) => {
+            const bySize = (a.myAssets.length + a.theirAssets.length) - (b.myAssets.length + b.theirAssets.length);
+            if (Math.abs(bySize) >= 2) return bySize;
+            return compareEnrichedTradeIdeas(a, b);
+          })
+          .slice(0, 2),
         emptyText: "The rosters fit, but every fair package still looked like filler. Try Find deals on a specific name.",
       };
     });
@@ -7918,7 +7924,7 @@ function tradeMatchIdeaHelps(idea, myProfile, deal) {
   const starterDelta = (idea.impactAnalysis?.mySide.after.starterValue || 0) - (idea.impactAnalysis?.mySide.before.starterValue || 0);
   const powerDelta = idea.powerUpgrade?.delta ?? 0;
   const holePatched = Boolean(deal?.myHelp?.patchedNeeds?.length) || idea.powerUpgrade?.badges?.includes("Hole Patched");
-  return holePatched || starterDelta >= 0 || powerDelta > 0;
+  return holePatched || starterDelta >= -150 || powerDelta >= 0;
 }
 
 async function generateTradeIdeas() {

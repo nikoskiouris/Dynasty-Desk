@@ -232,6 +232,10 @@ test("match deals patch the hole and never ship a third-round swap", () => {
     ...helpers,
   });
   assert.ok(deals.length >= 1, "expected a real two-team match deal");
+  assert.ok(
+    deals.some((deal) => deal.myAssets.length + deal.theirAssets.length <= 3),
+    "compact need-swap should beat a pile of extras"
+  );
   for (const deal of deals) {
     assert.equal(deal.myAssets.some(isLateRoundPick), false, "no late-round outgoing");
     assert.equal(deal.theirAssets.some(isLateRoundPick), false, "no late-round incoming");
