@@ -12,7 +12,7 @@ export const STORAGE_NOTICE_KEY = "dynasty_desk_storage_notice";
 
 export const DEFAULT_TITLE = "Dynasty Desk — Fantasy League Command Center";
 export const DEFAULT_DESCRIPTION =
-  "Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut.";
+  "Search a Sleeper username. Open live scores, playoff odds, awards, trade match, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut.";
 
 export const PAGE_META = {
   league: {
@@ -25,7 +25,7 @@ export const PAGE_META = {
   },
   trades: {
     title: PAGE_LABELS.trades,
-    description: "Graded trade log, a two-team calculator, Sleeper-trade values, and a league board you can apply.",
+    description: "Trade match for complementary rosters, a graded trade log, a two-team calculator, and Sleeper-trade values.",
   },
   history: {
     title: PAGE_LABELS.history,
@@ -36,6 +36,9 @@ export const PAGE_META = {
 const ROOM_DESCRIPTIONS = {
   league: {
     recap: "Group-chat recap of scores, awards, standings, and odds. Copy text or save an image card.",
+  },
+  trades: {
+    match: "Match with teams that have the positions you need, want what you can spare, or are tanking while you contend.",
   },
 };
 

@@ -92,6 +92,12 @@ export function createState() {
       myQuery: "",
       theirQuery: "",
     },
+    tradeMatch: {
+      key: "",
+      loading: false,
+      error: "",
+      payload: null,
+    },
     pendingMeRosterId: null,
     // { page, room } parsed from the URL before the league finishes loading.
     pendingPlace: null,

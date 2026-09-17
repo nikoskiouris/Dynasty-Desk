@@ -3136,6 +3136,43 @@ body:not(.league-loaded) .workspace-header {
   background: var(--panel-soft);
 }
 
+.match-needs,
+.trade-match-dashboard {
+  display: grid;
+  gap: 1rem;
+}
+
+.match-need-card,
+.match-partner-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+}
+
+.match-need-card p,
+.match-partner-card > p {
+  margin: 0;
+}
+
+.match-partner-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.match-partner-heading h3,
+.match-partner-heading .eyebrow {
+  margin-bottom: 0;
+}
+
+.match-partner-card .trade-card {
+  background: var(--panel);
+}
+
 .trade-card,
 .asset-dropdown,
 .lineup-details {
@@ -5223,6 +5260,10 @@ body:not(.league-loaded) .workspace-header {
   .trade-card-summary {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.55rem;
+  }
+
+  .match-partner-heading {
+    flex-direction: column;
   }
 
   .trade-card-toggle {

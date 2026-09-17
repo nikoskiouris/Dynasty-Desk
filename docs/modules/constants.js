@@ -16,13 +16,13 @@ export const PAGE_LABELS = {
 export const PAGE_HINTS = {
   league: "Scores, standings, awards",
   teams: "Rosters, loyalty, passports",
-  trades: "Log, calculator, find deals",
+  trades: "Match, log, calculator",
   history: "Hall, seasons, records",
 };
 export const PAGE_ROOMS = {
   league: ["scores", "standings", "power", "awards", "recap"],
   teams: ["roster", "loyalty", "passports"],
-  trades: ["log", "calculator", "lab"],
+  trades: ["log", "match", "calculator", "lab"],
   history: ["hall", "seasons", "records"],
 };
 export const DEFAULT_ROOMS = {
@@ -46,6 +46,7 @@ export const ROOM_LABELS = {
   },
   trades: {
     log: "Log",
+    match: "Match",
     calculator: "Calculator",
     lab: "Find deals",
   },
@@ -70,6 +71,7 @@ export const ROOM_HINTS = {
   },
   trades: {
     log: "Graded past deals and the league wire",
+    match: "Teams that have your holes and need your extras",
     calculator: "Build both sides and get a verdict",
     lab: "Shop an asset, acquire a target, blockbuster",
   },
@@ -128,6 +130,9 @@ export const PLACE_ALIASES = {
   wire: { page: "trades", room: "log" },
   calculator: { page: "trades", room: "calculator" },
   calc: { page: "trades", room: "calculator" },
+  match: { page: "trades", room: "match" },
+  tradematch: { page: "trades", room: "match" },
+  needs: { page: "trades", room: "match" },
   lab: { page: "trades", room: "lab" },
   generator: { page: "trades", room: "lab" },
   shop: { page: "trades", room: "lab" },

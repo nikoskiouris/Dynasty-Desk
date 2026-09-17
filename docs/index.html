@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Dynasty Desk — Fantasy League Command Center</title>
-    <meta name="description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
+    <meta name="description" content="Search a Sleeper username. Open live scores, playoff odds, awards, trade match, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
     <meta name="theme-color" content="#eef3f2" />
     <script>
       try {
@@ -17,7 +17,7 @@
       } catch (err) {}
     </script>
     <meta property="og:title" content="Dynasty Desk — Fantasy League Command Center" />
-    <meta property="og:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
+    <meta property="og:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, trade match, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://dynastyticker.com/" />
     <meta property="og:image" content="https://dynastyticker.com/og-image.jpg" />
@@ -26,7 +26,7 @@
     <meta property="og:image:alt" content="Dynasty Desk: your league on a broadcast desk" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Dynasty Desk — Fantasy League Command Center" />
-    <meta name="twitter:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
+    <meta name="twitter:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, trade match, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
     <meta name="twitter:image" content="https://dynastyticker.com/og-image.jpg" />
     <link rel="canonical" href="https://dynastyticker.com/" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
@@ -174,7 +174,7 @@
             <div class="league-hero-copy">
               <span class="eyebrow" id="hero-eyebrow">Sleeper league intelligence</span>
               <h1 id="hero-title">Your league, on a broadcast desk.</h1>
-              <p class="workspace-lede" id="hero-lede">Live scoreboard and win probability, playoff odds from thousands of simulated seasons, weekly awards, an all-time record book, a roster explorer, and a dynasty trade lab. One link for the whole league.</p>
+              <p class="workspace-lede" id="hero-lede">Live scoreboard and win probability, playoff odds from thousands of simulated seasons, weekly awards, an all-time record book, a roster explorer, trade match, and a dynasty trade lab. One link for the whole league.</p>
             </div>
           </div>
           <dl class="state-grid" aria-label="Current session">
@@ -202,7 +202,7 @@
               <span class="tab-copy"><strong>Teams</strong><small>Rosters, loyalty, passports</small></span>
             </button>
             <button id="trades-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="trades-page" tabindex="-1" data-page="trades">
-              <span class="tab-copy"><strong>Trades</strong><small>Log, calculator, find deals</small></span>
+              <span class="tab-copy"><strong>Trades</strong><small>Match, log, calculator</small></span>
             </button>
             <button id="history-tab" class="page-tab" type="button" role="tab" aria-selected="false" aria-controls="history-page" tabindex="-1" data-page="history">
               <span class="tab-copy"><strong>History</strong><small>Hall, seasons, records</small></span>
@@ -323,6 +323,33 @@
         <div id="trades-page" class="workspace-page app-page hidden" role="tabpanel" aria-labelledby="trades-tab">
           <div class="room" data-room-panel="log">
             <div id="trade-log-dashboard" class="dashboard"></div>
+          </div>
+
+          <div class="room hidden" data-room-panel="match">
+            <section class="workspace-panel" id="trade-match-section">
+              <div class="panel-heading">
+                <div>
+                  <span class="eyebrow">Trade match</span>
+                  <h2>Find the other window</h2>
+                </div>
+                <p class="section-copy">Pairs you with teams that have your holes, need your extras, or are tanking while you contend. Deals have to help the lineup, not swap leftover thirds.</p>
+              </div>
+              <div id="trade-match-needs" class="match-needs"></div>
+            </section>
+            <section class="action-panel" id="match-action-panel">
+              <div>
+                <span class="eyebrow">Generate</span>
+                <h2>Roster-fit trades</h2>
+                <p id="match-generate-help" class="muted small">Load a league and pick your team.</p>
+              </div>
+              <div class="action-panel-cta">
+                <button id="match-generate-btn" type="button" disabled>Find matches</button>
+                <p id="match-generate-error" class="field-error" hidden role="alert"></p>
+              </div>
+            </section>
+            <section class="workspace-panel results-shell" id="trade-match-results">
+              <div id="trade-match-dashboard" class="trade-match-dashboard"></div>
+            </section>
           </div>
 
           <div class="room hidden" data-room-panel="calculator">

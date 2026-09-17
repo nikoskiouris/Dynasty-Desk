@@ -114,6 +114,8 @@ test("share params move old trade rooms to their new pages", () => {
   assert.equal(parseShareParams("league=1&tab=calculator").view, "calculator");
   assert.equal(parseShareParams("league=1&tab=generator").view, "lab");
   assert.equal(parseShareParams("league=1&tab=trades&view=shop").view, "lab");
+  assert.equal(parseShareParams("league=1&tab=trades&view=match").view, "match");
+  assert.equal(parseShareParams("league=1&view=tradematch").view, "match");
   assert.equal(parseShareParams("league=1&tab=awards").view, "awards");
 });
 
@@ -141,6 +143,7 @@ test("desk place helpers know pages and rooms", () => {
   assert.equal(normalizeDeskTab("Passport"), "teams");
   assert.equal(normalizeDeskTab("garbage"), "");
   assert.equal(normalizeRoom("trades", "calc"), "calculator");
+  assert.equal(normalizeRoom("trades", "tradematch"), "match");
   assert.equal(normalizeRoom("trades", "hall"), "");
   assert.equal(normalizeRoom("league", "home"), "scores");
   assert.equal(defaultRoomFor("trades"), "log");
