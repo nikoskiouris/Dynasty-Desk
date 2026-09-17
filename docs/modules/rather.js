@@ -7,7 +7,9 @@ export const SLEEPER_PLAYER_THUMB_BASE = "https://sleepercdn.com/content/nfl/pla
 export const RATHER_MIN_PLAYER_VALUE = 1800;
 export const RATHER_RECENT_LIMIT = 24;
 export const RATHER_VOTE_LIMIT = 200;
-export const RATHER_MAX_RANK_GAP = 4;
+export const RATHER_MAX_RANK_GAP = 8;
+export const RATHER_MAX_VALUE_RATIO = 1.12;
+export const RATHER_SAME_POS_WEIGHT = 2.4;
 export const RATHER_DRAFT_PICKS_PATH = "./data/nfl_draft_picks.json";
 const WR_DEPTH_SLOTS = new Set(["WR", "LWR", "RWR", "SWR"]);
 
@@ -33,8 +35,7 @@ export function formatRatherDetailLong(format = DEFAULT_RATHER_FORMAT) {
   const scoring = String(format?.scoring || DEFAULT_RATHER_FORMAT.scoring);
   const teams = Number(format?.teams || DEFAULT_RATHER_FORMAT.teams);
   const qb = String(format?.qb || DEFAULT_RATHER_FORMAT.qb);
-  const type = String(format?.type || DEFAULT_RATHER_FORMAT.type);
-  return `${type} rankings · full ${scoring} scoring · ${teams}-man league · ${qb} QB`;
+  return `Desk ${qb} ranks · full ${scoring} scoring · ${teams}-man league · ${qb} QB`;
 }
 
 export function playerIdFromAssetId(assetId) {
@@ -74,32 +75,45 @@ export function listRatherPlayers(values, names, { minValue = RATHER_MIN_PLAYER_
   return rows.sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
 }
 
-export function pickRatherPair(players, { recentKeys = [], random = Math.random } = {}) {
-  const ranked = Array.isArray(players) ? players.filter((row) => row?.assetId && row?.name) : [];
+export function ratherEffectiveValue(player, shifts = null) {
+  return applyLocalCrowdShift(player?.assetId, Number(player?.value), shifts);
+}
+
+export function ratherPairWeight(left, right, shifts = null) {
+  const leftValue = ratherEffectiveValue(left, shifts);
+  const rightValue = ratherEffectiveValue(right, shifts);
+  const lo = Math.min(leftValue, rightValue);
+  const hi = Math.max(leftValue, rightValue);
+  if (!(lo > 0) || !(hi > 0)) return 0;
+  const ratio = hi / lo;
+  if (ratio > RATHER_MAX_VALUE_RATIO) return 0;
+  return (RATHER_MAX_VALUE_RATIO - ratio) + 0.02;
+}
+
+export function pickRatherPair(players, { recentKeys = [], random = Math.random, shifts = null } = {}) {
+  const ranked = sortRatherPlayers(players, shifts);
   if (ranked.length < 2) return null;
 
   const recent = new Set((recentKeys || []).map(String));
-  const options = [];
-  for (let index = 0; index < ranked.length - 1; index += 1) {
-    for (let gap = 1; gap <= RATHER_MAX_RANK_GAP && index + gap < ranked.length; gap += 1) {
-      const left = ranked[index];
-      const right = ranked[index + gap];
-      if (left.assetId === right.assetId) continue;
-      const key = pairKey(left.assetId, right.assetId);
-      if (recent.has(key)) continue;
-      options.push({ left, right, key });
-    }
-  }
-
-  const pool = options.length
-    ? options
-    : [{ left: ranked[0], right: ranked[1], key: pairKey(ranked[0].assetId, ranked[1].assetId) }];
-  const roll = clampUnit(random());
-  const picked = pool[Math.min(pool.length - 1, Math.floor(roll * pool.length))];
+  const closeOptions = collectRatherPairOptions(ranked, { recent, shifts, requireClose: true });
+  const pool = closeOptions.length
+    ? closeOptions
+    : collectRatherPairOptions(ranked, { recent: new Set(), shifts, requireClose: true });
+  const picked = pickWeightedRatherOption(
+    pool.length
+      ? pool
+      : [{
+        left: ranked[0],
+        right: ranked[1],
+        key: pairKey(ranked[0].assetId, ranked[1].assetId),
+        weight: 1,
+      }],
+    random,
+  );
   if (clampUnit(random()) < 0.5) {
     return { left: picked.right, right: picked.left, key: picked.key };
   }
-  return picked;
+  return { left: picked.left, right: picked.right, key: picked.key };
 }
 
 export function ratherOrdinal(value) {
@@ -214,12 +228,59 @@ export function formatRatherSeasonStats(stats, position) {
   return parts.join(" · ");
 }
 
-export function formatRatherPlayerMeta({ position, team, age, depthChart } = {}) {
+export function ratherPlayerPosition(player, nflPlayers = {}) {
+  const direct = String(player?.position || "").toUpperCase();
+  if (direct) return direct;
+  const raw = nflPlayers?.[player?.playerId] || nflPlayers?.[String(player?.playerId || "")] || {};
+  return String(raw.position || raw.fantasy_positions?.[0] || "").toUpperCase();
+}
+
+export function formatRatherBoardRank({ position, positionRank, overallRank } = {}) {
+  const pos = String(position || "").toUpperCase();
+  const rank = Number(positionRank);
+  if (pos && Number.isFinite(rank) && rank > 0) return `${pos}${rank}`;
+  const overall = Number(overallRank);
+  if (Number.isFinite(overall) && overall > 0) return `${ratherOrdinal(overall)} overall`;
+  return pos;
+}
+
+export function assignRatherBoardRanks(players, nflPlayers = {}) {
+  const counts = Object.create(null);
+  return (Array.isArray(players) ? players : []).map((player, index) => {
+    const position = ratherPlayerPosition(player, nflPlayers);
+    const positionRank = position ? (counts[position] = (counts[position] || 0) + 1) : null;
+    const overallRank = index + 1;
+    return {
+      ...player,
+      position,
+      positionRank,
+      overallRank,
+      boardRank: formatRatherBoardRank({ position, positionRank, overallRank }),
+    };
+  });
+}
+
+export function buildRatherBoard(players, nflPlayers = {}, shifts = null) {
+  return assignRatherBoardRanks(rankRatherPlayers(players, shifts), nflPlayers);
+}
+
+export function formatRatherMatchup(left, right) {
+  const leftRank = left?.boardRank || formatRatherBoardRank(left);
+  const rightRank = right?.boardRank || formatRatherBoardRank(right);
+  if (!leftRank || !rightRank) return "";
+  if (left?.position && left.position === right?.position) {
+    return `${leftRank} vs ${rightRank} on the desk board`;
+  }
+  return `${leftRank} vs ${rightRank}`;
+}
+
+export function formatRatherPlayerMeta({ boardRank, position, team, age } = {}) {
   const numericAge = Number(age);
   const ageLabel = age != null && age !== "" && Number.isFinite(numericAge) && numericAge > 0
     ? `${numericAge}y`
     : "";
-  return [depthChart || position, team, ageLabel].filter(Boolean).join(" · ");
+  const rankLabel = boardRank || formatRatherBoardRank({ position }) || position;
+  return [rankLabel, team, ageLabel].filter(Boolean).join(" · ");
 }
 
 export function formatRatherPlayerDetail({
@@ -237,13 +298,19 @@ export function formatRatherPlayerDetail({
 
 export function decorateRatherPlayer(player, nflPlayers = {}, extras = {}) {
   const raw = nflPlayers?.[player?.playerId] || {};
-  const position = String(raw.position || raw.fantasy_positions?.[0] || "").toUpperCase();
-  const team = String(raw.team || "").toUpperCase();
-  const age = playerAgeFromNfl(raw);
-  const depthChart = ratherDepthChartFromNfl(raw, position);
+  const position = ratherPlayerPosition(player, nflPlayers);
+  const team = String(raw.team || player?.team || "").toUpperCase();
+  const age = playerAgeFromNfl(raw) ?? player?.age ?? null;
   const isRookie = isRatherRookie(raw, extras.currentSeason);
   const draft = lookupRatherDraftPick(player?.playerId, extras.draftPicks, raw);
   const stats = extras.seasonStats?.[player?.playerId] || extras.seasonStats?.[String(player?.playerId)] || null;
+  const positionRank = Number.isFinite(Number(player?.positionRank)) ? Number(player.positionRank) : null;
+  const overallRank = Number.isFinite(Number(player?.overallRank)) ? Number(player.overallRank) : null;
+  const boardRank = player?.boardRank || extras.boardRank || formatRatherBoardRank({
+    position,
+    positionRank,
+    overallRank,
+  });
   return {
     assetId: player.assetId,
     playerId: player.playerId,
@@ -252,11 +319,13 @@ export function decorateRatherPlayer(player, nflPlayers = {}, extras = {}) {
     position,
     team,
     age,
-    depthChart,
+    positionRank,
+    overallRank,
+    boardRank,
     isRookie,
     photoUrl: sleeperPlayerThumbUrl(player.playerId),
     initials: playerInitials(player.name),
-    meta: formatRatherPlayerMeta({ position, team, age, depthChart }),
+    meta: formatRatherPlayerMeta({ boardRank, position, team, age }),
     detail: formatRatherPlayerDetail({
       isRookie,
       draft,
@@ -268,35 +337,30 @@ export function decorateRatherPlayer(player, nflPlayers = {}, extras = {}) {
 }
 
 export function rankRatherPlayers(players, shifts = null) {
-  const rows = Array.isArray(players) ? players.filter((row) => row?.assetId && row?.name) : [];
-  if (!shifts) return rows;
-  return [...rows].sort((a, b) => {
-    const aValue = applyLocalCrowdShift(a.assetId, Number(a.value), shifts);
-    const bValue = applyLocalCrowdShift(b.assetId, Number(b.value), shifts);
-    return bValue - aValue || a.name.localeCompare(b.name);
-  });
+  return sortRatherPlayers(players, shifts);
 }
 
 export function renderRatherMarkup(pair, format = DEFAULT_RATHER_FORMAT, options = {}) {
   const left = pair?.left || {};
   const right = pair?.right || {};
-  const skipLabel = options.skipLabel || "Skip this matchup";
+  const skipLabel = options.skipLabel || "Skip";
   const note = options.note
-    || "Your pick slightly nudges the desk board. The market prior is Sleeper trades mixed with KeepTradeCut.";
+    || "Your pick writes the desk board. These ranks are ours, not NFL depth charts. The prior is Sleeper trades mixed with KeepTradeCut.";
   const status = options.status || "";
+  const matchup = options.matchup || formatRatherMatchup(left, right);
   return `
     <div class="rather-panel">
-      <span class="eyebrow">Desk Crowd</span>
       <h2 id="rather-title">${escapeHtml(formatRatherHeadline())}</h2>
       <p class="rather-format" id="rather-format">${escapeHtml(formatRatherDetail(format))}</p>
       <p class="rather-format-detail" id="rather-format-detail">${escapeHtml(formatRatherDetailLong(format))}</p>
+      ${matchup ? `<p class="rather-matchup" id="rather-matchup">${escapeHtml(matchup)}</p>` : ""}
       ${status ? `<p class="rather-status" id="rather-status" role="status">${escapeHtml(status)}</p>` : ""}
       <div class="rather-duel">
         ${renderRatherPlayerButton(left, "left")}
         <span class="rather-or" aria-hidden="true">or</span>
         ${renderRatherPlayerButton(right, "right")}
       </div>
-      <button type="button" class="rather-skip ghost-btn" id="rather-skip">${escapeHtml(skipLabel)}</button>
+      <button type="button" class="rather-skip ghost-btn" id="rather-skip" aria-label="Skip this matchup">${escapeHtml(skipLabel)}</button>
       <p class="rather-note" id="rather-note">${escapeHtml(note)}</p>
     </div>
   `;
@@ -305,11 +369,10 @@ export function renderRatherMarkup(pair, format = DEFAULT_RATHER_FORMAT, options
 export function renderLandingRatherPlaceholder() {
   return `
     <div class="rather-panel landing-rather-pending">
-      <span class="eyebrow">Desk Crowd</span>
       <h2 id="rather-title">${escapeHtml(formatRatherHeadline())}</h2>
       <p class="rather-format" id="rather-format">${escapeHtml(formatRatherDetail())}</p>
       <p class="rather-format-detail" id="rather-format-detail">${escapeHtml(formatRatherDetailLong())}</p>
-      <p class="muted">Loading a close Superflex matchup…</p>
+      <p class="muted">Loading a close matchup…</p>
     </div>
   `;
 }
@@ -318,6 +381,63 @@ function applyLocalCrowdShift(assetId, value, shifts) {
   const shift = Number(shifts?.[assetId]);
   if (!Number.isFinite(value) || !Number.isFinite(shift)) return Number.isFinite(value) ? value : 0;
   return value * (1 + shift);
+}
+
+function sortRatherPlayers(players, shifts = null) {
+  const rows = Array.isArray(players) ? players.filter((row) => row?.assetId && row?.name) : [];
+  return [...rows].sort((a, b) => {
+    const aValue = ratherEffectiveValue(a, shifts);
+    const bValue = ratherEffectiveValue(b, shifts);
+    return bValue - aValue || String(a.name || "").localeCompare(String(b.name || ""));
+  });
+}
+
+function collectRatherPairOptions(ranked, { recent, shifts, requireClose }) {
+  const options = [];
+  const seen = new Set();
+  const pushPair = (left, right, extraWeight = 1) => {
+    if (!left?.assetId || !right?.assetId || left.assetId === right.assetId) return;
+    const key = pairKey(left.assetId, right.assetId);
+    if (recent.has(key) || seen.has(key)) return;
+    const weight = ratherPairWeight(left, right, shifts);
+    if (requireClose && weight <= 0) return;
+    seen.add(key);
+    options.push({ left, right, key, weight: (weight || 1) * extraWeight });
+  };
+
+  const byPosition = new Map();
+  ranked.forEach((player) => {
+    const pos = String(player.position || "").toUpperCase();
+    if (!pos) return;
+    if (!byPosition.has(pos)) byPosition.set(pos, []);
+    byPosition.get(pos).push(player);
+  });
+  byPosition.forEach((group) => {
+    for (let index = 0; index < group.length - 1; index += 1) {
+      for (let gap = 1; gap <= RATHER_MAX_RANK_GAP && index + gap < group.length; gap += 1) {
+        pushPair(group[index], group[index + gap], RATHER_SAME_POS_WEIGHT);
+      }
+    }
+  });
+
+  for (let index = 0; index < ranked.length - 1; index += 1) {
+    for (let gap = 1; gap <= RATHER_MAX_RANK_GAP && index + gap < ranked.length; gap += 1) {
+      pushPair(ranked[index], ranked[index + gap], 1);
+    }
+  }
+  return options;
+}
+
+function pickWeightedRatherOption(options, random) {
+  if (!options.length) return null;
+  const total = options.reduce((sum, option) => sum + Number(option.weight || 0), 0);
+  if (!(total > 0)) return options[0];
+  let cursor = clampUnit(random()) * total;
+  for (const option of options) {
+    cursor -= Number(option.weight || 0);
+    if (cursor <= 0) return option;
+  }
+  return options[options.length - 1];
 }
 
 export function applyRatherOverlayHidden(overlay, hidden) {
