@@ -214,8 +214,10 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(netlify, /dynastyticker\.com/);
   assert.match(netlify, /from = "\/api\/visit"/);
   assert.match(netlify, /from = "\/api\/views"/);
+  assert.match(netlify, /from = "\/api\/rather-vote"/);
   assert.match(netlify, /directory = "netlify\/functions"/);
   assert.match(readDocs("_redirects"), /\/api\/visit\s+\/\.netlify\/functions\/visit\s+200!/);
+  assert.match(readDocs("_redirects"), /\/api\/rather-vote\s+\/\.netlify\/functions\/rather-vote\s+200!/);
 
   const notFound = readDocs("404.html");
   assert.match(notFound, /Page not found/);
@@ -234,6 +236,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(privacy, /No accounts/);
   assert.match(privacy, /GitHub issues/);
   assert.match(privacy, /who would you rather have/);
+  assert.match(privacy, /Public rather votes/);
   assert.doesNotMatch(privacy, /GitHub Pages/);
   assert.doesNotMatch(privacy, /visit count/i);
   assert.doesNotMatch(privacy, /page-views-api/);

@@ -32,6 +32,8 @@ export function createState() {
     playerPositionRankByAssetId: {},
     pickValueCatalog: [],
     crowdShifts: {},
+    crowdVotes: [],
+    crowdVotesLive: false,
     globalMaxPlayerValue: 9999,
     tradedPicks: [],
     currentDraftContext: null,

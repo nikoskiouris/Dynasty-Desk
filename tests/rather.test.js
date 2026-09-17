@@ -353,6 +353,7 @@ test("renderRatherMarkup shows headline, format detail, and two players", () => 
   assert.match(html, /aria-label="Skip this matchup"/);
   assert.match(html, /Sleeper trades mixed with KeepTradeCut/);
   assert.match(html, /not NFL depth charts/);
+  assert.match(html, /public desk board for everyone/);
   assert.doesNotMatch(html, /Desk Crowd/);
   assert.doesNotMatch(html, /8510/);
 });

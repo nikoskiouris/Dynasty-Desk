@@ -138,15 +138,15 @@ export function estimatedValue(asset) {
   const position = playerPositionForAsset(asset);
   const age = Number(asset?.raw?.age || 26);
   const baseByPos = {
-    QB: 4300,
-    RB: 4200,
-    WR: 4000,
-    TE: 3000,
+    QB: 1600,
+    RB: 1200,
+    WR: 1200,
+    TE: 1000,
     K: 100,
-    DEF: 500,
+    DEF: 400,
   };
-  const base = baseByPos[position] || 1800;
-  const ageModifier = Math.max(-1400, (26 - age) * 130);
+  const base = baseByPos[position] || 800;
+  const ageModifier = Math.max(-500, (26 - age) * 35);
   return Math.max(300, Math.round(base + ageModifier));
 }
 
@@ -322,9 +322,41 @@ export function resolvePickAssetValue(asset, values, valueNameMap = {}, catalog 
   return findPickCatalogValue(buildPickLookupMeta(asset), values, valueNameMap, catalog);
 }
 
+export function normalizePlayerValueName(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function playerNameForAsset(asset) {
+  return String(
+    asset?.name
+    || asset?.raw?.full_name
+    || `${asset?.raw?.first_name || ""} ${asset?.raw?.last_name || ""}`
+  ).trim();
+}
+
+export function findMarketValueByPlayerName(name, values, valueNameMap = {}) {
+  const want = normalizePlayerValueName(name);
+  if (!want) return null;
+  const matches = [];
+  for (const [assetId, label] of Object.entries(valueNameMap || {})) {
+    if (!String(assetId).startsWith("player:")) continue;
+    if (normalizePlayerValueName(label) !== want) continue;
+    const value = Number(values?.[assetId]);
+    if (!Number.isFinite(value) || value <= 0) continue;
+    matches.push(value);
+  }
+  return matches.length === 1 ? matches[0] : null;
+}
+
 export function lookupMarketValue(asset, values, valueNameMap = {}, catalog = null) {
   const exact = values?.[asset?.assetId];
   if (Number.isFinite(exact)) return { value: exact, estimated: false };
+  const named = findMarketValueByPlayerName(playerNameForAsset(asset), values, valueNameMap);
+  if (Number.isFinite(named)) return { value: named, estimated: false };
   if (asset?.assetType === "pick") {
     const resolvedPickValue = resolvePickAssetValue(asset, values, valueNameMap, catalog);
     if (Number.isFinite(resolvedPickValue)) return { value: resolvedPickValue, estimated: false };

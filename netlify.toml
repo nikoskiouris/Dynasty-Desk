@@ -28,6 +28,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/rather-vote"
+  to = "/.netlify/functions/rather-vote"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/404.html"
   status = 404
