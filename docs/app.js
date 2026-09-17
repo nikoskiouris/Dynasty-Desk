@@ -149,12 +149,12 @@ import {
 import { recordDeskVisit } from "./modules/visits.js";
 import {
   DEFAULT_RATHER_FORMAT,
+  buildRatherBoard,
   decorateRatherPlayer,
   fetchRatherDraftPicks,
   listRatherPlayers,
   pickRatherPair,
   pushRatherRecentKey,
-  rankRatherPlayers,
   readRatherRecentKeys,
   readRatherVotes,
   recordRatherVote,
@@ -12830,36 +12830,26 @@ function formatPlayerPositionLabel(asset) {
 }
 
 function refreshPlayerPositionRanks() {
-  const groupedPlayers = new Map();
-
-  Object.entries(state.values).forEach(([assetId, value]) => {
-    if (!assetId.startsWith("player:") || !Number.isFinite(value)) return;
-
+  const values = state.values && Object.keys(state.values).length ? state.values : ratherMarketValues();
+  const names = state.valueNameMap || state.valueBundles?.names || {};
+  const nflPlayers = state.players && Object.keys(state.players).length
+    ? state.players
+    : (ratherPromptContext.nflPlayers || {});
+  const listed = [];
+  Object.entries(values || {}).forEach(([assetId, value]) => {
+    if (!String(assetId).startsWith("player:") || !Number.isFinite(value)) return;
     const playerId = assetId.slice("player:".length);
-    const player = state.players?.[playerId];
-    const position = playerPositionForRaw(player);
-    if (!position) return;
-
-    if (!groupedPlayers.has(position)) groupedPlayers.set(position, []);
-    groupedPlayers.get(position).push({
-      assetId,
-      value,
-      name: player?.full_name
-        || `${(player?.first_name || "").trim()} ${(player?.last_name || "").trim()}`.trim()
-        || state.valueNameMap[assetId]
-        || assetId,
-    });
+    const player = nflPlayers[playerId];
+    const name = player?.full_name
+      || `${(player?.first_name || "").trim()} ${(player?.last_name || "").trim()}`.trim()
+      || names[assetId]
+      || assetId;
+    listed.push({ assetId, playerId, name, value });
   });
-
   const nextRankMap = {};
-  groupedPlayers.forEach((entries, position) => {
-    entries
-      .sort((a, b) => (b.value - a.value) || a.name.localeCompare(b.name) || a.assetId.localeCompare(b.assetId))
-      .forEach((entry, index) => {
-        nextRankMap[entry.assetId] = `${position}${index + 1}`;
-      });
+  buildRatherBoard(listed, nflPlayers, state.crowdShifts).forEach((row) => {
+    if (row.position && row.positionRank) nextRankMap[row.assetId] = row.boardRank;
   });
-
   state.playerPositionRankByAssetId = nextRankMap;
 }
 
@@ -13593,6 +13583,7 @@ async function bootLandingRather() {
     ]);
     ratherPromptContext = context;
     refreshCrowdShifts();
+    refreshPlayerPositionRanks();
     showNextRatherMatchup();
   } catch (err) {
     console.warn("Could not open rather matchup", err);
@@ -13647,8 +13638,18 @@ function showNextRatherMatchup({ status = "" } = {}) {
   if (!el.landingRather) return;
   const names = state.valueBundles?.names || state.valueNameMap || {};
   const values = ratherMarketValues();
-  const players = rankRatherPlayers(listRatherPlayers(values, names), state.crowdShifts);
-  const picked = pickRatherPair(players, {
+  const nflPlayers = Object.keys(ratherPromptContext.nflPlayers || {}).length
+    ? ratherPromptContext.nflPlayers
+    : (getPlayersCache()?.players || state.players || {});
+  const listed = listRatherPlayers(values, names);
+  const boarded = buildRatherBoard(
+    listRatherPlayers(values, names, { minValue: 1 }),
+    nflPlayers,
+    state.crowdShifts
+  );
+  const rankById = new Map(boarded.map((row) => [row.assetId, row]));
+  const pairPool = listed.map((row) => ({ ...row, ...(rankById.get(row.assetId) || {}) }));
+  const picked = pickRatherPair(pairPool, {
     recentKeys: readRatherRecentKeys(),
     shifts: state.crowdShifts,
   });
@@ -13663,9 +13664,6 @@ function showNextRatherMatchup({ status = "" } = {}) {
     seasonStats: ratherPromptContext.seasonStats,
     draftPicks: ratherPromptContext.draftPicks,
   };
-  const nflPlayers = Object.keys(ratherPromptContext.nflPlayers || {}).length
-    ? ratherPromptContext.nflPlayers
-    : (getPlayersCache()?.players || state.players || {});
   ratherPromptPair = {
     left: decorateRatherPlayer(picked.left, nflPlayers, extras),
     right: decorateRatherPlayer(picked.right, nflPlayers, extras),
@@ -13698,13 +13696,27 @@ function chooseRatherPlayer(winnerId) {
       at: Date.now(),
     });
     refreshCrowdShifts();
+    refreshPlayerPositionRanks();
     if (state.leagueId) {
       renderActivePage();
       renderSessionSnapshot();
     }
   }
   if (pair.key) pushRatherRecentKey(pair.key);
-  const status = winnerName ? `Noted. ${winnerName}.` : "Noted.";
+  const names = state.valueBundles?.names || state.valueNameMap || {};
+  const nflPlayers = Object.keys(ratherPromptContext.nflPlayers || {}).length
+    ? ratherPromptContext.nflPlayers
+    : (getPlayersCache()?.players || state.players || {});
+  const winnerRow = buildRatherBoard(
+    listRatherPlayers(ratherMarketValues(), names, { minValue: 1 }),
+    nflPlayers,
+    state.crowdShifts
+  ).find((row) => row.assetId === winnerId);
+  const status = winnerName && winnerRow?.boardRank
+    ? `Noted. ${winnerName} is ${winnerRow.boardRank} on the desk.`
+    : winnerName
+      ? `Noted. ${winnerName}.`
+      : "Noted.";
   showNextRatherMatchup({ status });
 }
 
