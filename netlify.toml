@@ -1,5 +1,6 @@
 [build]
-  command = "bash scripts/refresh_market_data.sh"
+  command = "bash ./scripts/netlify-git-build.sh"
+  ignore = "bash ./scripts/netlify-ignore.sh"
   publish = "docs"
 
 [build.environment]
