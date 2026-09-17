@@ -329,6 +329,8 @@ let franchiseIndexCache = { key: "", index: null };
 let applyingHistory = false;
 let ratherPromptPair = null;
 let ratherSeasonStatsCache = { season: "", stats: null };
+let landingSearchOffscreen = false;
+let landingSearchObserver = null;
 let ratherPromptContext = {
   nflPlayers: {},
   seasonStats: {},
@@ -485,6 +487,7 @@ if (typeof history.scrollRestoration === "string") history.scrollRestoration = "
 window.addEventListener("popstate", (event) => applyDeskPopState(event.state));
 if (isPhoneLayout()) setMobileRailOpen(false);
 syncDocumentMeta();
+watchLandingSearchVisibility();
 syncSiteDock();
 
 // ---------------------------------------------------------------------------
@@ -13697,8 +13700,21 @@ function bindRatherPhotos(root) {
   });
 }
 
+function watchLandingSearchVisibility() {
+  if (landingSearchObserver || typeof IntersectionObserver !== "function" || !el.landingUsernameForm) return;
+  landingSearchObserver = new IntersectionObserver((entries) => {
+    const entry = entries[0];
+    landingSearchOffscreen = Boolean(entry) && entry.intersectionRatio < 0.35;
+    syncSiteDock();
+  }, { threshold: [0, 0.35, 1] });
+  landingSearchObserver.observe(el.landingUsernameForm);
+}
+
 function syncSiteDock() {
-  const stickyOpen = isPhoneLayout() && !state.leagueId && !document.body.classList.contains("rail-open");
+  const stickyOpen = isPhoneLayout()
+    && !state.leagueId
+    && !document.body.classList.contains("rail-open")
+    && landingSearchOffscreen;
   if (el.stickyMobileCta) el.stickyMobileCta.hidden = !stickyOpen;
   document.body.classList.toggle("dock-visible", stickyOpen);
 }
