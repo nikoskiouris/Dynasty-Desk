@@ -13,6 +13,7 @@ export const SAMPLE_VALUES_PATH = "./data/ktc_values_sample.csv";
 export const VALUES_JSON_PATH = "./data/ktc_values.json";
 export const VALUES_SF_PATH = "./data/ktc_values_sf.csv";
 export const VALUES_ONE_QB_PATH = "./data/ktc_values_1qb.csv";
+export const PICK_YEAR_DISCOUNT = 0.88;
 
 const TEP_MULTIPLIERS = {
   0: 1,
@@ -150,11 +151,27 @@ export function estimatedValue(asset) {
   return Math.max(300, Math.round(base + ageModifier));
 }
 
+function interpolateMultiplier(baseValue) {
+  const ascending = [
+    { floor: 4500, multiplier: 1 },
+    ...[...ELITE_VALUE_PREMIUM_TIERS].reverse(),
+    { floor: 10000, multiplier: 1.34 },
+  ];
+  if (baseValue <= ascending[0].floor) return 1;
+  for (let index = 1; index < ascending.length; index += 1) {
+    const low = ascending[index - 1];
+    const high = ascending[index];
+    if (baseValue > high.floor) continue;
+    const span = high.floor - low.floor;
+    const progress = span > 0 ? (baseValue - low.floor) / span : 1;
+    return low.multiplier + progress * (high.multiplier - low.multiplier);
+  }
+  return ascending[ascending.length - 1].multiplier;
+}
+
 export function applyElitePlayerValuePremium(asset, baseValue) {
   if (asset?.assetType !== "player" || !Number.isFinite(baseValue)) return baseValue;
-  const premiumTier = ELITE_VALUE_PREMIUM_TIERS.find((tier) => baseValue >= tier.floor);
-  if (!premiumTier) return baseValue;
-  return Math.round(baseValue * premiumTier.multiplier);
+  return Math.round(baseValue * interpolateMultiplier(baseValue));
 }
 
 export function normalizePickBucket(bucket) {
@@ -291,6 +308,15 @@ export function buildPickValueLookupIds(asset) {
   return ids;
 }
 
+function adjustPickAcrossYears(value, sourceSeason, targetSeason) {
+  const source = Number(sourceSeason);
+  const target = Number(targetSeason);
+  if (!Number.isFinite(value) || !Number.isFinite(source) || !Number.isFinite(target)) return value;
+  const yearDelta = target - source;
+  const factor = PICK_YEAR_DISCOUNT ** yearDelta;
+  return Math.max(1, Math.round(value * Math.max(0.5, Math.min(1.5, factor))));
+}
+
 export function findPickCatalogValue(meta, values, valueNameMap = {}, catalog = null) {
   if (!meta) return null;
   const list = Array.isArray(catalog) && catalog.length > 0
@@ -312,7 +338,7 @@ export function findPickCatalogValue(meta, values, valueNameMap = {}, catalog = 
   const nearest = list
     .filter((pick) => pick.round === meta.round && desiredBuckets.includes(pick.bucket))
     .sort((a, b) => Math.abs(Number(a.season) - numericSeason) - Math.abs(Number(b.season) - numericSeason))[0];
-  return nearest?.value ?? null;
+  return nearest ? adjustPickAcrossYears(nearest.value, nearest.season, meta.season) : null;
 }
 
 export function resolvePickAssetValue(asset, values, valueNameMap = {}, catalog = null) {
@@ -375,12 +401,18 @@ export function adjustLeagueValue(asset, baseValue, league) {
 export const CROWD_LEARNING_RATE = 0.028;
 export const CROWD_MAX_ABS_SHIFT = 0.085;
 export const CROWD_PER_VOTE_LOG_CAP = 0.025;
-export const CROWD_PAIR_DECAY = 0.55;
 export const CROWD_HALF_LIFE_MS = 90 * 24 * 60 * 60 * 1000;
 export const CROWD_ESTIMATED_SCALE = 0.5;
-export const CROWD_FORMAT_MISMATCH_SCALE = 0.65;
 export const LEAGUE_BOARD_MAX_ABS_SHIFT = 0.26;
 export const LEAGUE_BOARD_ESTIMATED_SCALE = 0.55;
+
+export function normalizeCrowdFormat(format) {
+  const text = String(format || "").trim().toLowerCase();
+  if (!text) return "";
+  if (text === "oneqb" || text === "one_qb" || text === "1qb" || text.includes("1qb") || text.includes("one qb")) return "oneQb";
+  if (text === "sf" || text === "superflex" || text.includes("superflex")) return "sf";
+  return "";
+}
 
 export function sanitizeCrowdVotes(votes) {
   if (!Array.isArray(votes)) return [];
@@ -393,21 +425,21 @@ export function sanitizeCrowdVotes(votes) {
     if (winnerId === loserId) continue;
     const at = Number(vote?.at);
     const stamp = Number.isFinite(at) && at > 0 ? at : 0;
-    const format = String(vote?.format || "");
-    const key = `${winnerId}|${loserId}|${stamp}|${format}`;
+    const format = normalizeCrowdFormat(vote?.format);
+    if (!format) continue;
+    const eventId = String(vote?.eventId || "").trim();
+    const key = eventId || `${winnerId}|${loserId}|${stamp}|${format}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ winnerId, loserId, at: stamp, format });
+    out.push({ eventId, winnerId, loserId, at: stamp, format });
   }
   return out.sort((a, b) => a.at - b.at || a.winnerId.localeCompare(b.winnerId) || a.loserId.localeCompare(b.loserId));
 }
 
 export function crowdFormatScale(voteFormat, valueFormat) {
-  const text = String(voteFormat || "").toLowerCase();
-  const voteSf = text.includes("superflex") || (!text.includes("1qb") && !text.includes("one qb"));
-  const wantSf = valueFormat !== "oneQb";
-  if (voteSf === wantSf) return 1;
-  return CROWD_FORMAT_MISMATCH_SCALE;
+  const vote = normalizeCrowdFormat(voteFormat);
+  const want = valueFormat === "oneQb" ? "oneQb" : "sf";
+  return vote && vote === want ? 1 : 0;
 }
 
 export function crowdShiftsFromVotes(votes, marketValues, options = {}) {
@@ -416,36 +448,28 @@ export function crowdShiftsFromVotes(votes, marketValues, options = {}) {
   const valueFormat = options.format === "oneQb" ? "oneQb" : "sf";
   const cleaned = sanitizeCrowdVotes(votes);
   const deltas = Object.create(null);
-  const pairCounts = Object.create(null);
 
   for (const vote of cleaned) {
+    const formatScale = crowdFormatScale(vote.format, valueFormat);
+    if (!formatScale) continue;
     const winnerValue = Number(marketValues?.[vote.winnerId]);
     const loserValue = Number(marketValues?.[vote.loserId]);
     if (!Number.isFinite(winnerValue) || !Number.isFinite(loserValue) || winnerValue <= 0 || loserValue <= 0) {
       continue;
     }
 
-    const pair = [vote.winnerId, vote.loserId].sort().join("|");
-    const seen = pairCounts[pair] || 0;
-    pairCounts[pair] = seen + 1;
-
     const age = Math.max(0, clock - vote.at);
     const recency = vote.at ? 2 ** (-age / CROWD_HALF_LIFE_MS) : 1;
-    const pairDecay = CROWD_PAIR_DECAY ** seen;
-    const formatScale = crowdFormatScale(vote.format, valueFormat);
-
-    const winnerDelta = deltas[vote.winnerId] || 0;
-    const loserDelta = deltas[vote.loserId] || 0;
-    const logGap = (Math.log(winnerValue) + winnerDelta) - (Math.log(loserValue) + loserDelta);
-    const expected = 1 / (1 + Math.exp(-clampLogGap(logGap)));
+    const priorGap = Math.log(winnerValue) - Math.log(loserValue);
+    const expected = 1 / (1 + Math.exp(-clampLogGap(priorGap)));
     const surprise = 1 - expected;
     const step = Math.min(
       CROWD_PER_VOTE_LOG_CAP,
-      CROWD_LEARNING_RATE * recency * pairDecay * formatScale * surprise,
+      CROWD_LEARNING_RATE * recency * formatScale * surprise,
     );
 
-    deltas[vote.winnerId] = winnerDelta + step;
-    deltas[vote.loserId] = loserDelta - step;
+    deltas[vote.winnerId] = (deltas[vote.winnerId] || 0) + step;
+    deltas[vote.loserId] = (deltas[vote.loserId] || 0) - step;
   }
 
   const ids = Object.keys(deltas);

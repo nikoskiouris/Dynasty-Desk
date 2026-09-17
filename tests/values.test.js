@@ -14,6 +14,7 @@ import {
   pickValueBundle,
   crowdShiftsFromVotes,
   applyCrowdShift,
+  applyElitePlayerValuePremium,
   CROWD_MAX_ABS_SHIFT,
 } from "../docs/modules/values.js";
 
@@ -85,21 +86,25 @@ test("missing sleeper id still uses the KeepTradeCut name", () => {
   const values = { "player:11566": 7008 };
   const names = { "player:11566": "Jayden Daniels" };
   assert.equal(isEstimatedAsset(jayden, values, { valueNameMap: names }), false);
-  assert.equal(getAssetValue(jayden, values, { valueNameMap: names }), Math.round(7008 * 1.21));
+  assert.ok(getAssetValue(jayden, values, { valueNameMap: names }) > 7008);
 });
 
-test("elite premium still applies on KTC hits", () => {
+test("elite premium is smooth instead of jumping at tier boundaries", () => {
   const star = { assetId: "player:gibbs", assetType: "player", raw: { position: "RB" } };
   assert.equal(getAssetValue(star, { "player:gibbs": 9000 }), Math.round(9000 * 1.32));
+  const below = applyElitePlayerValuePremium(star, 4999);
+  const at = applyElitePlayerValuePremium(star, 5000);
+  assert.ok(at > below);
+  assert.ok(at - below < 10);
 });
 
-test("pick lookup uses season/round/any and nearest catalog year", () => {
+test("pick lookup time-discounts a nearest-year fallback", () => {
   const pick = { assetId: "pick:2026:r1:late", assetType: "pick", raw: { season: 2026, round: 1, ktcBucket: "late" } };
   const values = { "pick:2026:r1:late": 6100, "pick:2026:r1:any": 5300 };
   assert.equal(resolvePickAssetValue(pick, values), 6100);
   const future = { assetId: "pick:2029:r2:any", assetType: "pick", raw: { season: 2029, round: 2 } };
   const catalogValues = { "pick:2027:r2:any": 3200 };
-  assert.equal(resolvePickAssetValue(future, catalogValues), 3200);
+  assert.equal(resolvePickAssetValue(future, catalogValues), 2478);
   assert.deepEqual(parsePickAssetId("pick:2028:r1:early"), { season: "2028", round: 1, bucket: "early" });
 });
 
@@ -144,11 +149,11 @@ test("fetchValuationBundles falls back from JSON to SF then sample CSV", async (
   assert.equal(csvBundle.oneQb.values["player:9"], 1111);
 });
 
-function evenVote(winnerId, loserId, at = 1_700_000_000_000) {
-  return { winnerId, loserId, format: "PPR 12-man Superflex", at };
+function evenVote(winnerId, loserId, at = 1_700_000_000_000, format = "PPR 12-man Superflex", eventId = "") {
+  return { winnerId, loserId, format, at, eventId };
 }
 
-test("crowd votes slightly move a player without replacing KeepTradeCut", () => {
+test("crowd votes slightly move a player without replacing the market prior", () => {
   const market = { "player:a": 8000, "player:b": 7900, "player:c": 5000 };
   const star = { assetId: "player:a", assetType: "player", raw: { position: "WR" } };
   const other = { assetId: "player:b", assetType: "player", raw: { position: "WR" } };
@@ -166,7 +171,7 @@ test("crowd votes slightly move a player without replacing KeepTradeCut", () => 
   assert.ok(Math.abs(shifts["player:a"]) <= CROWD_MAX_ABS_SHIFT);
 });
 
-test("KeepTradeCut updates re-anchor the board; votes are a residual not a reset", () => {
+test("market updates re-anchor the board; votes remain a bounded residual", () => {
   const votes = [evenVote("player:a", "player:b")];
   const oldMarket = { "player:a": 8000, "player:b": 7900 };
   const newMarket = { "player:a": 5100, "player:b": 7900 };
@@ -178,21 +183,54 @@ test("KeepTradeCut updates re-anchor the board; votes are a residual not a reset
   const newBase = getAssetValue(star, newMarket);
   const newValue = getAssetValue(star, newMarket, { crowdShifts: newShifts });
 
-  assert.ok(oldValue > 8000);
+  assert.ok(oldValue > getAssetValue(star, oldMarket));
   assert.ok(newValue < oldValue * 0.75);
   assert.ok(newValue > newBase);
   assert.ok(newValue < newBase * (1 + CROWD_MAX_ABS_SHIFT + 0.001));
 });
 
-test("repeated votes on the same pair diminish and stay inside the cap", () => {
+test("independent votes on the same pair keep contributing and stay capped", () => {
   const market = { "player:a": 6000, "player:b": 5980 };
-  const votes = Array.from({ length: 40 }, (_, i) => evenVote("player:a", "player:b", 1_700_000_000_000 + i));
+  const votes = Array.from({ length: 40 }, (_, i) => evenVote("player:a", "player:b", 1_700_000_000_000 + i, "sf", `v${i}`));
   const shifts = crowdShiftsFromVotes(votes, market, { now: 1_700_000_000_000 + 40 });
   const once = crowdShiftsFromVotes([evenVote("player:a", "player:b")], market, { now: 1_700_000_000_000 });
   assert.ok(shifts["player:a"] > once["player:a"]);
   assert.ok(shifts["player:a"] <= CROWD_MAX_ABS_SHIFT);
   const fortyTimes = applyCrowdShift("player:a", 6000, shifts);
   assert.ok(fortyTimes <= Math.round(6000 * (1 + CROWD_MAX_ABS_SHIFT)));
+});
+
+test("later independent consensus can reverse an early preference", () => {
+  const market = { "player:a": 5000, "player:b": 5000 };
+  const start = 1_700_000_000_000;
+  const early = Array.from({ length: 10 }, (_, i) => evenVote("player:a", "player:b", start + i, "sf", `a${i}`));
+  const later = Array.from({ length: 1000 }, (_, i) => evenVote("player:b", "player:a", start + 100 + i, "sf", `b${i}`));
+  const shifts = crowdShiftsFromVotes([...early, ...later], market, { now: start + 1200 });
+  assert.ok(shifts["player:b"] > 0);
+  assert.ok(shifts["player:a"] < 0);
+});
+
+test("crowd aggregation is deterministic regardless of input order", () => {
+  const market = { "player:a": 7200, "player:b": 7000, "player:c": 6900 };
+  const votes = [
+    evenVote("player:a", "player:b", 100, "sf", "one"),
+    evenVote("player:c", "player:a", 200, "sf", "two"),
+    evenVote("player:b", "player:c", 300, "sf", "three"),
+  ];
+  const forward = crowdShiftsFromVotes(votes, market, { now: 400 });
+  const reverse = crowdShiftsFromVotes([...votes].reverse(), market, { now: 400 });
+  for (const id of Object.keys(forward)) {
+    assert.ok(Math.abs(forward[id] - reverse[id]) < 1e-12);
+  }
+});
+
+test("Superflex votes do not leak into a 1QB board", () => {
+  const market = { "player:qb": 8000, "player:wr": 7000 };
+  const votes = [evenVote("player:qb", "player:wr", 1_700_000_000_000, "PPR 12-man Superflex", "sf-only")];
+  const sf = crowdShiftsFromVotes(votes, market, { format: "sf", now: 1_700_000_000_000 });
+  const oneQb = crowdShiftsFromVotes(votes, market, { format: "oneQb", now: 1_700_000_000_000 });
+  assert.ok(sf["player:qb"] > 0);
+  assert.deepEqual(Object.keys(oneQb), []);
 });
 
 test("upsets move more than chalk, junk votes are ignored", () => {
@@ -202,9 +240,9 @@ test("upsets move more than chalk, junk votes are ignored", () => {
   assert.ok(Math.abs(upset["player:dog"]) > Math.abs(chalk["player:fav"]));
 
   const junk = crowdShiftsFromVotes([
-    { winnerId: "player:fav", loserId: "player:fav", at: 1 },
-    { winnerId: "pick:2026:r1:any", loserId: "player:x", at: 1 },
-    { winnerId: "", loserId: "player:x", at: 1 },
+    { winnerId: "player:fav", loserId: "player:fav", at: 1, format: "sf" },
+    { winnerId: "pick:2026:r1:any", loserId: "player:x", at: 1, format: "sf" },
+    { winnerId: "", loserId: "player:x", at: 1, format: "sf" },
     evenVote("player:missing", "player:x"),
   ], market, { now: 1_700_000_000_000 });
   assert.deepEqual(Object.keys(junk), []);

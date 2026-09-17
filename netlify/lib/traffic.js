@@ -6,6 +6,7 @@ export const DEFAULT_ORIGINS = Object.freeze([
   "https://www.dynastyticker.com",
 ]);
 export const STATE_KEY = "state";
+export const TRAFFIC_MAX_WRITE_RETRIES = 8;
 export const TRAFFIC_PERIODS = Object.freeze(["today", "week", "year", "all"]);
 export const TRAFFIC_LINES = Object.freeze([
   ["today", "views"],
@@ -255,6 +256,30 @@ export function wrapLambdaHandler(visitHandler) {
   };
 }
 
+async function readTrafficSnapshot(store) {
+  if (!store || typeof store.getWithMetadata !== "function") throw new Error("durable store unavailable");
+  const snapshot = await store.getWithMetadata(STATE_KEY, {
+    type: "json",
+    consistency: "strong",
+  });
+  if (!snapshot) return { state: emptyState(), etag: "", exists: false };
+  return {
+    state: normalizeState(snapshot.data),
+    etag: typeof snapshot.etag === "string" ? snapshot.etag : "",
+    exists: true,
+  };
+}
+
+async function writeTrafficSnapshot(store, state, snapshot) {
+  if (!store || typeof store.setJSON !== "function") throw new Error("durable store unavailable");
+  if (snapshot.exists && !snapshot.etag) throw new Error("missing etag for existing traffic state");
+  const condition = snapshot.exists
+    ? { onlyIfMatch: snapshot.etag }
+    : { onlyIfNew: true };
+  const result = await store.setJSON(STATE_KEY, state, condition);
+  return result?.modified === true && typeof result?.etag === "string" && result.etag.length > 0;
+}
+
 export function createVisitHandler({
   getStore,
   nowFn = () => new Date(),
@@ -273,53 +298,53 @@ export function createVisitHandler({
       });
     }
 
-    let store = null;
-    try {
-      store = typeof getStore === "function" ? getStore() : null;
-    } catch {
-      store = null;
-    }
-
-    let state = emptyState();
-    if (store?.get) {
-      try {
-        state = normalizeState(await store.get(STATE_KEY, { type: "json" }));
-      } catch {
-        state = emptyState();
-      }
-    }
-
-    const now = nowFn();
-    if (req.method === "GET") {
-      return jsonResponse(summarize(state, now), { cors: true });
-    }
-
-    if (req.method !== "POST") {
+    if (req.method !== "GET" && req.method !== "POST") {
       return jsonResponse({ error: "method" }, { status: 405 });
     }
 
-    if (!isAllowedWrite(req, allowedOrigins)) {
+    if (req.method === "POST" && !isAllowedWrite(req, allowedOrigins)) {
       return jsonResponse({ error: "forbidden" }, { status: 403 });
     }
 
     const userAgent = req.headers.get("user-agent") || "";
-    if (isBot(userAgent)) {
+    if (req.method === "POST" && isBot(userAgent)) {
       return jsonResponse({ ok: true, skipped: "bot" });
     }
 
-    const next = applyVisit(state, {
-      hash: visitorHash(clientIp(req, context), userAgent, salt),
-      now,
-    });
+    let store;
+    try {
+      store = typeof getStore === "function" ? getStore() : null;
+      if (!store) throw new Error("store unavailable");
+    } catch {
+      return jsonResponse({ error: "store", retryable: true }, { status: 503 });
+    }
 
-    if (store?.setJSON) {
+    if (req.method === "GET") {
       try {
-        await store.setJSON(STATE_KEY, next);
+        const snapshot = await readTrafficSnapshot(store);
+        return jsonResponse(summarize(snapshot.state, nowFn()), { cors: true });
       } catch {
-        return jsonResponse({ error: "store" }, { status: 503 });
+        return jsonResponse({ error: "store", retryable: true }, { status: 503, cors: true });
       }
     }
 
-    return jsonResponse({ ok: true });
+    const hash = visitorHash(clientIp(req, context), userAgent, salt);
+    const now = nowFn();
+    for (let attempt = 0; attempt < TRAFFIC_MAX_WRITE_RETRIES; attempt += 1) {
+      let snapshot;
+      try {
+        snapshot = await readTrafficSnapshot(store);
+      } catch {
+        return jsonResponse({ error: "store", retryable: true }, { status: 503 });
+      }
+      const next = applyVisit(snapshot.state, { hash, now });
+      try {
+        if (await writeTrafficSnapshot(store, next, snapshot)) return jsonResponse({ ok: true });
+      } catch {
+        return jsonResponse({ error: "store", retryable: true }, { status: 503 });
+      }
+    }
+
+    return jsonResponse({ error: "conflict", retryable: true }, { status: 503 });
   };
 }

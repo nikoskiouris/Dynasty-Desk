@@ -29,6 +29,7 @@ export function createState() {
     valuationsPromise: null,
     values: {},
     valueNameMap: {},
+    valuationRevision: 0,
     playerPositionRankByAssetId: {},
     pickValueCatalog: [],
     crowdShifts: {},

@@ -15,15 +15,38 @@ import {
 
 const NOW = new Date("2026-09-16T18:00:00.000Z");
 
-function memoryStore(initial = null) {
-  let value = initial;
+function memoryStore(initial = null, { barrierReads = 0, failRead = false, failWrite = false } = {}) {
+  let value = initial == null ? null : structuredClone(initial);
+  let version = value == null ? 0 : 1;
+  let remainingBarrierReads = barrierReads;
+  let releaseBarrier = null;
+  const barrier = barrierReads > 0
+    ? new Promise((resolve) => { releaseBarrier = resolve; })
+    : null;
+
+  function etag() {
+    return value == null ? "" : `v${version}`;
+  }
+
   return {
-    async get(_key, opts = {}) {
+    async getWithMetadata() {
+      if (failRead) throw new Error("read failed");
+      if (remainingBarrierReads > 0) {
+        remainingBarrierReads -= 1;
+        if (remainingBarrierReads === 0) releaseBarrier?.();
+        else await barrier;
+      }
       if (value == null) return null;
-      return opts.type === "json" ? structuredClone(value) : value;
+      return { data: structuredClone(value), metadata: {}, etag: etag() };
     },
-    async setJSON(_key, next) {
+    async setJSON(_key, next, options = {}) {
+      if (failWrite) throw new Error("write failed");
+      const currentEtag = etag();
+      if (options.onlyIfNew === true && value != null) return { modified: false, etag: currentEtag };
+      if (options.onlyIfMatch && options.onlyIfMatch !== currentEtag) return { modified: false, etag: currentEtag };
       value = structuredClone(next);
+      version += 1;
+      return { modified: true, etag: etag() };
     },
     snapshot() {
       return structuredClone(value);
@@ -33,6 +56,13 @@ function memoryStore(initial = null) {
 
 function request(url, { method = "GET", headers = {} } = {}) {
   return new Request(url, { method, headers });
+}
+
+function liveHeaders() {
+  return {
+    origin: "https://dynastyticker.com",
+    "user-agent": "Mozilla/5.0 Chrome/129.0.0.0",
+  };
 }
 
 test("period keys use UTC day, ISO week, and calendar year", () => {
@@ -111,25 +141,13 @@ test("the visit handler counts people from hashed IP plus user-agent", async () 
     nowFn: () => NOW,
     salt: "test-salt",
   });
-  const headers = {
-    origin: "https://dynastyticker.com",
-    "user-agent": "Mozilla/5.0 Chrome/129.0.0.0",
-  };
+  const headers = liveHeaders();
 
-  const first = await handler(
-    request("https://dynastyticker.com/api/visit", { method: "POST", headers }),
-    { ip: "1.2.3.4" },
-  );
+  const first = await handler(request("https://dynastyticker.com/api/visit", { method: "POST", headers }), { ip: "1.2.3.4" });
   assert.equal(first.status, 200);
-  const reload = await handler(
-    request("https://dynastyticker.com/api/visit", { method: "POST", headers }),
-    { ip: "1.2.3.4" },
-  );
+  const reload = await handler(request("https://dynastyticker.com/api/visit", { method: "POST", headers }), { ip: "1.2.3.4" });
   assert.equal(reload.status, 200);
-  const other = await handler(
-    request("https://dynastyticker.com/api/visit", { method: "POST", headers }),
-    { ip: "9.9.9.9" },
-  );
+  const other = await handler(request("https://dynastyticker.com/api/visit", { method: "POST", headers }), { ip: "9.9.9.9" });
   assert.equal(other.status, 200);
 
   const bot = await handler(
@@ -159,6 +177,33 @@ test("the visit handler counts people from hashed IP plus user-agent", async () 
   assert.equal(JSON.stringify(payload).includes("seen"), false);
 });
 
+test("concurrent page views are retained after conditional-write conflicts", async () => {
+  const store = memoryStore(null, { barrierReads: 2 });
+  const handler = createVisitHandler({ getStore: () => store, nowFn: () => NOW, salt: "test-salt" });
+  const [first, second] = await Promise.all([
+    handler(request("https://dynastyticker.com/api/visit", { method: "POST", headers: liveHeaders() }), { ip: "1.1.1.1" }),
+    handler(request("https://dynastyticker.com/api/visit", { method: "POST", headers: liveHeaders() }), { ip: "2.2.2.2" }),
+  ]);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
+  assert.deepEqual(summarize(store.snapshot(), NOW).today, { views: 2, people: 2 });
+});
+
+test("storage failures return retryable errors instead of false success", async () => {
+  const unavailable = createVisitHandler({ getStore: () => null, nowFn: () => NOW });
+  const missing = await unavailable(request("https://dynastyticker.com/api/visit", { method: "POST", headers: liveHeaders() }), { ip: "1.1.1.1" });
+  assert.equal(missing.status, 503);
+  assert.equal((await missing.json()).retryable, true);
+
+  const readFailure = createVisitHandler({ getStore: () => memoryStore(null, { failRead: true }), nowFn: () => NOW });
+  const failedRead = await readFailure(request("https://dynastyticker.com/api/visit", { method: "POST", headers: liveHeaders() }), { ip: "1.1.1.1" });
+  assert.equal(failedRead.status, 503);
+
+  const writeFailure = createVisitHandler({ getStore: () => memoryStore(null, { failWrite: true }), nowFn: () => NOW });
+  const failedWrite = await writeFailure(request("https://dynastyticker.com/api/visit", { method: "POST", headers: liveHeaders() }), { ip: "1.1.1.1" });
+  assert.equal(failedWrite.status, 503);
+});
+
 test("client IP prefers Netlify context then forwarded headers", () => {
   const req = request("https://dynastyticker.com/api/visit", {
     headers: {
@@ -170,7 +215,7 @@ test("client IP prefers Netlify context then forwarded headers", () => {
   assert.equal(clientIp(req, {}), "8.8.4.4");
 });
 
-test("classic Netlify handler reads Lambda events and returns status plus body", async () => {
+test("classic wrapper remains testable for request conversion", async () => {
   const store = memoryStore();
   const handler = wrapLambdaHandler(createVisitHandler({
     getStore: () => store,
