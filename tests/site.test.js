@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, existsSync, statSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -8,6 +8,7 @@ import {
   DEFAULT_TITLE,
   OG_IMAGE_URL,
   REPO_URL,
+  SITE_NAME,
   SITE_URL,
   STORAGE_NOTICE_KEY,
   applyDocumentMeta,
@@ -15,6 +16,7 @@ import {
   buildDocumentTitle,
   buildPageDescription,
   readStorageNoticeDismissed,
+  tickerDurationSeconds,
   writeStorageNoticeDismissed,
 } from "../docs/modules/site.js";
 
@@ -28,47 +30,47 @@ test("document titles and descriptions change with tab and league", () => {
   assert.equal(buildDocumentTitle({}), DEFAULT_TITLE);
   assert.equal(
     buildDocumentTitle({ page: "league", leagueName: "Try Hard or Die Hard", loaded: true }),
-    "League · Try Hard or Die Hard — Dynasty Desk"
+    "League · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "league", leagueName: "Try Hard or Die Hard", loaded: true, room: "scores" }),
-    "League · Try Hard or Die Hard — Dynasty Desk"
+    "League · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "recap", leagueName: "Try Hard or Die Hard", loaded: true }),
-    "Recap · Try Hard or Die Hard — Dynasty Desk"
+    "Recap · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "team", leagueName: "Try Hard or Die Hard", loaded: true }),
-    "Teams · Try Hard or Die Hard — Dynasty Desk"
+    "Teams · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "teams", leagueName: "Try Hard or Die Hard", loaded: true, room: "passports" }),
-    "Passports · Try Hard or Die Hard — Dynasty Desk"
+    "Passports · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "teams", leagueName: "Try Hard or Die Hard", loaded: true, room: "call" }),
-    "Call · Try Hard or Die Hard — Dynasty Desk"
+    "Call · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "trades", leagueName: "Try Hard or Die Hard", loaded: true, room: "lab" }),
-    "Find deals · Try Hard or Die Hard — Dynasty Desk"
+    "Find deals · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "trades", leagueName: "Try Hard or Die Hard", loaded: true, room: "match" }),
-    "Match · Try Hard or Die Hard — Dynasty Desk"
+    "Match · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "trader", leagueName: "Try Hard or Die Hard", loaded: true }),
-    "Trades · Try Hard or Die Hard — Dynasty Desk"
+    "Trades · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "history", leagueName: "Try Hard or Die Hard", loaded: true, room: "hall" }),
-    "History · Try Hard or Die Hard — Dynasty Desk"
+    "History · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.equal(
     buildDocumentTitle({ page: "history", leagueName: "Try Hard or Die Hard", loaded: true, room: "records" }),
-    "Records · Try Hard or Die Hard — Dynasty Desk"
+    "Records · Try Hard or Die Hard — Dynasty Ticker"
   );
   assert.match(
     buildPageDescription({ page: "home", leagueName: "Try Hard or Die Hard", loaded: true }),
@@ -103,9 +105,9 @@ test("applyDocumentMeta writes title and social tags", () => {
       return null;
     },
   };
-  applyDocumentMeta(doc, { title: "Teams · Demo — Dynasty Desk", description: "Scout any roster." });
-  assert.equal(doc.title, "Teams · Demo — Dynasty Desk");
-  assert.equal(tags["og:title"].content, "Teams · Demo — Dynasty Desk");
+  applyDocumentMeta(doc, { title: "Teams · Demo — Dynasty Ticker", description: "Scout any roster." });
+  assert.equal(doc.title, "Teams · Demo — Dynasty Ticker");
+  assert.equal(tags["og:title"].content, "Teams · Demo — Dynasty Ticker");
   assert.equal(tags.description.content, "Scout any roster.");
   assert.equal(tags["twitter:description"].content, "Scout any roster.");
 });
@@ -156,7 +158,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /id="username-error"/);
   assert.match(index, /data-theme="light"/);
   assert.match(index, /theme-color" content="#eef3f2"/);
-  assert.match(index, /dynasty_desk_theme/);
+  assert.match(index, /dynasty_ticker_theme/);
   assert.match(index, />Dark mode</);
   assert.match(index, /id="theme-toggle-btn"[^>]*aria-pressed="true"/);
   assert.doesNotMatch(index, /data-theme="dark"/);
@@ -212,7 +214,8 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(sitemap, /privacy\.html/);
   assert.doesNotMatch(sitemap, /terms\.html/);
   assert.equal(SITE_URL, "https://dynastyticker.com/");
-  assert.equal(REPO_URL, "https://github.com/nikoskiouris/Dynasty-Desk");
+  assert.equal(SITE_NAME, "Dynasty Ticker");
+  assert.equal(REPO_URL, "https://github.com/nikoskiouris/Dynasty-Ticker");
   assert.match(sitemap, /https:\/\/dynastyticker\.com\//);
   assert.match(index, /canonical" href="https:\/\/dynastyticker\.com\//);
   assert.doesNotMatch(index, /github\.io/);
@@ -254,9 +257,9 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(privacy, /Last league ID/);
 
   const app = readDocs("app.js");
-  assert.doesNotMatch(app, /dynasty_desk_last_username/);
-  assert.doesNotMatch(app, /dynasty_desk_last_league/);
   assert.doesNotMatch(app, /Last league remembered/);
+  assert.match(app, /tickerDurationSeconds\(items\.length\)/);
+  assert.match(readDocs("styles.css"), /--ticker-duration: 60s/);
 
   const terms = readDocs("terms.html");
   assert.match(terms, /theme-color" content="#eef3f2"/);
@@ -308,4 +311,36 @@ test("storage notice CSS does not override the hidden attribute", () => {
   const css = readDocs("styles.css");
   assert.match(css, /\.storage-notice:not\(\[hidden\]\)\s*\{[^}]*display:\s*flex/s);
   assert.doesNotMatch(css, /\.storage-notice\s*\{[^}]*display:\s*flex/s);
+});
+
+test("ticker loops slower so names stay readable", () => {
+  assert.equal(tickerDurationSeconds(0), 50);
+  assert.equal(tickerDurationSeconds(4), 50);
+  assert.equal(tickerDurationSeconds(8), 72);
+  assert.equal(tickerDurationSeconds(12), 108);
+});
+
+test("product name Dynasty Ticker never shares the repo with the old brand", () => {
+  const banned = /dynasty[\s._-]*desk/i;
+  const skipDir = new Set([".git", "node_modules", ".cursor"]);
+  const skipFile = /\.(png|jpe?g|ico|webp|gif|woff2?|ttf|hash)$/i;
+  const root = join(docs, "..");
+  const hits = [];
+
+  function walk(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (skipDir.has(entry.name)) continue;
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(path);
+        continue;
+      }
+      if (skipFile.test(entry.name)) continue;
+      const text = readFileSync(path, "utf8");
+      if (banned.test(text)) hits.push(path.slice(root.length + 1));
+    }
+  }
+
+  walk(root);
+  assert.deepEqual(hits, []);
 });

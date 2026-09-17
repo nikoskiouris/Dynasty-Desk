@@ -1,18 +1,23 @@
 import { DEFAULT_ROOMS, PAGE_HINTS, PAGE_LABELS, ROOM_HINTS, ROOM_LABELS } from "./constants.js";
 import { normalizeDeskTab, normalizeRoom } from "./parse.js";
 
-export const SITE_NAME = "Dynasty Desk";
+export const SITE_NAME = "Dynasty Ticker";
 export const SITE_ORIGIN = "https://dynastyticker.com";
 export const SITE_PATH = "/";
 export const SITE_URL = `${SITE_ORIGIN}${SITE_PATH}`;
-export const REPO_URL = "https://github.com/nikoskiouris/Dynasty-Desk";
+export const REPO_URL = "https://github.com/nikoskiouris/Dynasty-Ticker";
 export const CONTACT_URL = `${REPO_URL}/issues`;
 export const OG_IMAGE_URL = `${SITE_URL}og-image.jpg`;
-export const STORAGE_NOTICE_KEY = "dynasty_desk_storage_notice";
+export const STORAGE_NOTICE_KEY = "dynasty_ticker_storage_notice";
 
-export const DEFAULT_TITLE = "Dynasty Desk — Fantasy League Command Center";
+export const DEFAULT_TITLE = "Dynasty Ticker — Fantasy League Command Center";
 export const DEFAULT_DESCRIPTION =
   "Search a Sleeper username. Open live scores, playoff odds, awards, trade match, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut.";
+
+export function tickerDurationSeconds(itemCount) {
+  const count = Math.max(0, Number(itemCount) || 0);
+  return Math.max(50, count * 9);
+}
 
 export const PAGE_META = {
   league: {

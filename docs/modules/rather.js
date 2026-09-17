@@ -1,8 +1,8 @@
 import { escapeHtml } from "./html.js";
 
-export const RATHER_VOTES_KEY = "dynasty_desk_rather_votes";
-export const RATHER_RECENT_KEY = "dynasty_desk_rather_recent";
-export const RATHER_SESSION_KEY = "dynasty_desk_rather_session";
+export const RATHER_VOTES_KEY = "dynasty_ticker_rather_votes";
+export const RATHER_RECENT_KEY = "dynasty_ticker_rather_recent";
+export const RATHER_SESSION_KEY = "dynasty_ticker_rather_session";
 export const SLEEPER_PLAYER_THUMB_BASE = "https://sleepercdn.com/content/nfl/players/thumb/";
 export const RATHER_MIN_PLAYER_VALUE = 1800;
 export const RATHER_RECENT_LIMIT = 24;

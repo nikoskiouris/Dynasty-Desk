@@ -1,3 +1,5 @@
+import { SITE_NAME } from "./site.js";
+
 export function buildRecapCardModel({
   leagueName,
   weekLabel,
@@ -26,7 +28,7 @@ export function buildRecapCardModel({
 
   const award = (awards || []).find((item) => item?.id === "mvp") || awards?.[0] || null;
   return {
-    eyebrow: "Dynasty Desk",
+    eyebrow: SITE_NAME,
     title: String(leagueName || "League").trim() || "League",
     kicker: `${String(weekLabel || "Week").toUpperCase()} · ${provisional ? "LIVE" : "FINAL"}`,
     games: rows,
@@ -134,7 +136,7 @@ export function drawRecapCard(ctx, model, { width = 1080, height = 1350, theme =
 
   ctx.fillStyle = palette.blue;
   ctx.font = "700 28px Inter, system-ui, sans-serif";
-  ctx.fillText(model.eyebrow || "Dynasty Desk", 72, 92);
+  ctx.fillText(model.eyebrow || SITE_NAME, 72, 92);
 
   ctx.fillStyle = palette.text;
   ctx.font = "800 64px Inter, system-ui, sans-serif";
@@ -222,7 +224,7 @@ export function drawRecapCard(ctx, model, { width = 1080, height = 1350, theme =
 
   ctx.fillStyle = palette.muted;
   ctx.font = "600 22px Inter, system-ui, sans-serif";
-  const footer = model.url || "dynastyticker.com · tap to open the desk";
+  const footer = model.url || "dynastyticker.com · tap to open the ticker";
   wrapText(ctx, footer, width - 144).slice(0, 3).forEach((line, index) => {
     ctx.fillText(line, 72, height - 90 + index * 28);
   });

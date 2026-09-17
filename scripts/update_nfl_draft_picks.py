@@ -72,7 +72,7 @@ COLLEGE_ALIASES = {
 
 
 def http_get(url: str, timeout: int = 60) -> bytes:
-    request = Request(url, headers={"User-Agent": "dynasty-desk-draft-picks"})
+    request = Request(url, headers={"User-Agent": "dynasty-ticker-draft-picks"})
     with urlopen(request, timeout=timeout) as response:
         return response.read()
 

@@ -342,7 +342,7 @@ def fetch_json(path: str, limiter: RateLimiter | None = None) -> dict | list | N
     request = Request(
         url,
         headers={
-            "User-Agent": "DynastyDesk/1.0 (+https://dynastyticker.com)",
+            "User-Agent": "DynastyTicker/1.0 (+https://dynastyticker.com)",
             "Accept": "application/json",
         },
     )

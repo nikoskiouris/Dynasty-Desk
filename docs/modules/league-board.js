@@ -5,7 +5,7 @@ import {
   playerPositionForAsset,
 } from "./values.js";
 
-export const LEAGUE_BOARD_APPLY_KEY = "dynasty_desk_apply_league_board";
+export const LEAGUE_BOARD_APPLY_KEY = "dynasty_ticker_apply_league_board";
 export const LEAGUE_BOARD_MIN_TRADES = 4;
 export const LEAGUE_BOARD_PLAYER_SHRINK = 0.8;
 export const LEAGUE_BOARD_ATTR_SHRINK = 3;

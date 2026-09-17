@@ -11,7 +11,7 @@ export const RATHER_STATE_KEY = "state";
 export const RATHER_VOTE_LIMIT = 4000;
 export const RATHER_MAX_PER_VISITOR_HOUR = 40;
 export const RATHER_MIN_INTERVAL_MS = 400;
-export const RATHER_SALT = "dynasty-desk-rather-v1";
+export const RATHER_SALT = "dynasty-ticker-rather-v1";
 export { wrapLambdaHandler };
 
 export function emptyRatherState() {

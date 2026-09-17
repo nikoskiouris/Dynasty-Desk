@@ -1,6 +1,6 @@
-# Dynasty Desk
+# Dynasty Ticker
 
-Sleeper dynasty league desk: live scores, standings, playoff odds, awards, archive, trade match, and a trade lab. Values are built from Sleeper dynasty trades across many leagues, mixed with KeepTradeCut. The site is static. It talks to Sleeper from the browser.
+Sleeper dynasty league ticker: live scores, standings, playoff odds, awards, archive, trade match, and a trade lab. Values are built from Sleeper dynasty trades across many leagues, mixed with KeepTradeCut. The site is static. It talks to Sleeper from the browser.
 
 ## What is in this repo
 - **Web app:** `docs/` — League Command Center at [dynastyticker.com](https://dynastyticker.com/).

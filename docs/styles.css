@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Dynasty Desk — Slate
+   Dynasty Ticker — Slate
    Daylight mint desk, teal live wire, Inter throughout. Dark is the same
    product after hours.
    ========================================================================== */
@@ -1022,7 +1022,7 @@ select.is-invalid {
 }
 
 .ticker-track {
-  --ticker-duration: 40s;
+  --ticker-duration: 60s;
   display: flex;
   width: max-content;
   padding: 0.55rem 0;

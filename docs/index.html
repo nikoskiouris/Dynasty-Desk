@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Dynasty Desk — Fantasy League Command Center</title>
+    <title>Dynasty Ticker — Fantasy League Command Center</title>
     <meta name="description" content="Search a Sleeper username. Open live scores, playoff odds, awards, trade match, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
     <meta name="theme-color" content="#eef3f2" />
     <script>
       try {
-        var storedTheme = localStorage.getItem("dynasty_desk_theme");
+        var storedTheme = localStorage.getItem("dynasty_ticker_theme");
         if (storedTheme === "dark" || storedTheme === "light") {
           document.documentElement.setAttribute("data-theme", storedTheme);
           var themeColor = document.querySelector('meta[name="theme-color"]');
@@ -16,16 +16,16 @@
         }
       } catch (err) {}
     </script>
-    <meta property="og:title" content="Dynasty Desk — Fantasy League Command Center" />
+    <meta property="og:title" content="Dynasty Ticker — Fantasy League Command Center" />
     <meta property="og:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, trade match, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://dynastyticker.com/" />
     <meta property="og:image" content="https://dynastyticker.com/og-image.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Dynasty Desk: your league on a broadcast desk" />
+    <meta property="og:image:alt" content="Dynasty Ticker: your league on a live ticker" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Dynasty Desk — Fantasy League Command Center" />
+    <meta name="twitter:title" content="Dynasty Ticker — Fantasy League Command Center" />
     <meta name="twitter:description" content="Search a Sleeper username. Open live scores, playoff odds, awards, trade match, a dynasty trade lab, and values built from Sleeper trades plus KeepTradeCut." />
     <meta name="twitter:image" content="https://dynastyticker.com/og-image.jpg" />
     <link rel="canonical" href="https://dynastyticker.com/" />
@@ -53,7 +53,7 @@
           <span class="sr-only">League controls</span>
         </button>
         <div class="mobile-chrome-copy">
-          <span class="eyebrow">Dynasty Desk</span>
+          <span class="eyebrow">Dynasty Ticker</span>
           <strong id="mobile-chrome-title">League Command Center</strong>
         </div>
         <div class="mobile-chrome-actions">
@@ -84,7 +84,7 @@
         <div class="brand-panel">
           <span class="brand-mark" aria-hidden="true">D</span>
           <div>
-            <span class="eyebrow">Dynasty Desk</span>
+            <span class="eyebrow">Dynasty Ticker</span>
             <strong>League Command Center</strong>
           </div>
           <button type="button" id="mobile-rail-close" class="mobile-rail-close" aria-label="Close league controls">
@@ -173,7 +173,7 @@
             <div class="league-avatar" id="league-avatar" aria-hidden="true"><span>D</span></div>
             <div class="league-hero-copy">
               <span class="eyebrow" id="hero-eyebrow">Sleeper league intelligence</span>
-              <h1 id="hero-title">Your league, on a broadcast desk.</h1>
+              <h1 id="hero-title">Your league, on a live ticker.</h1>
               <p class="workspace-lede" id="hero-lede">Live scoreboard and win probability, playoff odds from thousands of simulated seasons, a tank-or-contend call, weekly awards, an all-time record book, a roster explorer, trade match, and a dynasty trade lab. One link for the whole league.</p>
             </div>
           </div>

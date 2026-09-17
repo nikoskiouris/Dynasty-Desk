@@ -158,6 +158,7 @@ import {
   applyDocumentMeta,
   buildDocumentTitle,
   buildPageDescription,
+  tickerDurationSeconds,
 } from "./modules/site.js";
 import { recordDeskVisit } from "./modules/visits.js";
 import {
@@ -1077,7 +1078,7 @@ function renderLeagueHero() {
   if (!el.heroTitle) return;
   if (!state.leagueId || !state.league) {
     el.heroEyebrow.textContent = "Sleeper league intelligence";
-    el.heroTitle.textContent = "Your league, on a broadcast desk.";
+    el.heroTitle.textContent = "Your league, on a live ticker.";
     el.heroLede.textContent = "Live scoreboard and win probability, playoff odds from thousands of simulated seasons, weekly awards, an all-time record book, a roster explorer, trade match, and a dynasty trade lab. One link for the whole league.";
     if (el.leagueAvatar) el.leagueAvatar.innerHTML = `<span>D</span>`;
     return;
@@ -4852,7 +4853,7 @@ function renderTicker() {
   }
   const markup = items.map((item) => `<span class="ticker-item">${item}</span>`).join("");
   el.tickerTrack.innerHTML = `<span class="ticker-group">${markup}</span><span class="ticker-group" aria-hidden="true">${markup}</span>`;
-  el.tickerTrack.style.setProperty("--ticker-duration", `${Math.max(30, items.length * 6)}s`);
+  el.tickerTrack.style.setProperty("--ticker-duration", `${tickerDurationSeconds(items.length)}s`);
   el.ticker.classList.remove("hidden");
 }
 
