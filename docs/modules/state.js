@@ -101,6 +101,7 @@ export function createState() {
       payload: null,
     },
     pendingMeRosterId: null,
+    pendingJobId: "",
     // { page, room } parsed from the URL before the league finishes loading.
     pendingPlace: null,
     pendingWeek: null,

@@ -15,24 +15,25 @@ export const PAGE_LABELS = {
 };
 export const PAGE_HINTS = {
   league: "Scores, standings, awards",
-  teams: "Rosters, call, loyalty",
-  trades: "Match, log, calculator",
-  history: "Hall, seasons, records",
+  teams: "Roster, tank or contend",
+  trades: "Calculator, partners, deals",
+  history: "Titles, seasons, records",
 };
 export const PAGE_ROOMS = {
-  league: ["scores", "standings", "power", "awards", "recap"],
+  league: ["start", "scores", "standings", "power", "awards", "recap"],
   teams: ["roster", "call", "loyalty", "passports"],
-  trades: ["log", "match", "calculator", "lab"],
+  trades: ["calculator", "match", "lab", "log"],
   history: ["hall", "seasons", "records"],
 };
 export const DEFAULT_ROOMS = {
-  league: "scores",
+  league: "start",
   teams: "roster",
-  trades: "log",
+  trades: "calculator",
   history: "hall",
 };
 export const ROOM_LABELS = {
   league: {
+    start: "Start",
     scores: "Scores",
     standings: "Standings",
     power: "Power",
@@ -41,24 +42,25 @@ export const ROOM_LABELS = {
   },
   teams: {
     roster: "Roster",
-    call: "Call",
-    loyalty: "Loyalty",
-    passports: "Passports",
+    call: "Tank or contend",
+    loyalty: "Who stayed",
+    passports: "Player stamps",
   },
   trades: {
     log: "Log",
-    match: "Match",
+    match: "Partners",
     calculator: "Calculator",
     lab: "Find deals",
   },
   history: {
-    hall: "Hall",
+    hall: "Titles",
     seasons: "Seasons",
     records: "Records",
   },
 };
 export const ROOM_HINTS = {
   league: {
+    start: "Pick what you want to do",
     scores: "This week's matchups and win odds",
     standings: "Table, playoff odds, luck",
     power: "Dynasty value rankings",
@@ -104,6 +106,9 @@ export const PAGE_ALIASES = {
 };
 export const PLACE_ALIASES = {
   // League rooms.
+  start: { page: "league", room: "start" },
+  jobs: { page: "league", room: "start" },
+  welcome: { page: "league", room: "start" },
   scores: { page: "league", room: "scores" },
   scoreboard: { page: "league", room: "scores" },
   matchups: { page: "league", room: "scores" },
@@ -133,6 +138,7 @@ export const PLACE_ALIASES = {
   charms: { page: "teams", room: "loyalty" },
   passports: { page: "teams", room: "passports" },
   passport: { page: "teams", room: "passports" },
+  stamps: { page: "teams", room: "passports" },
   // Trades rooms.
   log: { page: "trades", room: "log" },
   tradelog: { page: "trades", room: "log" },
@@ -143,6 +149,7 @@ export const PLACE_ALIASES = {
   calc: { page: "trades", room: "calculator" },
   match: { page: "trades", room: "match" },
   tradematch: { page: "trades", room: "match" },
+  partners: { page: "trades", room: "match" },
   needs: { page: "trades", room: "match" },
   lab: { page: "trades", room: "lab" },
   generator: { page: "trades", room: "lab" },
@@ -152,6 +159,7 @@ export const PLACE_ALIASES = {
   finddeals: { page: "trades", room: "lab" },
   // History rooms.
   hall: { page: "history", room: "hall" },
+  titles: { page: "history", room: "hall" },
   seasons: { page: "history", room: "seasons" },
   archive: { page: "history", room: "seasons" },
   compare: { page: "history", room: "seasons" },

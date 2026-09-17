@@ -78,14 +78,15 @@ test("share params map old recap/home tabs onto league", () => {
   assert.equal(parsed.tone, "roast");
   assert.equal(parsed.meRosterId, 3);
   assert.equal(parseShareParams("league=1").tab, "");
-  assert.equal(parseShareParams("league=1").view, "scores");
+  assert.equal(parseShareParams("league=1").view, "start");
   assert.equal(parseShareParams("league=1&tab=recap").tab, "league");
   assert.equal(parseShareParams("league=1&tab=league&view=now").view, "scores");
   assert.equal(parseShareParams("league=1&tab=home").tab, "league");
   assert.equal(parseShareParams("league=1&tab=team").tab, "teams");
   assert.equal(parseShareParams("league=1&tab=teams").view, "roster");
   assert.equal(parseShareParams("league=1&tab=trader").tab, "trades");
-  assert.equal(parseShareParams("league=1&tab=trader").view, "log");
+  assert.equal(parseShareParams("league=1&tab=trader").view, "calculator");
+  assert.equal(parseShareParams("league=1&view=start").view, "start");
 });
 
 test("share params move old trade rooms to their new pages", () => {
@@ -108,7 +109,7 @@ test("share params move old trade rooms to their new pages", () => {
     view: "history",
   });
   assert.match(logUrl, /tab=trades/);
-  assert.doesNotMatch(logUrl, /view=/);
+  assert.match(logUrl, /view=log/);
 
   assert.equal(parseShareParams("league=1&tab=calculator").tab, "trades");
   assert.equal(parseShareParams("league=1&tab=calculator").view, "calculator");
@@ -128,7 +129,7 @@ test("share params move hall, analytics, and records to History", () => {
   assert.deepEqual(resolveDeskPlace({ tab: "trades", view: "history" }), { page: "trades", room: "log" });
   assert.deepEqual(resolveDeskPlace({ view: "records" }), { page: "history", room: "records" });
   assert.deepEqual(resolveDeskPlace({ view: "archive" }), { page: "history", room: "seasons" });
-  assert.deepEqual(resolveDeskPlace({ tab: "nonsense", view: "nonsense" }), { page: "league", room: "scores" });
+  assert.deepEqual(resolveDeskPlace({ tab: "nonsense", view: "nonsense" }), { page: "league", room: "start" });
   assert.deepEqual(resolveDeskPlace({ tab: "teams", view: "hall" }), { page: "history", room: "hall" });
   assert.equal(parseShareParams("league=1&tab=history").tab, "history");
   assert.equal(parseShareParams("league=1&view=hall").tab, "history");
@@ -146,11 +147,13 @@ test("desk place helpers know pages and rooms", () => {
   assert.equal(normalizeRoom("trades", "tradematch"), "match");
   assert.equal(normalizeRoom("trades", "hall"), "");
   assert.equal(normalizeRoom("league", "home"), "scores");
-  assert.equal(defaultRoomFor("trades"), "log");
-  assert.equal(defaultRoomFor("nope"), "scores");
+  assert.equal(defaultRoomFor("trades"), "calculator");
+  assert.equal(defaultRoomFor("nope"), "start");
   assert.equal(isRoomOf("teams", "loyalty"), true);
   assert.equal(isRoomOf("teams", "call"), true);
   assert.equal(isRoomOf("teams", "log"), false);
   assert.deepEqual(resolveDeskPlace({ view: "tank" }), { page: "teams", room: "call" });
   assert.equal(normalizeRoom("teams", "window"), "call");
+  assert.equal(normalizeRoom("trades", "partners"), "match");
+  assert.deepEqual(resolveDeskPlace({ view: "start" }), { page: "league", room: "start" });
 });
