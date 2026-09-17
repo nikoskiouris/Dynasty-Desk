@@ -20,6 +20,12 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Refuse untagged manual deploys
+        if: github.event_name == 'workflow_dispatch' && inputs.tag == ''
+        run: |
+          echo "Pass a release tag, or publish a GitHub Release. Do not deploy main."
+          exit 1
+
       - name: Checkout release
         uses: actions/checkout@v4
         with:

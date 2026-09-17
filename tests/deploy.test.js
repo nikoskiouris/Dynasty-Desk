@@ -64,6 +64,8 @@ test("GitHub Actions publish only from a GitHub Release", () => {
   assert.match(release, /types:\s*\[published\]/);
   assert.match(release, /bash scripts\/deploy_live_site\.sh/);
   assert.match(release, /group: deploy-live/);
+  assert.match(release, /Refuse untagged manual deploys/);
+  assert.match(release, /Do not deploy main/);
   assert.doesNotMatch(release, /NETLIFY_BUILD_HOOK/);
 
   const daily = read(".github/workflows/deploy-site.yml");
