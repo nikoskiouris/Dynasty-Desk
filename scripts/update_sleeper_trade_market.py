@@ -409,10 +409,11 @@ def enforce_pick_hierarchy(values: dict[str, int]) -> dict[str, int]:
         mid_id = rows.get((1, "mid"))
         late_id = rows.get((1, "late"))
         any_id = rows.get((1, "any"))
-        if early_id and mid_id and out[early_id] < out[mid_id]:
-            out[early_id] = out[mid_id]
+        # Normalize from the bottom up so raising mid cannot leave early below it.
         if mid_id and late_id and out[mid_id] < out[late_id]:
             out[mid_id] = out[late_id]
+        if early_id and mid_id and out[early_id] < out[mid_id]:
+            out[early_id] = out[mid_id]
         if any_id and early_id and out[any_id] > out[early_id]:
             out[any_id] = out[early_id]
         if any_id and late_id and out[any_id] < out[late_id]:
