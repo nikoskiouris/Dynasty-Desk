@@ -15,13 +15,13 @@ export const PAGE_LABELS = {
 };
 export const PAGE_HINTS = {
   league: "Scores, standings, awards",
-  teams: "Rosters, loyalty, passports",
+  teams: "Rosters, call, loyalty",
   trades: "Log, calculator, find deals",
   history: "Hall, seasons, records",
 };
 export const PAGE_ROOMS = {
   league: ["scores", "standings", "power", "awards", "recap"],
-  teams: ["roster", "loyalty", "passports"],
+  teams: ["roster", "call", "loyalty", "passports"],
   trades: ["log", "calculator", "lab"],
   history: ["hall", "seasons", "records"],
 };
@@ -41,6 +41,7 @@ export const ROOM_LABELS = {
   },
   teams: {
     roster: "Roster",
+    call: "Call",
     loyalty: "Loyalty",
     passports: "Passports",
   },
@@ -65,6 +66,7 @@ export const ROOM_HINTS = {
   },
   teams: {
     roster: "Scout card, lineup, bench, picks",
+    call: "Tank, all in, or stay in the middle",
     loyalty: "Roster DNA, ironmen, charms",
     passports: "Who owned each player, season by season",
   },
@@ -115,6 +117,15 @@ export const PLACE_ALIASES = {
   roster: { page: "teams", room: "roster" },
   lineup: { page: "teams", room: "roster" },
   scout: { page: "teams", room: "roster" },
+  call: { page: "teams", room: "call" },
+  window: { page: "teams", room: "call" },
+  tank: { page: "teams", room: "call" },
+  contend: { page: "teams", room: "call" },
+  contending: { page: "teams", room: "call" },
+  rebuild: { page: "teams", room: "call" },
+  "all-in": { page: "teams", room: "call" },
+  allin: { page: "teams", room: "call" },
+  strategy: { page: "teams", room: "call" },
   loyalty: { page: "teams", room: "loyalty" },
   dna: { page: "teams", room: "loyalty" },
   charms: { page: "teams", room: "loyalty" },

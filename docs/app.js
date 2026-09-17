@@ -133,6 +133,11 @@ import {
 } from "./modules/franchise.js";
 import { buildDeskHistorySnapshot, isSameDeskPlace } from "./modules/desk-history.js";
 import {
+  analyzeWindowCall,
+  groupWindowCalls,
+  windowCallInputFromDesk,
+} from "./modules/window-call.js";
+import {
   formatPickWithSelection,
   indexDraftSelections,
   lookupDraftedSelection,
@@ -283,6 +288,7 @@ const el = {
   awardsDashboard: document.querySelector("#awards-dashboard"),
   recapDashboard: document.querySelector("#recap-dashboard"),
   loyaltyDashboard: document.querySelector("#loyalty-dashboard"),
+  windowCallDashboard: document.querySelector("#window-call-dashboard"),
   passportDashboard: document.querySelector("#passport-dashboard"),
   tradeLogDashboard: document.querySelector("#trade-log-dashboard"),
   ticker: document.querySelector("#ticker"),
@@ -658,6 +664,9 @@ function renderLeagueRoom(room) {
 
 function renderTeamsRoom(room) {
   switch (room) {
+    case "call":
+      renderWindowCallDashboard();
+      break;
     case "loyalty":
       renderLoyaltyDashboard();
       break;
@@ -2406,11 +2415,13 @@ function renderPowerDashboard() {
     context,
   });
   const insights = buildSleeperInsightCards(profile, context);
+  const windowCall = buildWindowCallForProfile(profile);
   const trendNote = state.trendingLoaded
     ? "Sleeper market trends loaded"
     : "Sleeper market trends syncing";
 
   el.powerDashboard.innerHTML = `
+    ${renderWindowCallBanner(windowCall)}
     <div class="power-hero">
       <div class="power-score-ring" style="--score:${profile.score}">
         <strong>${profile.score}</strong>
@@ -2558,6 +2569,46 @@ function buildPowerProfiles() {
     .sort((a, b) => b.score - a.score || a.rank - b.rank || a.managerName.localeCompare(b.managerName));
 }
 
+function buildWindowCallForProfile(profile, { model = null, sim } = {}) {
+  if (!profile) return null;
+  const resolvedModel = model || getSeasonModel();
+  const resolvedSim = sim !== undefined ? sim : getSimulation(resolvedModel);
+  const standing = resolvedModel?.teams?.get(String(profile.rosterId)) || null;
+  const simRow = resolvedSim?.byRosterId?.get(String(profile.rosterId)) || null;
+  return analyzeWindowCall(windowCallInputFromDesk({
+    profile,
+    standing,
+    simRow,
+    model: resolvedModel,
+  }));
+}
+
+function buildLeagueWindowCalls({ profiles = null, model = null, sim } = {}) {
+  const resolvedProfiles = profiles || buildPowerProfiles();
+  const resolvedModel = model || getSeasonModel();
+  const resolvedSim = sim !== undefined ? sim : getSimulation(resolvedModel);
+  return resolvedProfiles.map((profile) => buildWindowCallForProfile(profile, {
+    model: resolvedModel,
+    sim: resolvedSim,
+  })).filter(Boolean);
+}
+
+function getLensWindowCall({ profiles = null, model = null, sim } = {}) {
+  const roster = getLensRoster();
+  if (!roster) return null;
+  const resolvedProfiles = profiles || buildPowerProfiles();
+  const profile = resolvedProfiles.find((entry) => String(entry.rosterId) === String(roster.rosterId));
+  return buildWindowCallForProfile(profile, { model, sim });
+}
+
+function getMyWindowCall({ profiles = null, model = null, sim } = {}) {
+  const roster = getMyRoster();
+  if (!roster) return null;
+  const resolvedProfiles = profiles || buildPowerProfiles();
+  const profile = resolvedProfiles.find((entry) => String(entry.rosterId) === String(roster.rosterId));
+  return buildWindowCallForProfile(profile, { model, sim });
+}
+
 function managerForRosterId(rosterId) {
   const roster = findNormalizedRoster(rosterId);
   if (roster) return roster.manager;
@@ -2683,6 +2734,7 @@ function renderPulseStrip(model, sim, profiles) {
     .filter((team) => team.streak?.type === "W" && team.streak.length >= 2)
     .sort((a, b) => b.streak.length - a.streak.length)[0] || null;
   const topPower = profiles[0] || null;
+  const myCall = getMyWindowCall({ profiles, model, sim });
   const tiles = [
     {
       label: "Week",
@@ -2716,14 +2768,23 @@ function renderPulseStrip(model, sim, profiles) {
       detail: champion ? `${model.season} league winner` : favorite ? `${percentLabel(favorite.titlePct)} title · ${percentLabel(favorite.playoffPct)} playoffs` : "simulation pending",
       tone: "green",
     },
-    {
-      label: hotTeam ? "Hot hand" : "Power leader",
-      page: "league",
-      room: hotTeam ? "standings" : "power",
-      value: hotTeam ? hotTeam.name : topPower?.managerName || "TBD",
-      detail: hotTeam ? `${hotTeam.streak.length} straight wins` : topPower ? `${topPower.score}/100 power score` : "values syncing",
-      tone: "rose",
-    },
+    myCall
+      ? {
+        label: "Desk call",
+        page: "teams",
+        room: "call",
+        value: myCall.shortLabel,
+        detail: myCall.headline,
+        tone: myCall.tone === "gold" ? "gold" : myCall.tone === "rose" ? "rose" : "green",
+      }
+      : {
+        label: hotTeam ? "Hot hand" : "Power leader",
+        page: "league",
+        room: hotTeam ? "standings" : "power",
+        value: hotTeam ? hotTeam.name : topPower?.managerName || "TBD",
+        detail: hotTeam ? `${hotTeam.streak.length} straight wins` : topPower ? `${topPower.score}/100 power score` : "values syncing",
+        tone: "rose",
+      },
     {
       label: "Trade desk",
       page: "trades",
@@ -3507,6 +3568,163 @@ function renderLensPicker(roster, { label = "Viewing", extra = "" } = {}) {
   `;
 }
 
+function renderWindowCallBanner(call) {
+  if (!call) return "";
+  return `
+    <button type="button" class="window-call-banner ${call.tone}" data-action="go" data-page="teams" data-room="call">
+      <span class="eyebrow">Desk call</span>
+      <strong>${escapeHtml(call.label)}</strong>
+      <small>${escapeHtml(call.headline)} · ${call.confidence}% confidence</small>
+    </button>
+  `;
+}
+
+function renderWindowCallDashboard() {
+  const host = el.windowCallDashboard;
+  if (!host) return;
+  const roster = getLensRoster();
+  if (!roster) {
+    host.innerHTML = `<p class="muted">Pick a manager. Desk says tank, all in, or middle.</p>`;
+    return;
+  }
+  if (!state.playerMetadataLoaded) {
+    host.innerHTML = `
+      ${renderLensPicker(roster)}
+      <div class="power-sync">
+        <strong>${state.playerMetadataFailed ? "Player metadata unavailable" : "Syncing player metadata"}</strong>
+        <p class="muted">${
+          state.playerMetadataFailed
+            ? "Need positions and ages before the desk can make a tank / all-in / middle call."
+            : "Waiting on Sleeper positions, ages, and pick data so the call is not a coin flip."
+        }</p>
+      </div>
+    `;
+    return;
+  }
+
+  const profiles = buildPowerProfiles();
+  const model = getSeasonModel();
+  const sim = getSimulation(model);
+  const call = getLensWindowCall({ profiles, model, sim });
+  if (!call) {
+    host.innerHTML = `
+      ${renderLensPicker(roster)}
+      <p class="muted">Values still syncing. Call shows once the power board loads.</p>
+    `;
+    return;
+  }
+
+  const leagueCalls = buildLeagueWindowCalls({ profiles, model, sim });
+  const groups = groupWindowCalls(leagueCalls);
+  const other = isViewingOtherRoster(roster);
+  const groupMeta = [
+    { id: "all-in", title: "All in", empty: "Nobody is a finished title team yet." },
+    { id: "middle", title: "Middle", empty: "No one is sitting on the fence." },
+    { id: "tank", title: "Tank", empty: "Nobody should be collecting firsts yet." },
+  ];
+
+  host.innerHTML = `
+    ${renderLensPicker(roster)}
+    <article class="window-call-hero ${call.tone}">
+      <div>
+        <span class="eyebrow">${other ? `${escapeHtml(roster.manager.displayName)} · desk call` : "Desk call"}</span>
+        <h2>${escapeHtml(call.label)}</h2>
+        <p>${escapeHtml(call.headline)}</p>
+        <p class="muted">${escapeHtml(call.summary)}</p>
+      </div>
+      <div class="window-call-confidence">
+        <span>Confidence</span>
+        <strong>${call.confidence}%</strong>
+        <small>${call.nowScore} this year · ${call.futureScore} future</small>
+      </div>
+    </article>
+    <div class="window-call-axes">
+      ${renderWindowCallAxis("This year", call.nowScore, "Playoff math plus current lineup juice.")}
+      ${renderWindowCallAxis("Dynasty future", call.futureScore, "Age, youth share, and pick capital.")}
+    </div>
+    <div class="window-call-signals">
+      ${call.signals.map(renderWindowCallSignal).join("")}
+    </div>
+    <section class="workspace-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Next moves</span>
+          <h2>What the desk wants</h2>
+        </div>
+        <p class="section-copy">${
+          call.id === "all-in"
+            ? "Win now. Buy starters. Do not collect dart throws."
+            : call.id === "tank"
+              ? "This year is for capital. Sell vets. Keep the kids."
+              : "No fire sale, no farm sale. One clean upgrade."
+        }</p>
+      </div>
+      <ol class="window-call-moves">
+        ${call.moves.map((move) => `<li>${escapeHtml(move)}</li>`).join("")}
+      </ol>
+      <div class="window-call-actions">
+        <button type="button" class="ghost-btn" data-action="go" data-page="teams" data-room="roster">Scout card</button>
+        ${other
+          ? `<button type="button" class="ghost-btn" data-action="calc-with" data-roster-id="${roster.rosterId}">Build a trade</button>`
+          : `<button type="button" class="ghost-btn" data-action="go" data-page="trades" data-room="lab">Find deals</button>`}
+      </div>
+    </section>
+    <section class="workspace-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">League board</span>
+          <h2>Who else is in which lane</h2>
+        </div>
+        <p class="section-copy">Same call for every roster: playoff odds, lineup rank, age, and pick vault. Tap a name to switch.</p>
+      </div>
+      <div class="window-call-league">
+        ${groupMeta.map((group) => `
+          <article class="window-call-group">
+            <h3>${escapeHtml(group.title)} <em>${groups[group.id].length}</em></h3>
+            ${groups[group.id].length
+              ? groups[group.id].map((row) => renderWindowCallLeagueRow(row, roster)).join("")
+              : `<p class="muted small">${escapeHtml(group.empty)}</p>`}
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderWindowCallAxis(label, score, detail) {
+  return `
+    <section class="window-call-axis">
+      <div class="window-call-axis-top">
+        <strong>${escapeHtml(label)}</strong>
+        <span>${score}/99</span>
+      </div>
+      <div class="meter-track" aria-hidden="true"><span style="width:${score}%"></span></div>
+      <p>${escapeHtml(detail)}</p>
+    </section>
+  `;
+}
+
+function renderWindowCallSignal(signal) {
+  return `
+    <section class="window-call-signal ${signal.lean || ""}">
+      <span>${escapeHtml(signal.label)}</span>
+      <strong>${escapeHtml(signal.value)}</strong>
+      <small>${escapeHtml(signal.detail || "")}</small>
+    </section>
+  `;
+}
+
+function renderWindowCallLeagueRow(call, roster) {
+  const active = String(call.rosterId) === String(roster.rosterId);
+  const you = String(call.rosterId) === String(state.meRosterId ?? "");
+  return `
+    <button type="button" class="window-call-row ${active ? "active" : ""} ${you ? "you" : ""}" data-action="set-lens" data-roster-id="${call.rosterId}">
+      ${renderTeamIdentity(call.rosterId, { showTeamName: false, extra: `${call.confidence}% · ${call.nowScore} now / ${call.futureScore} later` })}
+      <span class="mini-chip ${call.tone === "green" ? "green" : call.tone === "rose" ? "rose" : "gold"}">${escapeHtml(call.shortLabel)}</span>
+    </button>
+  `;
+}
+
 function renderLoyaltyDashboard() {
   const host = el.loyaltyDashboard;
   if (!host) return;
@@ -3848,11 +4066,16 @@ function renderTeamsGrid() {
   if (!el.teamsGrid) return;
   const profiles = buildPowerProfiles();
   const model = getSeasonModel();
+  const sim = getSimulation(model);
   const lens = getLensRoster();
+  const callsByRoster = new Map(
+    buildLeagueWindowCalls({ profiles, model, sim }).map((call) => [String(call.rosterId), call])
+  );
   el.teamsGrid.innerHTML = profiles.map((profile) => {
     const team = model?.teams.get(String(profile.rosterId));
     const manager = managerForRosterId(profile.rosterId);
     const isActive = lens && String(lens.rosterId) === String(profile.rosterId);
+    const call = callsByRoster.get(String(profile.rosterId));
     return `
       <article class="team-card ${isActive ? "active" : ""} ${String(profile.rosterId) === String(state.meRosterId) ? "you" : ""}">
         <button type="button" class="team-card-main" data-action="set-lens" data-roster-id="${profile.rosterId}">
@@ -3860,7 +4083,7 @@ function renderTeamsGrid() {
           <span class="team-card-copy">
             <strong>${escapeHtml(manager.displayName)}</strong>
             <span>${escapeHtml(manager.teamName || profile.laneLabel)}</span>
-            <small>${team?.gamesPlayed ? `${escapeHtml(team.recordLabel)} · ${formatPoints(team.pf)} PF` : escapeHtml(profile.laneLabel)}</small>
+            <small>${team?.gamesPlayed ? `${escapeHtml(team.recordLabel)} · ${formatPoints(team.pf)} PF` : escapeHtml(profile.laneLabel)}${call ? ` · ${escapeHtml(call.shortLabel)}` : ""}</small>
           </span>
           <span class="team-card-score">
             <strong>${profile.score}</strong>
@@ -7089,6 +7312,9 @@ function buildTeamPowerProfile({ roster, values, league, context, metrics = null
     totalTeams: context.totalTeams,
     lane,
     laneLabel: lane.label,
+    starterPercentile,
+    pickPercentile,
+    timelineScore,
     metrics: resolvedMetrics,
     assetSummary,
     positionSummaries,
@@ -7736,7 +7962,7 @@ function getTradeLabSettings() {
     excludedOutgoingAssetIds: new Set(state.excludedOutgoingAssetIds),
     positionPremium: "none",
     tradeVibe: "balanced",
-    teamState: "middle",
+    teamState: getMyWindowCall()?.teamState || "middle",
   };
 }
 
