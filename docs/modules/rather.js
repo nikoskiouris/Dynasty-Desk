@@ -7,7 +7,8 @@ export const SLEEPER_PLAYER_THUMB_BASE = "https://sleepercdn.com/content/nfl/pla
 export const RATHER_MIN_PLAYER_VALUE = 1800;
 export const RATHER_RECENT_LIMIT = 24;
 export const RATHER_VOTE_LIMIT = 200;
-export const RATHER_MAX_RANK_GAP = 4;
+export const RATHER_MAX_RANK_GAP = 8;
+export const RATHER_MAX_VALUE_RATIO = 1.12;
 export const RATHER_DRAFT_PICKS_PATH = "./data/nfl_draft_picks.json";
 const WR_DEPTH_SLOTS = new Set(["WR", "LWR", "RWR", "SWR"]);
 
@@ -74,32 +75,45 @@ export function listRatherPlayers(values, names, { minValue = RATHER_MIN_PLAYER_
   return rows.sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
 }
 
-export function pickRatherPair(players, { recentKeys = [], random = Math.random } = {}) {
-  const ranked = Array.isArray(players) ? players.filter((row) => row?.assetId && row?.name) : [];
+export function ratherEffectiveValue(player, shifts = null) {
+  return applyLocalCrowdShift(player?.assetId, Number(player?.value), shifts);
+}
+
+export function ratherPairWeight(left, right, shifts = null) {
+  const leftValue = ratherEffectiveValue(left, shifts);
+  const rightValue = ratherEffectiveValue(right, shifts);
+  const lo = Math.min(leftValue, rightValue);
+  const hi = Math.max(leftValue, rightValue);
+  if (!(lo > 0) || !(hi > 0)) return 0;
+  const ratio = hi / lo;
+  if (ratio > RATHER_MAX_VALUE_RATIO) return 0;
+  return (RATHER_MAX_VALUE_RATIO - ratio) + 0.02;
+}
+
+export function pickRatherPair(players, { recentKeys = [], random = Math.random, shifts = null } = {}) {
+  const ranked = sortRatherPlayers(players, shifts);
   if (ranked.length < 2) return null;
 
   const recent = new Set((recentKeys || []).map(String));
-  const options = [];
-  for (let index = 0; index < ranked.length - 1; index += 1) {
-    for (let gap = 1; gap <= RATHER_MAX_RANK_GAP && index + gap < ranked.length; gap += 1) {
-      const left = ranked[index];
-      const right = ranked[index + gap];
-      if (left.assetId === right.assetId) continue;
-      const key = pairKey(left.assetId, right.assetId);
-      if (recent.has(key)) continue;
-      options.push({ left, right, key });
-    }
-  }
-
-  const pool = options.length
-    ? options
-    : [{ left: ranked[0], right: ranked[1], key: pairKey(ranked[0].assetId, ranked[1].assetId) }];
-  const roll = clampUnit(random());
-  const picked = pool[Math.min(pool.length - 1, Math.floor(roll * pool.length))];
+  const closeOptions = collectRatherPairOptions(ranked, { recent, shifts, requireClose: true });
+  const pool = closeOptions.length
+    ? closeOptions
+    : collectRatherPairOptions(ranked, { recent: new Set(), shifts, requireClose: true });
+  const picked = pickWeightedRatherOption(
+    pool.length
+      ? pool
+      : [{
+        left: ranked[0],
+        right: ranked[1],
+        key: pairKey(ranked[0].assetId, ranked[1].assetId),
+        weight: 1,
+      }],
+    random,
+  );
   if (clampUnit(random()) < 0.5) {
     return { left: picked.right, right: picked.left, key: picked.key };
   }
-  return picked;
+  return { left: picked.left, right: picked.right, key: picked.key };
 }
 
 export function ratherOrdinal(value) {
@@ -268,13 +282,7 @@ export function decorateRatherPlayer(player, nflPlayers = {}, extras = {}) {
 }
 
 export function rankRatherPlayers(players, shifts = null) {
-  const rows = Array.isArray(players) ? players.filter((row) => row?.assetId && row?.name) : [];
-  if (!shifts) return rows;
-  return [...rows].sort((a, b) => {
-    const aValue = applyLocalCrowdShift(a.assetId, Number(a.value), shifts);
-    const bValue = applyLocalCrowdShift(b.assetId, Number(b.value), shifts);
-    return bValue - aValue || a.name.localeCompare(b.name);
-  });
+  return sortRatherPlayers(players, shifts);
 }
 
 export function renderRatherMarkup(pair, format = DEFAULT_RATHER_FORMAT, options = {}) {
@@ -316,6 +324,44 @@ function applyLocalCrowdShift(assetId, value, shifts) {
   const shift = Number(shifts?.[assetId]);
   if (!Number.isFinite(value) || !Number.isFinite(shift)) return Number.isFinite(value) ? value : 0;
   return value * (1 + shift);
+}
+
+function sortRatherPlayers(players, shifts = null) {
+  const rows = Array.isArray(players) ? players.filter((row) => row?.assetId && row?.name) : [];
+  return [...rows].sort((a, b) => {
+    const aValue = ratherEffectiveValue(a, shifts);
+    const bValue = ratherEffectiveValue(b, shifts);
+    return bValue - aValue || String(a.name || "").localeCompare(String(b.name || ""));
+  });
+}
+
+function collectRatherPairOptions(ranked, { recent, shifts, requireClose }) {
+  const options = [];
+  for (let index = 0; index < ranked.length - 1; index += 1) {
+    for (let gap = 1; gap <= RATHER_MAX_RANK_GAP && index + gap < ranked.length; gap += 1) {
+      const left = ranked[index];
+      const right = ranked[index + gap];
+      if (left.assetId === right.assetId) continue;
+      const key = pairKey(left.assetId, right.assetId);
+      if (recent.has(key)) continue;
+      const weight = ratherPairWeight(left, right, shifts);
+      if (requireClose && weight <= 0) continue;
+      options.push({ left, right, key, weight: weight || 1 });
+    }
+  }
+  return options;
+}
+
+function pickWeightedRatherOption(options, random) {
+  if (!options.length) return null;
+  const total = options.reduce((sum, option) => sum + Number(option.weight || 0), 0);
+  if (!(total > 0)) return options[0];
+  let cursor = clampUnit(random()) * total;
+  for (const option of options) {
+    cursor -= Number(option.weight || 0);
+    if (cursor <= 0) return option;
+  }
+  return options[options.length - 1];
 }
 
 export function applyRatherOverlayHidden(overlay, hidden) {

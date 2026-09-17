@@ -24,6 +24,7 @@ import {
   parseRatherDraftPicks,
   pickRatherPair,
   playerInitials,
+  ratherPairWeight,
   pushRatherRecentKey,
   rankRatherPlayers,
   readRatherRecentKeys,
@@ -100,6 +101,53 @@ test("pickRatherPair skips recently shown matchups", () => {
   const blocked = [pairKey("player:a", "player:b")];
   const pair = pickRatherPair(players, { recentKeys: blocked, random: () => 0 });
   assert.notEqual(pair.key, blocked[0]);
+});
+
+test("pickRatherPair skips no-brainer value cliffs", () => {
+  const players = [
+    { assetId: "player:star", playerId: "star", name: "Star", value: 9965 },
+    { assetId: "player:peer", playerId: "peer", name: "Peer", value: 9224 },
+    { assetId: "player:close", playerId: "close", name: "Close", value: 8510 },
+    { assetId: "player:fringe", playerId: "fringe", name: "Fringe", value: 8212 },
+  ];
+  assert.equal(ratherPairWeight(players[0], players[3]), 0);
+  assert.ok(ratherPairWeight(players[0], players[1]) > ratherPairWeight(players[0], players[2]));
+
+  const names = new Set();
+  for (let i = 0; i < 24; i += 1) {
+    const pair = pickRatherPair(players, { random: () => (i + 0.5) / 24 });
+    names.add([pair.left.name, pair.right.name].sort().join("|"));
+  }
+  assert.equal(names.has("Fringe|Star"), false);
+  assert.equal(names.has("Close|Star"), false);
+  assert.equal(names.has("Close|Fringe"), true);
+  assert.equal(names.has("Peer|Star"), true);
+});
+
+test("pickRatherPair uses crowd-shifted values to judge closeness", () => {
+  const players = [
+    { assetId: "player:a", playerId: "a", name: "A", value: 9000 },
+    { assetId: "player:b", playerId: "b", name: "B", value: 7800 },
+  ];
+  assert.equal(ratherPairWeight(players[0], players[1]), 0);
+  assert.ok(ratherPairWeight(players[0], players[1], { "player:b": 0.08 }) > 0);
+  const pair = pickRatherPair(players, {
+    random: () => 0,
+    shifts: { "player:b": 0.08 },
+  });
+  assert.equal(pair.key, pairKey("player:a", "player:b"));
+});
+
+test("pickRatherPair still returns a pair if the board is all cliffs", () => {
+  const pair = pickRatherPair(
+    [
+      { assetId: "player:a", playerId: "a", name: "A", value: 9000 },
+      { assetId: "player:b", playerId: "b", name: "B", value: 4000 },
+    ],
+    { random: () => 0 },
+  );
+  assert.ok(pair);
+  assert.notEqual(pair.left.assetId, pair.right.assetId);
 });
 
 test("decorateRatherPlayer adds photo, initials, and roster meta", () => {
