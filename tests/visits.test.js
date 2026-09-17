@@ -181,8 +181,8 @@ test("Netlify serves the first-party counter ahead of the 404 catch-all", () => 
 
   const fn = readFileSync(join(root, "netlify/functions/visit.js"), "utf8");
   assert.match(fn, /desk-traffic/);
-  assert.match(fn, /export const handler/);
-  assert.doesNotMatch(fn, /export const config/);
+  assert.match(fn, /export default/);
+  assert.doesNotMatch(fn, /wrapLambdaHandler/);
 
   const redirects = readFileSync(join(docs, "_redirects"), "utf8");
   assert.match(redirects, /\/api\/visit\s+\/\.netlify\/functions\/visit\s+200!/);
