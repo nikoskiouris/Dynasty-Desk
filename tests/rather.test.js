@@ -284,7 +284,7 @@ test("index puts rather on the landing page and never auto-opens a league overla
   assert.doesNotMatch(index, /id="landing-focus-btn"/);
   assert.match(css, /\.landing-rather\s*\{/);
   assert.match(css, /Phone landing: search first/);
-  assert.match(css, /\.landing-rather \.rather-duel\s*\{[^}]*grid-template-columns:\s*1fr auto 1fr/s);
+  assert.match(css, /\.landing-rather \.rather-duel\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\)/s);
   assert.doesNotMatch(css, /\.rather-overlay:not\(\[hidden\]\)/);
   assert.match(css, /\.rather-stats\s*\{/);
   assert.match(app, /bootLandingRather/);

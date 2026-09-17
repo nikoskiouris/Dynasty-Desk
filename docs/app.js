@@ -13645,7 +13645,7 @@ function showNextRatherMatchup({ status = "" } = {}) {
 
 function skipRatherMatchup() {
   if (ratherPromptPair?.key) pushRatherRecentKey(ratherPromptPair.key);
-  showNextRatherMatchup({ status: "Skipped. New matchup." });
+  showNextRatherMatchup({ status: "Skipped." });
 }
 
 function chooseRatherPlayer(winnerId) {
@@ -13672,9 +13672,7 @@ function chooseRatherPlayer(winnerId) {
     }
   }
   if (pair.key) pushRatherRecentKey(pair.key);
-  const status = winnerName && loserName
-    ? `Noted. ${winnerName} over ${loserName}. Board nudged.`
-    : "Noted. Board nudged.";
+  const status = winnerName ? `Noted. ${winnerName}.` : "Noted.";
   showNextRatherMatchup({ status });
 }
 
