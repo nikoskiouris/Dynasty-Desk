@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export const DEFAULT_SALT = "dynasty-desk-traffic-v1";
+export const DEFAULT_SALT = "dynasty-ticker-traffic-v1";
 export const DEFAULT_ORIGINS = Object.freeze([
   "https://dynastyticker.com",
   "https://www.dynastyticker.com",
