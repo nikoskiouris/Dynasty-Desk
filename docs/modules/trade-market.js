@@ -136,8 +136,9 @@ export function enforcePickCoherence(values) {
     const midId = firstBuckets.mid;
     const lateId = firstBuckets.late;
     const anyId = firstBuckets.any;
-    if (earlyId && midId && out[earlyId] < out[midId]) out[earlyId] = out[midId];
+    // Normalize from the bottom up so raising mid to late cannot leave early below mid.
     if (midId && lateId && out[midId] < out[lateId]) out[midId] = out[lateId];
+    if (earlyId && midId && out[earlyId] < out[midId]) out[earlyId] = out[midId];
     if (anyId && earlyId && out[anyId] > out[earlyId]) out[anyId] = out[earlyId];
     if (anyId && lateId && out[anyId] < out[lateId]) out[anyId] = out[lateId];
   }
