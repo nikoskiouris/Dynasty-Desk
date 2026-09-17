@@ -1382,6 +1382,7 @@ async function runLeagueLoad(leagueId) {
     leagueTradeSideCache = { key: "", sides: [] };
     state.standingsView = "overall";
     resetCalculatorState({ keepPartner: false });
+    clearTradeMatchCache();
     if (el.playerSearch) el.playerSearch.value = "";
     hideAppPages();
     if (el.resultsList) el.resultsList.innerHTML = "";
@@ -7629,7 +7630,12 @@ function clearTradeMatchCache() {
 }
 
 function tradeMatchCacheKey(rosterId = state.meRosterId) {
-  return `${state.leagueId || ""}:${rosterId || ""}:${Object.keys(state.values || {}).length}`;
+  return [
+    state.leagueId || "",
+    rosterId || "",
+    Object.keys(state.values || {}).length,
+    state.playerMetadataLoaded ? "players" : "names",
+  ].join(":");
 }
 
 function buildTradeMatchProfiles(powerProfiles = null) {
@@ -7701,6 +7707,12 @@ function renderTradeMatchRoom() {
     renderTradeMatchDashboard();
     return;
   }
+  if (state.meRosterId && state.leagueId && !state.playerMetadataLoaded && !state.playerMetadataFailed) {
+    if (el.tradeMatchDashboard) {
+      el.tradeMatchDashboard.innerHTML = `<p class="muted">Matching holes against the rest of the league…</p>`;
+    }
+    return;
+  }
   if (state.meRosterId && state.leagueId) {
     void generateTradeMatches();
     return;
@@ -7717,6 +7729,10 @@ function renderTradeMatchNeeds() {
   }
   if (!Object.keys(state.values || {}).length) {
     el.tradeMatchNeeds.innerHTML = `<p class="muted">Values are still loading.</p>`;
+    return;
+  }
+  if (!state.playerMetadataLoaded && !state.playerMetadataFailed) {
+    el.tradeMatchNeeds.innerHTML = `<p class="muted">Player names are still syncing.</p>`;
     return;
   }
   const mine = buildTradeMatchProfiles().find((profile) => String(profile.rosterId) === String(meRoster.rosterId));
@@ -7803,6 +7819,10 @@ async function generateTradeMatches({ userRequested = false } = {}) {
     setButtonLoading(el.matchGenerateBtn, true, "Matching teams...");
     await ensureValuesLoaded("");
     await waitForNextPaint();
+    if (!state.playerMetadataLoaded && !state.playerMetadataFailed) {
+      state.tradeMatch.payload = null;
+      return;
+    }
     const key = tradeMatchCacheKey(meRoster.rosterId);
     if (!userRequested && state.tradeMatch.key === key && state.tradeMatch.payload) {
       return;
@@ -7866,6 +7886,7 @@ async function generateTradeMatches({ userRequested = false } = {}) {
             counterpartyName: theirProfile.managerName,
             counterpartyRosterId: theirProfile.rosterId,
             matchKind: deal.kind,
+            myHelp: deal.myHelp,
           },
           myRoster: meRoster,
           theirRoster: theirProfile.roster,
@@ -7888,6 +7909,12 @@ async function generateTradeMatches({ userRequested = false } = {}) {
         ].filter(Boolean).slice(0, 4),
         ideas: ideas
           .sort((a, b) => {
+            const loudest = myProfile.weakestPosition?.position;
+            if (loudest) {
+              const aHit = (a.myHelp?.patchedNeeds || []).some((row) => row.position === loudest) ? 1 : 0;
+              const bHit = (b.myHelp?.patchedNeeds || []).some((row) => row.position === loudest) ? 1 : 0;
+              if (aHit !== bHit) return bHit - aHit;
+            }
             const bySize = (a.myAssets.length + a.theirAssets.length) - (b.myAssets.length + b.theirAssets.length);
             if (Math.abs(bySize) >= 2) return bySize;
             return compareEnrichedTradeIdeas(a, b);

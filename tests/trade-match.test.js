@@ -233,6 +233,10 @@ test("match deals patch the hole and never ship a third-round swap", () => {
   });
   assert.ok(deals.length >= 1, "expected a real two-team match deal");
   assert.ok(
+    deals[0].myHelp.patchedNeeds.some((row) => row.position === "RB"),
+    "top match should patch the loudest hole first"
+  );
+  assert.ok(
     deals.some((deal) => deal.myAssets.length + deal.theirAssets.length <= 3),
     "compact need-swap should beat a pile of extras"
   );

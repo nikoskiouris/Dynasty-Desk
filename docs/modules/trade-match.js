@@ -399,7 +399,7 @@ export function proposeMatchDeals({
         pctDiff,
         kind,
         matchScore: resolvedMatch.score,
-        helpScore: scoreDealHelp(myHelp, theirHelp, pctDiff, myValue, theirValue, myAssets.length, theirAssets.length),
+        helpScore: scoreDealHelp(myHelp, theirHelp, pctDiff, myValue, theirValue, myAssets.length, theirAssets.length, myProfile),
         myHelp,
         theirHelp,
         tags: buildMatchDealTags(resolvedMatch, myHelp, kind),
@@ -637,10 +637,12 @@ function classifyMatchDealKind(match, myHelp, theirHelp) {
   return "fit";
 }
 
-function scoreDealHelp(myHelp, theirHelp, pctDiff, myValue, theirValue, myCount = 1, theirCount = 1) {
+function scoreDealHelp(myHelp, theirHelp, pctDiff, myValue, theirValue, myCount = 1, theirCount = 1, myProfile = null) {
   let score = 70;
   score += myHelp.patchedNeeds.reduce((sum, row) => sum + Math.min(18, row.delta / 120), 0);
   score += theirHelp.patchedNeeds.reduce((sum, row) => sum + Math.min(14, row.delta / 140), 0);
+  const loudestNeed = myProfile?.weakestPosition?.position;
+  if (loudestNeed && myHelp.patchedNeeds.some((row) => row.position === loudestNeed)) score += 16;
   score += Math.min(12, Math.max(0, myHelp.pickDelta) / 400);
   score += Math.min(12, Math.max(0, theirHelp.pickDelta) / 400);
   score -= pctDiff * 1.1;
