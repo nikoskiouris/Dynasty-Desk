@@ -280,13 +280,12 @@ export function rankRatherPlayers(players, shifts = null) {
 export function renderRatherMarkup(pair, format = DEFAULT_RATHER_FORMAT, options = {}) {
   const left = pair?.left || {};
   const right = pair?.right || {};
-  const skipLabel = options.skipLabel || "Skip this matchup";
+  const skipLabel = options.skipLabel || "Skip";
   const note = options.note
     || "Your pick slightly nudges the desk board. The market prior is Sleeper trades mixed with KeepTradeCut.";
   const status = options.status || "";
   return `
     <div class="rather-panel">
-      <span class="eyebrow">Desk Crowd</span>
       <h2 id="rather-title">${escapeHtml(formatRatherHeadline())}</h2>
       <p class="rather-format" id="rather-format">${escapeHtml(formatRatherDetail(format))}</p>
       <p class="rather-format-detail" id="rather-format-detail">${escapeHtml(formatRatherDetailLong(format))}</p>
@@ -296,7 +295,7 @@ export function renderRatherMarkup(pair, format = DEFAULT_RATHER_FORMAT, options
         <span class="rather-or" aria-hidden="true">or</span>
         ${renderRatherPlayerButton(right, "right")}
       </div>
-      <button type="button" class="rather-skip ghost-btn" id="rather-skip">${escapeHtml(skipLabel)}</button>
+      <button type="button" class="rather-skip ghost-btn" id="rather-skip" aria-label="Skip this matchup">${escapeHtml(skipLabel)}</button>
       <p class="rather-note" id="rather-note">${escapeHtml(note)}</p>
     </div>
   `;
@@ -305,11 +304,10 @@ export function renderRatherMarkup(pair, format = DEFAULT_RATHER_FORMAT, options
 export function renderLandingRatherPlaceholder() {
   return `
     <div class="rather-panel landing-rather-pending">
-      <span class="eyebrow">Desk Crowd</span>
       <h2 id="rather-title">${escapeHtml(formatRatherHeadline())}</h2>
       <p class="rather-format" id="rather-format">${escapeHtml(formatRatherDetail())}</p>
       <p class="rather-format-detail" id="rather-format-detail">${escapeHtml(formatRatherDetailLong())}</p>
-      <p class="muted">Loading a close Superflex matchup…</p>
+      <p class="muted">Loading a close matchup…</p>
     </div>
   `;
 }

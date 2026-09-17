@@ -335,6 +335,8 @@ let managerSelectorHydrating = false;
 let managerSelectorHydrateEpoch = 0;
 let ratherPromptPair = null;
 let ratherSeasonStatsCache = { season: "", stats: null };
+let landingSearchOffscreen = false;
+let landingSearchObserver = null;
 let ratherPromptContext = {
   nflPlayers: {},
   seasonStats: {},
@@ -493,6 +495,7 @@ if (typeof history.scrollRestoration === "string") history.scrollRestoration = "
 window.addEventListener("popstate", (event) => applyDeskPopState(event.state));
 if (isPhoneLayout()) setMobileRailOpen(false);
 syncDocumentMeta();
+watchLandingSearchVisibility();
 syncSiteDock();
 
 // ---------------------------------------------------------------------------
@@ -13671,7 +13674,7 @@ function showNextRatherMatchup({ status = "" } = {}) {
 
 function skipRatherMatchup() {
   if (ratherPromptPair?.key) pushRatherRecentKey(ratherPromptPair.key);
-  showNextRatherMatchup({ status: "Skipped. New matchup." });
+  showNextRatherMatchup({ status: "Skipped." });
 }
 
 function chooseRatherPlayer(winnerId) {
@@ -13698,9 +13701,7 @@ function chooseRatherPlayer(winnerId) {
     }
   }
   if (pair.key) pushRatherRecentKey(pair.key);
-  const status = winnerName && loserName
-    ? `Noted. ${winnerName} over ${loserName}. Board nudged.`
-    : "Noted. Board nudged.";
+  const status = winnerName ? `Noted. ${winnerName}.` : "Noted.";
   showNextRatherMatchup({ status });
 }
 
@@ -13726,8 +13727,21 @@ function bindRatherPhotos(root) {
   });
 }
 
+function watchLandingSearchVisibility() {
+  if (landingSearchObserver || typeof IntersectionObserver !== "function" || !el.landingUsernameForm) return;
+  landingSearchObserver = new IntersectionObserver((entries) => {
+    const entry = entries[0];
+    landingSearchOffscreen = Boolean(entry) && entry.intersectionRatio < 0.35;
+    syncSiteDock();
+  }, { threshold: [0, 0.35, 1] });
+  landingSearchObserver.observe(el.landingUsernameForm);
+}
+
 function syncSiteDock() {
-  const stickyOpen = isPhoneLayout() && !state.leagueId && !document.body.classList.contains("rail-open");
+  const stickyOpen = isPhoneLayout()
+    && !state.leagueId
+    && !document.body.classList.contains("rail-open")
+    && landingSearchOffscreen;
   if (el.stickyMobileCta) el.stickyMobileCta.hidden = !stickyOpen;
   document.body.classList.toggle("dock-visible", stickyOpen);
 }

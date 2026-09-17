@@ -133,6 +133,10 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.doesNotMatch(index, /Open demo/);
   assert.match(index, /id="landing-rather"/);
   assert.match(index, /id="landing-username"/);
+  assert.match(index, />Open your league</);
+  assert.doesNotMatch(index, /id="landing-features"/);
+  assert.doesNotMatch(index, /class="landing-features"/);
+  assert.doesNotMatch(index, /step-badge accent/);
   assert.doesNotMatch(index, /id="landing-visits"/);
   assert.doesNotMatch(index, /id="footer-visits"/);
   assert.doesNotMatch(index, /anonymous visit ping/);
@@ -245,6 +249,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(readDocs("app.js"), /return DEFAULT_THEME/);
   assert.match(readDocs("site.webmanifest"), /"theme_color": "#eef3f2"/);
   assert.match(readDocs("styles.css"), /Daylight mint desk/);
+  assert.match(readDocs("styles.css"), /Phone landing: search first/);
 
   assert.ok(statSync(join(docs, "og-image.jpg")).size < 120_000);
   assert.match(OG_IMAGE_URL, /og-image\.jpg$/);

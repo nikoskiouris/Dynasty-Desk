@@ -226,8 +226,10 @@ test("renderRatherMarkup shows headline, format detail, and two players", () => 
   assert.doesNotMatch(html, /Dynasty asset/);
   assert.match(html, /data-rather-pick="player:11564"/);
   assert.match(html, /id="rather-skip"/);
-  assert.match(html, /Skip this matchup/);
+  assert.match(html, />Skip</);
+  assert.match(html, /aria-label="Skip this matchup"/);
   assert.match(html, /Sleeper trades mixed with KeepTradeCut/);
+  assert.doesNotMatch(html, /Desk Crowd/);
   assert.doesNotMatch(html, /8510/);
 });
 
@@ -281,9 +283,12 @@ test("index puts rather on the landing page and never auto-opens a league overla
   assert.doesNotMatch(index, /id="rather-overlay"/);
   assert.doesNotMatch(index, /id="landing-focus-btn"/);
   assert.match(css, /\.landing-rather\s*\{/);
+  assert.match(css, /Phone landing: search first/);
+  assert.match(css, /\.landing-rather \.rather-duel\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\)/s);
   assert.doesNotMatch(css, /\.rather-overlay:not\(\[hidden\]\)/);
   assert.match(css, /\.rather-stats\s*\{/);
   assert.match(app, /bootLandingRather/);
+  assert.match(app, /landingSearchOffscreen/);
   assert.doesNotMatch(app, /function chooseRatherPlayer[\s\S]*loadLeagueById/);
 });
 
