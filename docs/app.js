@@ -119,6 +119,8 @@ import {
   playerIdFromAssetId,
   renderWeeklyPlayerSheet,
   weeklyScoreChipLabel,
+  WEEKLY_SCORE_HINT,
+  WEEKLY_SCORE_LABEL,
 } from "./modules/weekly-value.js";
 import {
   analyzePastTrades,
@@ -4353,7 +4355,7 @@ function renderRosterSheet() {
         </div>
         <span class="sheet-metrics">
           <span class="weekly-chip"${weekly?.missing?.length ? ` title="${escapeHtml(weekly.missing.join(", "))}"` : ""}>
-            <small>Weekly</small>
+            <small>${WEEKLY_SCORE_LABEL}</small>
             <strong>${escapeHtml(weeklyLabel)}</strong>
           </span>
           <span class="dynasty-chip">
@@ -4395,14 +4397,14 @@ function renderRosterSheet() {
                 <h3>${escapeHtml(selectedAsset.name)}</h3>
               </div>
             </header>
-            <p class="player-week-note">${state.weeklyValue?.loading ? "Loading matchup and usage…" : "Weekly score needs Sleeper stats. Dynasty value stays on its own badge."}</p>
+            <p class="player-week-note">${state.weeklyValue?.loading ? "Loading matchup and usage…" : WEEKLY_SCORE_HINT}</p>
             <button type="button" class="ghost-btn week-sheet-close" data-action="close-player">Close player</button>
           </article>`
         : state.weeklyValue?.loading
           ? `<p class="muted small">Loading weekly matchup and usage…</p>`
           : state.weeklyValue?.error
-            ? `<p class="muted small">Weekly scores unavailable (${escapeHtml(state.weeklyValue.error)}). Dynasty values still work.</p>`
-            : `<p class="muted small">Tap a player for this week’s score. Weekly is matchup plus usage, not dynasty rank.</p>`}
+            ? `<p class="muted small">This-week grades unavailable (${escapeHtml(state.weeklyValue.error)}). Dynasty values still work.</p>`
+            : `<p class="muted small">Tap a player. This week is a 1–99 start grade, not dynasty price.</p>`}
     <div class="sheet-grid">
       <section class="sheet-column">
         <h4>Optimal lineup</h4>

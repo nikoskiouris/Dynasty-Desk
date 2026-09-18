@@ -2,7 +2,9 @@ import { clamp, escapeHtml, formatNumber } from "./html.js";
 
 export const NFL_SCHEDULE_PATH = "./data/nfl_schedule.json";
 export const WEEKLY_LOOKBACK_WEEKS = 6;
-export const WEEKLY_SCORE_LABEL = "Weekly";
+export const WEEKLY_SCORE_MAX = 99;
+export const WEEKLY_SCORE_LABEL = "This week";
+export const WEEKLY_SCORE_HINT = "Start juice this week. Not trade value.";
 export const DYNASTY_SCORE_LABEL = "Dynasty";
 export const DOUBLE_TEAM_MISSING = "no double-team data";
 export const TARGET_SHARE_MISSING = "no target-share data";
@@ -566,17 +568,28 @@ export function formatWeeklyPoints(value) {
   return numeric.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 0 });
 }
 
+export function formatWeeklyScore(score) {
+  if (score == null || !Number.isFinite(Number(score))) return "—";
+  return `${Math.round(Number(score))}/${WEEKLY_SCORE_MAX}`;
+}
+
+export function weeklyScoreParts(score) {
+  if (score == null || !Number.isFinite(Number(score))) {
+    return { value: "—", max: "" };
+  }
+  return { value: String(Math.round(Number(score))), max: `/${WEEKLY_SCORE_MAX}` };
+}
+
 export function weeklyScoreChipLabel(model) {
-  if (!model || model.score == null) return "—";
-  return String(model.score);
+  return formatWeeklyScore(model?.score);
 }
 
 export function renderWeeklyPlayerSheet(model) {
   if (!model) return "";
   const missingNote = model.complete
     ? "Every usage and matchup input is in."
-    : `Incomplete — ${model.missing.join(", ")}.`;
-  const scoreLabel = model.score == null ? "—" : String(model.score);
+    : `Missing: ${model.missing.join(", ")}.`;
+  const parts = weeklyScoreParts(model.score);
   const dynasty = model.dynastyValue == null ? "—" : formatNumber(Math.round(model.dynastyValue));
   const games = (model.games || []).map((game) => {
     const bits = [
@@ -602,17 +615,18 @@ export function renderWeeklyPlayerSheet(model) {
           <p class="muted small">${escapeHtml([model.position, model.team].filter(Boolean).join(" · "))}</p>
         </div>
         <div class="player-week-scores">
-          <div class="weekly-score-badge" title="Startable weekly value from matchup and usage">
+          <div class="weekly-score-badge" title="1–99 start grade this week from matchup and usage. Not dynasty value.">
             <small>${WEEKLY_SCORE_LABEL}</small>
-            <strong>${escapeHtml(scoreLabel)}</strong>
+            <strong>${escapeHtml(parts.value)}${parts.max ? `<span class="weekly-score-max">${escapeHtml(parts.max)}</span>` : ""}</strong>
           </div>
-          <div class="dynasty-value-badge" title="Market dynasty value, not this week’s score">
+          <div class="dynasty-value-badge" title="Market dynasty value, not this week’s start grade">
             <small>${DYNASTY_SCORE_LABEL}</small>
             <strong>${escapeHtml(dynasty)}</strong>
           </div>
         </div>
       </header>
-      <p class="player-week-note">${escapeHtml(missingNote)}</p>
+      <p class="player-week-note">${escapeHtml(WEEKLY_SCORE_HINT)}</p>
+      <p class="player-week-missing muted small">${escapeHtml(missingNote)}</p>
       <div class="week-input-grid">
         ${model.inputs.map((input) => `
           <section class="week-input ${input.missing ? "missing" : ""} ${input.tone || ""}" data-week-input="${escapeHtml(input.id)}">

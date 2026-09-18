@@ -10,7 +10,10 @@ import {
   NO_RECENT_GAMES,
   OPPONENT_MISSING,
   TARGET_SHARE_MISSING,
+  WEEKLY_SCORE_HINT,
   WEEKLY_SCORE_LABEL,
+  formatWeeklyScore,
+  weeklyScoreChipLabel,
   buildWeeklyContext,
   buildWeeklyPlayerModel,
   dropPctFromStats,
@@ -167,13 +170,24 @@ test("player sheet keeps weekly and dynasty on separate badges", () => {
   assert.match(html, new RegExp(DYNASTY_SCORE_LABEL));
   assert.match(html, /8,412/);
   assert.match(html, /no double-team data/);
+  assert.match(html, /\/99/);
+  assert.match(html, /Start juice this week\. Not trade value\./);
+  assert.doesNotMatch(html, /Incomplete —/);
   assert.doesNotMatch(html, /class="weekly-score-badge"[^>]*>[^<]*Dynasty/);
   const css = readFileSync(join(docs, "styles.css"), "utf8");
   assert.match(css, /\.weekly-score-badge\s*\{/);
   assert.match(css, /\.dynasty-value-badge\s*\{/);
+  assert.match(css, /\.weekly-score-max\s*\{/);
   assert.match(css, /\.sheet-metrics\s*\{[^}]*padding:/s);
   assert.match(css, /\.weekly-chip,\s*\.dynasty-chip\s*\{[^}]*display:\s*flex/s);
   assert.ok(!html.includes(NO_RECENT_GAMES) || model.games.length === 0);
+});
+
+test("weekly score prints 1–99 scale", () => {
+  assert.equal(formatWeeklyScore(59), "59/99");
+  assert.equal(formatWeeklyScore(null), "—");
+  assert.equal(weeklyScoreChipLabel({ score: 22 }), "22/99");
+  assert.match(WEEKLY_SCORE_HINT, /Not trade value/);
 });
 
 test("bye week and unknown players fail opponent strength visibly", () => {
