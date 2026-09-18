@@ -154,6 +154,8 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(index, /brand\/wordmark\.svg/);
   assert.match(index, /class="brand-wordmark/);
   assert.match(index, /class="brand-lockup brand-lockup--landing"/);
+  assert.match(index, /id="league-avatar"[\s\S]*brand\/mark\.svg/);
+  assert.match(index, /class="league-mark"/);
   assert.doesNotMatch(index, /class="brand-mark"/);
   assert.doesNotMatch(index, /League Command Center/);
   assert.match(index, /id="landing-league-picker"/);
@@ -288,6 +290,10 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
   assert.match(terms, /as is/i);
 
   assert.doesNotMatch(readDocs("styles.css"), /\.brand-mark\s*\{/);
+  assert.match(readDocs("styles.css"), /\.league-avatar \.league-mark/);
+  assert.match(readDocs("app.js"), /brand\/mark\.svg/);
+  assert.match(readDocs("app.js"), /function brandMarkAvatarHtml/);
+  assert.doesNotMatch(readDocs("app.js"), /leagueName \|\| "L"\)\.trim\(\)\.charAt/);
   assert.doesNotMatch(readDocs("favicon.svg"), /\brx="/);
   assert.match(readDocs("favicon.svg"), /fill="#4b4b51"/);
 

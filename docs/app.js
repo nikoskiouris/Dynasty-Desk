@@ -1078,13 +1078,17 @@ function describeSeasonWeek() {
   return `Week ${entry.week}`;
 }
 
+function brandMarkAvatarHtml() {
+  return `<img class="league-mark" src="./brand/mark.svg" width="148" height="132" alt="" decoding="async" />`;
+}
+
 function renderLeagueHero() {
   if (!el.heroTitle) return;
   if (!state.leagueId || !state.league) {
     el.heroEyebrow.textContent = "Sleeper dynasty league";
     el.heroTitle.textContent = "Your league. Pick a job.";
     el.heroLede.textContent = "See this week, scout a roster, make a trade, or open league history.";
-    if (el.leagueAvatar) el.leagueAvatar.innerHTML = `<span>D</span>`;
+    if (el.leagueAvatar) el.leagueAvatar.innerHTML = brandMarkAvatarHtml();
     return;
   }
   const league = state.league;
@@ -1109,7 +1113,7 @@ function renderLeagueHero() {
   if (el.leagueAvatar) {
     el.leagueAvatar.innerHTML = league.avatar
       ? `<img src="${SLEEPER_AVATAR_BASE}${escapeHtml(league.avatar)}" alt="${escapeHtml(state.leagueName || "League")} logo" loading="lazy" />`
-      : `<span>${escapeHtml(String(state.leagueName || "L").trim().charAt(0).toUpperCase())}</span>`;
+      : brandMarkAvatarHtml();
   }
 }
 
