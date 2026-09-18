@@ -128,6 +128,7 @@ test("ship-ready files exist with titles, robots, sitemap, and a compressed OG i
     "brand/wordmark.svg",
     "brand/wordmark-on-dark.svg",
     "brand/mark.svg",
+    "data/nfl_schedule.json",
   ];
   for (const name of required) {
     assert.equal(existsSync(join(docs, name)), true, name);

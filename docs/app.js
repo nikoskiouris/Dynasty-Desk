@@ -111,6 +111,21 @@ import {
   rankPartnerMatches,
 } from "./modules/trade-match.js";
 import {
+  buildWeeklyContext,
+  buildWeeklyPlayerModel,
+  emptyWeeklyValueState,
+  fetchNflSchedule,
+  loadWeeklyStatWeeks,
+  playerIdFromAssetId,
+  renderWeeklyPlayerSheet,
+  renderWeeklyScoreHelpButton,
+  renderWeeklyScoreHelpPop,
+  weeklyScoreChipLabel,
+  lineupFillValue,
+  WEEKLY_SCORE_HINT,
+  WEEKLY_SCORE_LABEL,
+} from "./modules/weekly-value.js";
+import {
   analyzePastTrades,
   analyzeLeagueTradeSides,
   biggestTradeMiss,
@@ -298,6 +313,8 @@ const el = {
   powerHeading: document.querySelector("#power-heading"),
   rosterSheet: document.querySelector("#roster-sheet"),
   rosterSheetHeading: document.querySelector("#roster-sheet-heading"),
+  weeklyHelpBtn: document.querySelector("#weekly-help-btn"),
+  weeklyHelpLayerHost: document.querySelector("#weekly-help-layer-host"),
   awardsDashboard: document.querySelector("#awards-dashboard"),
   recapDashboard: document.querySelector("#recap-dashboard"),
   loyaltyDashboard: document.querySelector("#loyalty-dashboard"),
@@ -445,7 +462,13 @@ el.mobileRailToggle?.addEventListener("click", () => {
 el.mobileRailClose?.addEventListener("click", () => setMobileRailOpen(false));
 el.railBackdrop?.addEventListener("click", () => setMobileRailOpen(false));
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && document.body.classList.contains("rail-open")) {
+  if (event.key !== "Escape") return;
+  if (state.weeklyValue?.helpOpen) {
+    event.preventDefault();
+    setWeeklyScoreHelpOpen(false);
+    return;
+  }
+  if (document.body.classList.contains("rail-open")) {
     setMobileRailOpen(false);
     el.mobileRailToggle?.focus();
   }
@@ -470,6 +493,7 @@ el.workspace?.addEventListener("click", handleWorkspaceClick);
 el.workspace?.addEventListener("keydown", handleWorkspaceKeydown);
 el.workspace?.addEventListener("change", handleWorkspaceChange);
 el.workspace?.addEventListener("input", handleWorkspaceInput);
+syncWeeklyScoreHelp();
 el.playerSearch?.addEventListener("input", () => {
   invalidateResults();
   renderPlayerSearch();
@@ -1450,6 +1474,7 @@ async function runLeagueLoad(leagueId) {
     state.standingsView = "overall";
     resetCalculatorState({ keepPartner: false });
     clearTradeMatchCache();
+    state.weeklyValue = emptyWeeklyValueState();
     if (el.playerSearch) el.playerSearch.value = "";
     hideAppPages();
     if (el.resultsList) el.resultsList.innerHTML = "";
@@ -1522,6 +1547,8 @@ async function runLeagueLoad(leagueId) {
         state.playerMetadataLoaded = true;
         state.playerMetadataFailed = false;
         refreshPlayerPositionRanks();
+        rebuildWeeklyValueContext();
+        void ensureWeeklyValueContext();
         state.normalizedRosters = normalizeRosters(state.league, state.rosters, state.users, players, {
           league: state.previousLeague,
           users: state.previousUsers,
@@ -2461,6 +2488,7 @@ function getLensRoster() {
 function setLensRoster(rosterId) {
   const next = Number(rosterId);
   state.lensRosterId = Number.isFinite(next) && next > 0 && next !== Number(state.meRosterId) ? next : null;
+  if (state.weeklyValue) state.weeklyValue.selectedPlayerId = "";
 }
 
 function isViewingOtherRoster(roster) {
@@ -3249,6 +3277,7 @@ function renderTeamsPage() {
   renderTeamsGrid();
   renderPowerDashboard();
   renderRosterSheet();
+  void ensureWeeklyValueContext();
 }
 
 function rosterManagerKey(roster) {
@@ -4214,16 +4243,121 @@ function renderTeamsGrid() {
   }).join("");
 }
 
+function weeklyValueCacheKey() {
+  const season = String(state.nflState?.league_season || state.nflState?.season || "");
+  const week = Number(state.nflState?.week) || 0;
+  return `${season}:${week}`;
+}
+
+function rebuildWeeklyValueContext() {
+  if (!state.weeklyValue?.loaded) return;
+  state.weeklyValue.context = buildWeeklyContext({
+    weekRows: state.weeklyValue.weekRows,
+    schedule: state.weeklyValue.schedule,
+    players: state.players,
+    season: state.weeklyValue.season,
+    week: state.weeklyValue.week,
+  });
+}
+
+async function ensureWeeklyValueContext() {
+  const key = weeklyValueCacheKey();
+  if (!state.nflState || key.startsWith(":")) return null;
+  if (state.weeklyValue.loaded && state.weeklyValue.key === key) {
+    if (!state.weeklyValue.context) rebuildWeeklyValueContext();
+    return state.weeklyValue;
+  }
+  if (state.weeklyValue.loading && state.weeklyValue.promise) return state.weeklyValue.promise;
+  const season = String(state.nflState?.league_season || state.nflState?.season || "");
+  const week = Number(state.nflState?.week) || 0;
+  const previousSeason = String(state.nflState?.previous_season || Number(season) - 1);
+  state.weeklyValue.loading = true;
+  const promise = (async () => {
+    try {
+      const [schedule, seasonStats, weekRows] = await Promise.all([
+        fetchNflSchedule(),
+        apiGetWithRetry(`/stats/nfl/regular/${encodeURIComponent(season)}`, { timeoutMs: 20000, retries: 1 }).catch(() => ({})),
+        loadWeeklyStatWeeks({
+          apiGet: (path, options) => apiGetWithRetry(path, { retries: 1, ...options }),
+          season,
+          week,
+          previousSeason,
+        }),
+      ]);
+      if (weeklyValueCacheKey() !== key) return state.weeklyValue;
+      state.weeklyValue.schedule = schedule;
+      state.weeklyValue.seasonStats = seasonStats && typeof seasonStats === "object" ? seasonStats : {};
+      state.weeklyValue.weekRows = weekRows;
+      state.weeklyValue.season = season;
+      state.weeklyValue.week = week;
+      state.weeklyValue.previousSeason = previousSeason;
+      state.weeklyValue.key = key;
+      state.weeklyValue.loaded = true;
+      state.weeklyValue.error = "";
+      rebuildWeeklyValueContext();
+      if (state.activePage === "teams") renderRosterSheet();
+      return state.weeklyValue;
+    } catch (err) {
+      state.weeklyValue.error = err?.message || "Could not load weekly stats";
+      state.weeklyValue.loaded = true;
+      if (state.activePage === "teams") renderRosterSheet();
+      return state.weeklyValue;
+    } finally {
+      state.weeklyValue.loading = false;
+      state.weeklyValue.promise = null;
+    }
+  })();
+  state.weeklyValue.promise = promise;
+  return promise;
+}
+
+function setWeeklyScoreHelpOpen(open) {
+  if (!state.weeklyValue) state.weeklyValue = emptyWeeklyValueState();
+  state.weeklyValue.helpOpen = Boolean(open);
+  renderRosterSheet();
+  if (state.weeklyValue.helpOpen) {
+    document.getElementById("weekly-help-close")?.focus();
+  }
+}
+
+function syncWeeklyScoreHelp() {
+  const open = Boolean(state.weeklyValue?.helpOpen);
+  el.weeklyHelpBtn?.setAttribute("aria-expanded", open ? "true" : "false");
+  if (el.weeklyHelpLayerHost) {
+    el.weeklyHelpLayerHost.innerHTML = renderWeeklyScoreHelpPop({ open });
+  }
+}
+
+function weeklyModelForAsset(asset) {
+  if (!asset || asset.assetType !== "player" || !state.weeklyValue?.context) return null;
+  const playerId = playerIdFromAssetId(asset.assetId);
+  if (!playerId) return null;
+  return buildWeeklyPlayerModel({
+    playerId,
+    name: asset.name,
+    position: playerPositionForAsset(asset),
+    team: asset.raw?.team,
+    dynastyValue: getAssetValue(asset),
+    seasonStats: state.weeklyValue.seasonStats?.[playerId] || {},
+    context: state.weeklyValue.context,
+  });
+}
+
 function renderRosterSheet() {
-  if (!el.rosterSheet) return;
+  if (!el.rosterSheet) {
+    syncWeeklyScoreHelp();
+    return;
+  }
   const roster = getLensRoster();
   if (!roster) {
     el.rosterSheet.innerHTML = `<p class="muted">Choose a team to open the roster sheet.</p>`;
+    syncWeeklyScoreHelp();
     return;
   }
   if (el.rosterSheetHeading) el.rosterSheetHeading.textContent = `${roster.manager.displayName}: lineup, bench, and picks`;
   if (!state.playerMetadataLoaded) {
     el.rosterSheet.innerHTML = `<div class="power-sync"><strong>Syncing player metadata</strong><p class="muted">Names, positions, and ages arrive in a moment.</p></div>`;
+    syncWeeklyScoreHelp();
     return;
   }
   const values = state.values;
@@ -4234,18 +4368,36 @@ function renderRosterSheet() {
   const model = getSeasonModel();
   const team = model?.teams.get(String(roster.rosterId));
   const summary = summarizeRosterAssets(roster, values);
+  const selectedId = String(state.weeklyValue?.selectedPlayerId || "");
+  const selectedAsset = roster.assets.find((asset) => asset.assetType === "player" && playerIdFromAssetId(asset.assetId) === selectedId) || null;
+  const selectedWeekly = selectedAsset ? weeklyModelForAsset(selectedAsset) : null;
   const renderPlayerRow = (asset, slotLabel) => {
-    const nickname = roster.nicknames?.[asset.assetId.replace("player:", "")];
+    const playerId = playerIdFromAssetId(asset.assetId);
+    const nickname = roster.nicknames?.[playerId];
     const injury = String(asset.raw?.injury_status || "").trim();
+    const weekly = weeklyModelForAsset(asset);
+    const weeklyLabel = state.weeklyValue?.loading && !state.weeklyValue?.context
+      ? "…"
+      : weeklyScoreChipLabel(weekly);
+    const open = selectedId && selectedId === playerId;
     return `
-      <div class="sheet-row ${isInjuryFlaggedAsset(asset) ? "flagged" : ""}">
+      <button type="button" class="sheet-row ${isInjuryFlaggedAsset(asset) ? "flagged" : ""} ${open ? "open" : ""}" data-action="open-player" data-player-id="${escapeHtml(playerId)}" aria-pressed="${open ? "true" : "false"}">
         <span class="sheet-slot">${escapeHtml(slotLabel)}</span>
         <div class="sheet-player">
           <strong>${escapeHtml(asset.name)}${nickname ? ` <em class="nickname">“${escapeHtml(nickname)}”</em>` : ""}</strong>
           <span>${escapeHtml(formatPlayerPositionLabel(asset))}${asset.raw?.team ? ` · ${escapeHtml(asset.raw.team)}` : ""}${Number.isFinite(playerAgeForAsset(asset)) ? ` · ${playerAgeForAsset(asset)}y` : ""}${injury ? ` · <span class="injury">${escapeHtml(injury)}</span>` : ""}</span>
         </div>
-        <span class="sheet-value mono">${renderAssetValuePlain(asset, values)}</span>
-      </div>
+        <span class="sheet-metrics">
+          <span class="weekly-chip"${weekly?.missing?.length ? ` title="${escapeHtml(weekly.missing.join(", "))}"` : ""}>
+            <small>${WEEKLY_SCORE_LABEL}</small>
+            <strong>${escapeHtml(weeklyLabel)}</strong>
+          </span>
+          <span class="dynasty-chip">
+            <small>Dynasty</small>
+            <strong class="mono">${formatNumber(getAssetValue(asset, values))}</strong>
+          </span>
+        </span>
+      </button>
     `;
   };
   const seasonLog = team?.results?.length
@@ -4269,9 +4421,31 @@ function renderRosterSheet() {
       ${renderPowerStat("Pick vault", formatNumber(summary.pickValue), `${summary.pickCount} picks · ${summary.firstRoundPickCount} firsts`)}
       ${renderPowerStat("Avg age", summary.averageAgeLabel, `${summary.youthCount} youth · ${summary.veteranCount} vets · ${summary.injuredCount} flagged`)}
     </div>
+    ${selectedWeekly
+      ? renderWeeklyPlayerSheet(selectedWeekly, { helpOpen: Boolean(state.weeklyValue?.helpOpen) })
+      : selectedAsset
+        ? `<article class="player-week-sheet" data-player-id="${escapeHtml(selectedId)}">
+            <header class="player-week-head">
+              <div>
+                <span class="player-week-kicker">
+                  <span class="eyebrow">This week</span>
+                  ${renderWeeklyScoreHelpButton({ open: Boolean(state.weeklyValue?.helpOpen) })}
+                </span>
+                <h3>${escapeHtml(selectedAsset.name)}</h3>
+              </div>
+            </header>
+            <p class="player-week-note">${state.weeklyValue?.loading ? "Loading matchup and usage…" : WEEKLY_SCORE_HINT}</p>
+            <button type="button" class="ghost-btn week-sheet-close" data-action="close-player">Close player</button>
+          </article>`
+        : state.weeklyValue?.loading
+          ? `<p class="muted small">Loading weekly matchup and usage…</p>`
+          : state.weeklyValue?.error
+            ? `<p class="muted small">This-week start chances unavailable (${escapeHtml(state.weeklyValue.error)}). Dynasty values still work.</p>`
+            : `<p class="muted small">Tap a player. This week is start chance — 50% coin flip, 90% lock. Not dynasty price.</p>`}
     <div class="sheet-grid">
       <section class="sheet-column">
         <h4>Optimal lineup</h4>
+        <p class="muted small lineup-basis">Set by start chance this week. Dynasty breaks ties.</p>
         ${strength.lineup.map((entry) => entry.asset
           ? renderPlayerRow(entry.asset, formatRosterSlotLabel(entry.slot))
           : `<div class="sheet-row empty"><span class="sheet-slot">${escapeHtml(formatRosterSlotLabel(entry.slot))}</span><div class="sheet-player"><strong class="muted">Open slot</strong></div><span class="sheet-value mono">0</span></div>`).join("")}
@@ -4280,7 +4454,13 @@ function renderRosterSheet() {
         <h4>Bench</h4>
         ${roster.assets
           .filter((asset) => asset.assetType === "player" && !strength.lineup.some((entry) => entry.asset?.assetId === asset.assetId))
-          .sort((a, b) => getAssetValue(b, values) - getAssetValue(a, values))
+          .sort((a, b) => lineupFillValue({
+            startChance: weeklyModelForAsset(b)?.score,
+            dynastyValue: getAssetValue(b, values),
+          }) - lineupFillValue({
+            startChance: weeklyModelForAsset(a)?.score,
+            dynastyValue: getAssetValue(a, values),
+          }))
           .map((asset) => renderPlayerRow(asset, isTradeEligibleAsset(asset) ? "BN" : formatPlayerPositionLabel(asset)))
           .join("") || `<p class="muted small">No bench players.</p>`}
         <h4>Pick vault</h4>
@@ -4298,6 +4478,7 @@ function renderRosterSheet() {
     <h4>Season log</h4>
     ${seasonLog}
   `;
+  syncWeeklyScoreHelp();
 }
 
 // ---------------------------------------------------------------------------
@@ -4980,6 +5161,27 @@ function handleWorkspaceClick(event) {
     }
     case "calc-with": {
       openCalculatorWith(target.dataset.rosterId);
+      break;
+    }
+    case "open-player": {
+      const playerId = String(target.dataset.playerId || "");
+      if (!playerId) return;
+      state.weeklyValue.selectedPlayerId = state.weeklyValue.selectedPlayerId === playerId ? "" : playerId;
+      renderRosterSheet();
+      document.querySelector(".player-week-sheet")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      break;
+    }
+    case "close-player": {
+      state.weeklyValue.selectedPlayerId = "";
+      renderRosterSheet();
+      break;
+    }
+    case "toggle-weekly-help": {
+      setWeeklyScoreHelpOpen(!state.weeklyValue?.helpOpen);
+      break;
+    }
+    case "close-weekly-help": {
+      setWeeklyScoreHelpOpen(false);
       break;
     }
     case "awards-week": {
@@ -9070,7 +9272,13 @@ function compareRosterStrength(left, right) {
 function buildOptimalStartingLineup(assets, starterSlots, values) {
   const playerEntries = assets
     .filter((asset) => asset.assetType === "player")
-    .map((asset) => ({ asset, value: getAssetValue(asset, values) }))
+    .map((asset) => ({
+      asset,
+      value: lineupFillValue({
+        startChance: weeklyModelForAsset(asset)?.score,
+        dynastyValue: getAssetValue(asset, values),
+      }),
+    }))
     .sort((a, b) => b.value - a.value);
 
   const candidates = buildLineupCandidatePool(playerEntries, starterSlots);

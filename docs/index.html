@@ -339,9 +339,25 @@
                   <span class="eyebrow">Roster Sheet</span>
                   <h2 id="roster-sheet-heading">Lineup, bench, and picks</h2>
                 </div>
-                <p class="section-copy">Optimal starting lineup by dynasty value, bench depth, the full pick vault, and this season's game log.</p>
+                <p class="section-copy weekly-help-copy">
+                  <span>Tap a player. This week is start chance. 50% is a coin flip. 90% is a lock. Dynasty is trade price.</span>
+                  <button
+                    type="button"
+                    id="weekly-help-btn"
+                    class="weekly-help-btn"
+                    data-action="toggle-weekly-help"
+                    aria-expanded="false"
+                    aria-haspopup="dialog"
+                    aria-controls="weekly-help-pop"
+                    title="What this start chance means"
+                  >
+                    <span aria-hidden="true">i</span>
+                    <span class="sr-only">What this start chance means</span>
+                  </button>
+                </p>
               </div>
               <div id="roster-sheet" class="roster-sheet"></div>
+              <div id="weekly-help-layer-host"></div>
             </section>
           </div>
           <div class="room hidden" data-room-panel="call">

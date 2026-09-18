@@ -10,7 +10,6 @@ Each file in this folder is one ticket: title, why, what to build, and how to kn
 
 | ID | Ticket | Priority |
 | --- | --- | --- |
-| [001](001-weekly-player-value.txt) | Weekly player value from matchup + usage | P0 |
 | [002](002-sit-start.txt) | Sit / start | P0 |
 | [003](003-future-dynasty-rankings.txt) | Future dynasty rankings (one year out, names not picks) | P0 |
 | [004](004-buy-low-sell-high.txt) | Buy-low / sell-high targets | P0 |
@@ -27,6 +26,7 @@ Each file in this folder is one ticket: title, why, what to build, and how to kn
 
 These were in the same note. They already exist. Do not rebuild them.
 
+- **Weekly player value.** Teams → Roster. Tap a player for a weekly score from opponent strength, target share, drop percentage, and past games. Double-team rate is shown as missing until we have it. Not mixed with dynasty value.
 - **Tank / rebuild / contend.** Teams → Call. Playoff odds, lineup rank, age, and pick capital. Headline plus moves.
 - **Ticker speed.** Loop is at least 50s, about 9s per name. That complaint is closed.
 - **Calculator not on first paint.** Landing is jobs + username search, not the calculator. Remaining work is that “Make a trade” still opens the calculator, and the Trades tab still defaults to it. That leftover is ticket 012.
