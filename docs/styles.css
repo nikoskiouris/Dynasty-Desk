@@ -934,6 +934,16 @@ select.is-invalid {
   object-fit: cover;
 }
 
+.league-avatar .league-mark {
+  width: 74%;
+  height: 74%;
+  object-fit: contain;
+}
+
+.league-avatar:has(.league-mark) {
+  background: #e8eeed;
+}
+
 .league-hero-copy {
   min-width: 0;
 }
