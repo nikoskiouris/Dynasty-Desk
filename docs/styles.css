@@ -1448,6 +1448,18 @@ body:not(.league-loaded) .workspace-header {
   text-align: right;
 }
 
+.weekly-help-copy {
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  text-align: left;
+}
+
+.weekly-help-copy > span {
+  min-width: 0;
+}
+
 .power-dashboard,
 .room,
 .dashboard,
@@ -2587,6 +2599,123 @@ button.sheet-row.open {
   font-size: 0.72em;
   font-weight: 700;
   opacity: 0.5;
+}
+
+.player-week-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+button.weekly-help-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 1.05rem;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  min-height: 1.05rem;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--muted-strong);
+  box-shadow: none;
+  font-size: 0.68rem;
+  font-weight: 800;
+  font-style: italic;
+  line-height: 1;
+}
+
+button.weekly-help-btn:hover,
+button.weekly-help-btn[aria-expanded="true"] {
+  transform: none;
+  filter: none;
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.weekly-help-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: start center;
+  padding: min(18vh, 6rem) 1rem 1rem;
+  background: color-mix(in srgb, var(--backdrop) 72%, transparent);
+}
+
+button.weekly-help-scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: transparent;
+}
+
+button.weekly-help-scrim:hover {
+  transform: none;
+  filter: none;
+  background: transparent;
+}
+
+.weekly-help-pop {
+  position: relative;
+  z-index: 1;
+  width: min(22rem, 100%);
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.95rem 1rem 1.05rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
+  box-shadow: 0 18px 40px rgba(7, 16, 24, 0.22);
+}
+
+.weekly-help-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.weekly-help-pop h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.weekly-help-pop p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+button.weekly-help-close {
+  width: 1.65rem;
+  min-width: 1.65rem;
+  height: 1.65rem;
+  min-height: 1.65rem;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+button.weekly-help-close:hover {
+  transform: none;
+  filter: none;
+  background: var(--panel-tint);
 }
 
 .player-week-note {
@@ -5082,6 +5211,10 @@ button.sheet-row.open {
   .section-copy,
   .analytics-panel-heading span {
     text-align: left;
+  }
+
+  .weekly-help-copy {
+    justify-content: flex-start;
   }
 
   .home-two-col .standings-head,

@@ -5,6 +5,7 @@ export const WEEKLY_LOOKBACK_WEEKS = 6;
 export const WEEKLY_SCORE_MAX = 99;
 export const WEEKLY_SCORE_LABEL = "This week";
 export const WEEKLY_SCORE_HINT = "Start juice this week. Not trade value.";
+export const WEEKLY_SCORE_HELP_TITLE = "This week, 1–99";
 export const DYNASTY_SCORE_LABEL = "Dynasty";
 export const DOUBLE_TEAM_MISSING = "no double-team data";
 export const TARGET_SHARE_MISSING = "no target-share data";
@@ -56,9 +57,52 @@ export function emptyWeeklyValueState() {
     schedule: { games: [] },
     context: null,
     selectedPlayerId: "",
+    helpOpen: false,
     key: "",
     promise: null,
   };
+}
+
+export function weeklyScoreHelpLines() {
+  return [
+    "Start juice for this slate. Not dynasty trade price.",
+    `Blends last ${WEEKLY_LOOKBACK_WEEKS} games of PPR, usage, drops, and this week's opponent. Last week alone does not set it.`,
+    "99 is a smash spot, not “healthy starter.” A locked-in RB1 vs an average defense can sit in the 60s.",
+    "QB, RB, WR, and TE use different bars. Do not rank a QB against an RB with this number.",
+  ];
+}
+
+export function renderWeeklyScoreHelpButton({ open = false } = {}) {
+  return `
+    <button
+      type="button"
+      class="weekly-help-btn"
+      data-action="toggle-weekly-help"
+      aria-expanded="${open ? "true" : "false"}"
+      aria-haspopup="dialog"
+      aria-controls="weekly-help-pop"
+      title="What This week means"
+    >
+      <span aria-hidden="true">i</span>
+      <span class="sr-only">What This week means</span>
+    </button>
+  `;
+}
+
+export function renderWeeklyScoreHelpPop({ open = false } = {}) {
+  if (!open) return "";
+  return `
+    <div class="weekly-help-layer">
+      <button type="button" class="weekly-help-scrim" data-action="close-weekly-help" aria-label="Close This week help"></button>
+      <div class="weekly-help-pop" id="weekly-help-pop" role="dialog" aria-modal="true" aria-labelledby="weekly-help-title">
+        <div class="weekly-help-pop-head">
+          <h3 id="weekly-help-title">${escapeHtml(WEEKLY_SCORE_HELP_TITLE)}</h3>
+          <button type="button" class="weekly-help-close" id="weekly-help-close" data-action="close-weekly-help" aria-label="Close">×</button>
+        </div>
+        ${weeklyScoreHelpLines().map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
+      </div>
+    </div>
+  `;
 }
 
 export function normalizeNflTeam(value) {
@@ -584,7 +628,7 @@ export function weeklyScoreChipLabel(model) {
   return formatWeeklyScore(model?.score);
 }
 
-export function renderWeeklyPlayerSheet(model) {
+export function renderWeeklyPlayerSheet(model, { helpOpen = false } = {}) {
   if (!model) return "";
   const missingNote = model.complete
     ? "Every usage and matchup input is in."
@@ -610,7 +654,10 @@ export function renderWeeklyPlayerSheet(model) {
     <article class="player-week-sheet" data-player-id="${escapeHtml(model.playerId)}">
       <header class="player-week-head">
         <div>
-          <span class="eyebrow">This week</span>
+          <span class="player-week-kicker">
+            <span class="eyebrow">This week</span>
+            ${renderWeeklyScoreHelpButton({ open: helpOpen })}
+          </span>
           <h3>${escapeHtml(model.name)}</h3>
           <p class="muted small">${escapeHtml([model.position, model.team].filter(Boolean).join(" · "))}</p>
         </div>

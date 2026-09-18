@@ -118,6 +118,8 @@ import {
   loadWeeklyStatWeeks,
   playerIdFromAssetId,
   renderWeeklyPlayerSheet,
+  renderWeeklyScoreHelpButton,
+  renderWeeklyScoreHelpPop,
   weeklyScoreChipLabel,
   WEEKLY_SCORE_HINT,
   WEEKLY_SCORE_LABEL,
@@ -310,6 +312,8 @@ const el = {
   powerHeading: document.querySelector("#power-heading"),
   rosterSheet: document.querySelector("#roster-sheet"),
   rosterSheetHeading: document.querySelector("#roster-sheet-heading"),
+  weeklyHelpBtn: document.querySelector("#weekly-help-btn"),
+  weeklyHelpLayerHost: document.querySelector("#weekly-help-layer-host"),
   awardsDashboard: document.querySelector("#awards-dashboard"),
   recapDashboard: document.querySelector("#recap-dashboard"),
   loyaltyDashboard: document.querySelector("#loyalty-dashboard"),
@@ -457,7 +461,13 @@ el.mobileRailToggle?.addEventListener("click", () => {
 el.mobileRailClose?.addEventListener("click", () => setMobileRailOpen(false));
 el.railBackdrop?.addEventListener("click", () => setMobileRailOpen(false));
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && document.body.classList.contains("rail-open")) {
+  if (event.key !== "Escape") return;
+  if (state.weeklyValue?.helpOpen) {
+    event.preventDefault();
+    setWeeklyScoreHelpOpen(false);
+    return;
+  }
+  if (document.body.classList.contains("rail-open")) {
     setMobileRailOpen(false);
     el.mobileRailToggle?.focus();
   }
@@ -482,6 +492,7 @@ el.workspace?.addEventListener("click", handleWorkspaceClick);
 el.workspace?.addEventListener("keydown", handleWorkspaceKeydown);
 el.workspace?.addEventListener("change", handleWorkspaceChange);
 el.workspace?.addEventListener("input", handleWorkspaceInput);
+syncWeeklyScoreHelp();
 el.playerSearch?.addEventListener("input", () => {
   invalidateResults();
   renderPlayerSearch();
@@ -4299,6 +4310,23 @@ async function ensureWeeklyValueContext() {
   return promise;
 }
 
+function setWeeklyScoreHelpOpen(open) {
+  if (!state.weeklyValue) state.weeklyValue = emptyWeeklyValueState();
+  state.weeklyValue.helpOpen = Boolean(open);
+  renderRosterSheet();
+  if (state.weeklyValue.helpOpen) {
+    document.getElementById("weekly-help-close")?.focus();
+  }
+}
+
+function syncWeeklyScoreHelp() {
+  const open = Boolean(state.weeklyValue?.helpOpen);
+  el.weeklyHelpBtn?.setAttribute("aria-expanded", open ? "true" : "false");
+  if (el.weeklyHelpLayerHost) {
+    el.weeklyHelpLayerHost.innerHTML = renderWeeklyScoreHelpPop({ open });
+  }
+}
+
 function weeklyModelForAsset(asset) {
   if (!asset || asset.assetType !== "player" || !state.weeklyValue?.context) return null;
   const playerId = playerIdFromAssetId(asset.assetId);
@@ -4315,15 +4343,20 @@ function weeklyModelForAsset(asset) {
 }
 
 function renderRosterSheet() {
-  if (!el.rosterSheet) return;
+  if (!el.rosterSheet) {
+    syncWeeklyScoreHelp();
+    return;
+  }
   const roster = getLensRoster();
   if (!roster) {
     el.rosterSheet.innerHTML = `<p class="muted">Choose a team to open the roster sheet.</p>`;
+    syncWeeklyScoreHelp();
     return;
   }
   if (el.rosterSheetHeading) el.rosterSheetHeading.textContent = `${roster.manager.displayName}: lineup, bench, and picks`;
   if (!state.playerMetadataLoaded) {
     el.rosterSheet.innerHTML = `<div class="power-sync"><strong>Syncing player metadata</strong><p class="muted">Names, positions, and ages arrive in a moment.</p></div>`;
+    syncWeeklyScoreHelp();
     return;
   }
   const values = state.values;
@@ -4388,12 +4421,15 @@ function renderRosterSheet() {
       ${renderPowerStat("Avg age", summary.averageAgeLabel, `${summary.youthCount} youth · ${summary.veteranCount} vets · ${summary.injuredCount} flagged`)}
     </div>
     ${selectedWeekly
-      ? renderWeeklyPlayerSheet(selectedWeekly)
+      ? renderWeeklyPlayerSheet(selectedWeekly, { helpOpen: Boolean(state.weeklyValue?.helpOpen) })
       : selectedAsset
         ? `<article class="player-week-sheet" data-player-id="${escapeHtml(selectedId)}">
             <header class="player-week-head">
               <div>
-                <span class="eyebrow">This week</span>
+                <span class="player-week-kicker">
+                  <span class="eyebrow">This week</span>
+                  ${renderWeeklyScoreHelpButton({ open: Boolean(state.weeklyValue?.helpOpen) })}
+                </span>
                 <h3>${escapeHtml(selectedAsset.name)}</h3>
               </div>
             </header>
@@ -4434,6 +4470,7 @@ function renderRosterSheet() {
     <h4>Season log</h4>
     ${seasonLog}
   `;
+  syncWeeklyScoreHelp();
 }
 
 // ---------------------------------------------------------------------------
@@ -5129,6 +5166,14 @@ function handleWorkspaceClick(event) {
     case "close-player": {
       state.weeklyValue.selectedPlayerId = "";
       renderRosterSheet();
+      break;
+    }
+    case "toggle-weekly-help": {
+      setWeeklyScoreHelpOpen(!state.weeklyValue?.helpOpen);
+      break;
+    }
+    case "close-weekly-help": {
+      setWeeklyScoreHelpOpen(false);
       break;
     }
     case "awards-week": {

@@ -10,10 +10,13 @@ import {
   NO_RECENT_GAMES,
   OPPONENT_MISSING,
   TARGET_SHARE_MISSING,
+  WEEKLY_LOOKBACK_WEEKS,
+  WEEKLY_SCORE_HELP_TITLE,
   WEEKLY_SCORE_HINT,
   WEEKLY_SCORE_LABEL,
   formatWeeklyScore,
   weeklyScoreChipLabel,
+  weeklyScoreHelpLines,
   buildWeeklyContext,
   buildWeeklyPlayerModel,
   dropPctFromStats,
@@ -22,6 +25,8 @@ import {
   normalizeNflTeam,
   opponentsFromTeamStats,
   renderWeeklyPlayerSheet,
+  renderWeeklyScoreHelpButton,
+  renderWeeklyScoreHelpPop,
   scoreWeeklyValue,
   targetShareFromStats,
   weeksForWeeklyValue,
@@ -172,6 +177,8 @@ test("player sheet keeps weekly and dynasty on separate badges", () => {
   assert.match(html, /no double-team data/);
   assert.match(html, /\/99/);
   assert.match(html, /Start juice this week\. Not trade value\./);
+  assert.match(html, /class="weekly-help-btn"/);
+  assert.match(html, /data-action="toggle-weekly-help"/);
   assert.doesNotMatch(html, /Incomplete —/);
   assert.doesNotMatch(html, /class="weekly-score-badge"[^>]*>[^<]*Dynasty/);
   const css = readFileSync(join(docs, "styles.css"), "utf8");
@@ -180,7 +187,39 @@ test("player sheet keeps weekly and dynasty on separate badges", () => {
   assert.match(css, /\.weekly-score-max\s*\{/);
   assert.match(css, /\.sheet-metrics\s*\{[^}]*padding:/s);
   assert.match(css, /\.weekly-chip,\s*\.dynasty-chip\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /button\.weekly-help-btn\s*\{[^}]*width:\s*1\.05rem/s);
+  assert.match(css, /\.weekly-help-pop\s*\{/);
   assert.ok(!html.includes(NO_RECENT_GAMES) || model.games.length === 0);
+});
+
+test("weekly score help popup explains the 1–99 mix", () => {
+  const button = renderWeeklyScoreHelpButton({ open: false });
+  assert.match(button, /data-action="toggle-weekly-help"/);
+  assert.match(button, /aria-expanded="false"/);
+  assert.equal(renderWeeklyScoreHelpPop({ open: false }), "");
+  const pop = renderWeeklyScoreHelpPop({ open: true });
+  assert.match(pop, /id="weekly-help-pop"/);
+  assert.match(pop, /role="dialog"/);
+  assert.match(pop, new RegExp(WEEKLY_SCORE_HELP_TITLE));
+  assert.match(pop, new RegExp(`last ${WEEKLY_LOOKBACK_WEEKS} games`));
+  assert.match(pop, /smash spot/);
+  assert.match(pop, /Do not rank a QB against an RB/);
+  assert.match(pop, /data-action="close-weekly-help"/);
+  const lines = weeklyScoreHelpLines();
+  assert.equal(lines.length, 4);
+  const sheetOpen = renderWeeklyPlayerSheet({
+    playerId: "111",
+    name: "Demo WR",
+    position: "WR",
+    team: "SEA",
+    score: 59,
+    complete: false,
+    missing: ["no double-team data"],
+    dynastyValue: 8412,
+    games: [],
+    inputs: [],
+  }, { helpOpen: true });
+  assert.match(sheetOpen, /aria-expanded="true"/);
 });
 
 test("weekly score prints 1–99 scale", () => {

@@ -339,9 +339,25 @@
                   <span class="eyebrow">Roster Sheet</span>
                   <h2 id="roster-sheet-heading">Lineup, bench, and picks</h2>
                 </div>
-                <p class="section-copy">Tap a player. This week is a 1–99 start grade from matchup and usage. Dynasty is trade price. Separate badges.</p>
+                <p class="section-copy weekly-help-copy">
+                  <span>Tap a player. This week is a 1–99 start grade from matchup and usage. Dynasty is trade price.</span>
+                  <button
+                    type="button"
+                    id="weekly-help-btn"
+                    class="weekly-help-btn"
+                    data-action="toggle-weekly-help"
+                    aria-expanded="false"
+                    aria-haspopup="dialog"
+                    aria-controls="weekly-help-pop"
+                    title="What This week means"
+                  >
+                    <span aria-hidden="true">i</span>
+                    <span class="sr-only">What This week means</span>
+                  </button>
+                </p>
               </div>
               <div id="roster-sheet" class="roster-sheet"></div>
+              <div id="weekly-help-layer-host"></div>
             </section>
           </div>
           <div class="room hidden" data-room-panel="call">
