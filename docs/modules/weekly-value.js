@@ -4,9 +4,11 @@ export const NFL_SCHEDULE_PATH = "./data/nfl_schedule.json";
 export const WEEKLY_LOOKBACK_WEEKS = 6;
 export const WEEKLY_SCORE_MAX = 99;
 export const WEEKLY_SCORE_LABEL = "This week";
-export const WEEKLY_SCORE_HINT = "Start juice this week. Not trade value.";
-export const WEEKLY_SCORE_HELP_TITLE = "This week, 1–99";
+export const WEEKLY_SCORE_HINT = "Chance you should start them this week. Not trade value.";
+export const WEEKLY_SCORE_HELP_TITLE = "Start chance this week";
 export const DYNASTY_SCORE_LABEL = "Dynasty";
+const START_CHANCE_BASE = 18;
+const START_CHANCE_ROLE_SPAN = 72;
 export const DOUBLE_TEAM_MISSING = "no double-team data";
 export const TARGET_SHARE_MISSING = "no target-share data";
 export const DROP_PCT_MISSING = "no drop-percentage data";
@@ -65,10 +67,10 @@ export function emptyWeeklyValueState() {
 
 export function weeklyScoreHelpLines() {
   return [
-    "Start juice for this slate. Not dynasty trade price.",
-    `Blends last ${WEEKLY_LOOKBACK_WEEKS} games of PPR, usage, drops, and this week's opponent. Last week alone does not set it.`,
-    "99 is a smash spot, not “healthy starter.” A locked-in RB1 vs an average defense can sit in the 60s.",
-    "QB, RB, WR, and TE use different bars. Do not rank a QB against an RB with this number.",
+    "This number is the chance you should start them. 50% is a coin flip. 90% is a lock.",
+    "Top-tier names belong in the 90s. A healthy RB1 vs an average defense should sit near 90, not 60.",
+    `Blends role, last ${WEEKLY_LOOKBACK_WEEKS} games of PPR, drops, and this week's opponent. Matchup barely moves a lock; it matters more at 50/50.`,
+    "Not dynasty trade price. Last week alone does not set it.",
   ];
 }
 
@@ -81,10 +83,10 @@ export function renderWeeklyScoreHelpButton({ open = false } = {}) {
       aria-expanded="${open ? "true" : "false"}"
       aria-haspopup="dialog"
       aria-controls="weekly-help-pop"
-      title="What This week means"
+      title="What this start chance means"
     >
       <span aria-hidden="true">i</span>
-      <span class="sr-only">What This week means</span>
+      <span class="sr-only">What this start chance means</span>
     </button>
   `;
 }
@@ -281,6 +283,34 @@ export function mean(values) {
   return nums.reduce((sum, value) => sum + value, 0) / nums.length;
 }
 
+export function startRoleFromUsage({
+  position,
+  points,
+  targetShare,
+  rushShare,
+} = {}) {
+  const pos = weeklyPosition(position);
+  const heat = Number.isFinite(Number(points)) ? Number(points) / (PRODUCTION_ANCHOR[pos] || 14) : 0;
+  if (pos === "RB") {
+    if (rushShare == null && targetShare == null) return clamp(heat * 0.4, 0, 0.55);
+    const rush = rushShare != null ? Number(rushShare) : 0.18;
+    const rec = targetShare != null ? Number(targetShare) : 0.06;
+    return clamp((rush / 0.72) * 0.82 + (rec / 0.18) * 0.18, 0, 1);
+  }
+  if (pos === "WR") {
+    if (targetShare == null) return clamp(heat * 0.4, 0, 0.55);
+    return clamp(Number(targetShare) / 0.26, 0, 1);
+  }
+  if (pos === "TE") {
+    if (targetShare == null) return clamp(heat * 0.4, 0, 0.55);
+    return clamp(Number(targetShare) / 0.22, 0, 1);
+  }
+  if (pos === "QB") {
+    return clamp(Number(points) / 18, 0, 1);
+  }
+  return 0;
+}
+
 export function scoreWeeklyValue({
   position,
   recentPoints,
@@ -334,20 +364,25 @@ export function scoreWeeklyValue({
   }
 
   const production = clamp(points / (PRODUCTION_ANCHOR[pos] || 14), 0, 2.4);
-  let usage = 1;
-  if (pos === "WR" || pos === "TE") {
-    if (targetShare != null) usage = clamp(0.7 + Number(targetShare) * 1.7, 0.7, 1.45);
-  } else if (pos === "RB") {
-    const rush = rushShare != null ? Number(rushShare) : 0.12;
-    const rec = targetShare != null ? Number(targetShare) : 0.05;
-    usage = clamp(0.7 + rush * 1.15 + rec * 0.9, 0.7, 1.5);
-  }
+  const usage = startRoleFromUsage({
+    position: pos,
+    points,
+    targetShare,
+    rushShare,
+  });
   const dropMult = dropPct == null ? 1 : clamp(1 - Number(dropPct) * 0.85, 0.72, 1);
   let matchupMult = 1;
   if (Number.isFinite(Number(opponentPtsAllowed)) && Number(opponentLeagueAvg) > 0) {
     matchupMult = clamp(Number(opponentPtsAllowed) / Number(opponentLeagueAvg), 0.72, 1.28);
   }
-  const score = Math.round(clamp(40 * production * usage * dropMult * matchupMult, 1, 99));
+  const heatNudge = clamp((production - 1) * 14, -16, 12);
+  const matchupNudge = (matchupMult - 1) * 36 * (1 - 0.58 * usage);
+  const dropNudge = dropPct == null ? 0 : clamp(-Number(dropPct) * 22, -8, 0);
+  const score = Math.round(clamp(
+    START_CHANCE_BASE + START_CHANCE_ROLE_SPAN * usage + heatNudge + matchupNudge + dropNudge,
+    1,
+    WEEKLY_SCORE_MAX,
+  ));
   return {
     score,
     complete: missing.length === 0,
@@ -614,14 +649,14 @@ export function formatWeeklyPoints(value) {
 
 export function formatWeeklyScore(score) {
   if (score == null || !Number.isFinite(Number(score))) return "—";
-  return `${Math.round(Number(score))}/${WEEKLY_SCORE_MAX}`;
+  return `${Math.round(Number(score))}%`;
 }
 
 export function weeklyScoreParts(score) {
   if (score == null || !Number.isFinite(Number(score))) {
     return { value: "—", max: "" };
   }
-  return { value: String(Math.round(Number(score))), max: `/${WEEKLY_SCORE_MAX}` };
+  return { value: String(Math.round(Number(score))), max: "%" };
 }
 
 export function weeklyScoreChipLabel(model) {
@@ -662,11 +697,11 @@ export function renderWeeklyPlayerSheet(model, { helpOpen = false } = {}) {
           <p class="muted small">${escapeHtml([model.position, model.team].filter(Boolean).join(" · "))}</p>
         </div>
         <div class="player-week-scores">
-          <div class="weekly-score-badge" title="1–99 start grade this week from matchup and usage. Not dynasty value.">
+          <div class="weekly-score-badge" title="Chance you should start them this week. Not dynasty value.">
             <small>${WEEKLY_SCORE_LABEL}</small>
             <strong>${escapeHtml(parts.value)}${parts.max ? `<span class="weekly-score-max">${escapeHtml(parts.max)}</span>` : ""}</strong>
           </div>
-          <div class="dynasty-value-badge" title="Market dynasty value, not this week’s start grade">
+          <div class="dynasty-value-badge" title="Market dynasty value, not this week’s start chance">
             <small>${DYNASTY_SCORE_LABEL}</small>
             <strong>${escapeHtml(dynasty)}</strong>
           </div>

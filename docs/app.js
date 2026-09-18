@@ -4439,8 +4439,8 @@ function renderRosterSheet() {
         : state.weeklyValue?.loading
           ? `<p class="muted small">Loading weekly matchup and usage…</p>`
           : state.weeklyValue?.error
-            ? `<p class="muted small">This-week grades unavailable (${escapeHtml(state.weeklyValue.error)}). Dynasty values still work.</p>`
-            : `<p class="muted small">Tap a player. This week is a 1–99 start grade, not dynasty price.</p>`}
+            ? `<p class="muted small">This-week start chances unavailable (${escapeHtml(state.weeklyValue.error)}). Dynasty values still work.</p>`
+            : `<p class="muted small">Tap a player. This week is start chance — 50% coin flip, 90% lock. Not dynasty price.</p>`}
     <div class="sheet-grid">
       <section class="sheet-column">
         <h4>Optimal lineup</h4>
