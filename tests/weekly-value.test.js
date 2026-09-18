@@ -171,6 +171,8 @@ test("player sheet keeps weekly and dynasty on separate badges", () => {
   const css = readFileSync(join(docs, "styles.css"), "utf8");
   assert.match(css, /\.weekly-score-badge\s*\{/);
   assert.match(css, /\.dynasty-value-badge\s*\{/);
+  assert.match(css, /\.sheet-metrics\s*\{[^}]*padding:/s);
+  assert.match(css, /\.weekly-chip,\s*\.dynasty-chip\s*\{[^}]*display:\s*flex/s);
   assert.ok(!html.includes(NO_RECENT_GAMES) || model.games.length === 0);
 });
 

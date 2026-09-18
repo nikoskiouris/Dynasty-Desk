@@ -4358,7 +4358,7 @@ function renderRosterSheet() {
           </span>
           <span class="dynasty-chip">
             <small>Dynasty</small>
-            <strong class="mono">${renderAssetValuePlain(asset, values)}</strong>
+            <strong class="mono">${formatNumber(getAssetValue(asset, values))}</strong>
           </span>
         </span>
       </button>
