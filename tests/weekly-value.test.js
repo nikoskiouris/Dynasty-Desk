@@ -14,6 +14,7 @@ import {
   WEEKLY_SCORE_HELP_TITLE,
   WEEKLY_SCORE_HINT,
   WEEKLY_SCORE_LABEL,
+  lineupFillValue,
   formatWeeklyScore,
   weeklyScoreChipLabel,
   weeklyScoreHelpLines,
@@ -275,8 +276,9 @@ test("weekly score help popup explains start chance", () => {
   assert.match(pop, /50% is a coin flip/);
   assert.match(pop, /90% is a lock/);
   assert.match(pop, /data-action="close-weekly-help"/);
+  assert.match(pop, /optimal lineup is set with this number/);
   const lines = weeklyScoreHelpLines();
-  assert.equal(lines.length, 4);
+  assert.equal(lines.length, 5);
   const sheetOpen = renderWeeklyPlayerSheet({
     playerId: "111",
     name: "Demo WR",
@@ -298,6 +300,18 @@ test("weekly score prints start chance percent", () => {
   assert.equal(formatWeeklyScore(null), "—");
   assert.equal(weeklyScoreChipLabel({ score: 22 }), "22%");
   assert.match(WEEKLY_SCORE_HINT, /Chance you should start/);
+});
+
+test("lineup fill prefers start chance over dynasty price", () => {
+  const hotCheap = lineupFillValue({ startChance: 84, dynastyValue: 4253 });
+  const coldExpensive = lineupFillValue({ startChance: 50, dynastyValue: 9000 });
+  const lockCheap = lineupFillValue({ startChance: 90, dynastyValue: 6977 });
+  const lockPricey = lineupFillValue({ startChance: 90, dynastyValue: 13830 });
+  const noWeekly = lineupFillValue({ dynastyValue: 8000 });
+  assert.ok(hotCheap > coldExpensive, "84% WR should start over a 50% WR with more market value");
+  assert.ok(lockPricey > lockCheap, "same start chance, higher dynasty wins the tie");
+  assert.equal(noWeekly, 8000);
+  assert.equal(lineupFillValue({ startChance: null, dynastyValue: 500 }), 500);
 });
 
 test("bye week and unknown players fail opponent strength visibly", () => {

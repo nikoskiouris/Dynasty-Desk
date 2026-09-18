@@ -7,6 +7,7 @@ export const WEEKLY_SCORE_LABEL = "This week";
 export const WEEKLY_SCORE_HINT = "Chance you should start them this week. Not trade value.";
 export const WEEKLY_SCORE_HELP_TITLE = "Start chance this week";
 export const DYNASTY_SCORE_LABEL = "Dynasty";
+export const LINEUP_START_CHANCE_WEIGHT = 1_000_000;
 const START_CHANCE_BASE = 18;
 const START_CHANCE_ROLE_SPAN = 72;
 export const DOUBLE_TEAM_MISSING = "no double-team data";
@@ -71,7 +72,14 @@ export function weeklyScoreHelpLines() {
     "Top-tier names belong in the 90s. A healthy RB1 vs an average defense should sit near 90, not 60.",
     `Blends role, last ${WEEKLY_LOOKBACK_WEEKS} games of PPR, drops, and this week's opponent. Matchup barely moves a lock; it matters more at 50/50.`,
     "Not dynasty trade price. Last week alone does not set it.",
+    "The optimal lineup is set with this number. Dynasty price only breaks ties.",
   ];
+}
+
+export function lineupFillValue({ startChance, dynastyValue } = {}) {
+  const dynasty = Number.isFinite(Number(dynastyValue)) ? Number(dynastyValue) : 0;
+  if (!Number.isFinite(Number(startChance))) return dynasty;
+  return Number(startChance) * LINEUP_START_CHANCE_WEIGHT + dynasty;
 }
 
 export function renderWeeklyScoreHelpButton({ open = false } = {}) {

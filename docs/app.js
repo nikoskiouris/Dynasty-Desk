@@ -121,6 +121,7 @@ import {
   renderWeeklyScoreHelpButton,
   renderWeeklyScoreHelpPop,
   weeklyScoreChipLabel,
+  lineupFillValue,
   WEEKLY_SCORE_HINT,
   WEEKLY_SCORE_LABEL,
 } from "./modules/weekly-value.js";
@@ -4444,6 +4445,7 @@ function renderRosterSheet() {
     <div class="sheet-grid">
       <section class="sheet-column">
         <h4>Optimal lineup</h4>
+        <p class="muted small lineup-basis">Set by start chance this week. Dynasty breaks ties.</p>
         ${strength.lineup.map((entry) => entry.asset
           ? renderPlayerRow(entry.asset, formatRosterSlotLabel(entry.slot))
           : `<div class="sheet-row empty"><span class="sheet-slot">${escapeHtml(formatRosterSlotLabel(entry.slot))}</span><div class="sheet-player"><strong class="muted">Open slot</strong></div><span class="sheet-value mono">0</span></div>`).join("")}
@@ -4452,7 +4454,13 @@ function renderRosterSheet() {
         <h4>Bench</h4>
         ${roster.assets
           .filter((asset) => asset.assetType === "player" && !strength.lineup.some((entry) => entry.asset?.assetId === asset.assetId))
-          .sort((a, b) => getAssetValue(b, values) - getAssetValue(a, values))
+          .sort((a, b) => lineupFillValue({
+            startChance: weeklyModelForAsset(b)?.score,
+            dynastyValue: getAssetValue(b, values),
+          }) - lineupFillValue({
+            startChance: weeklyModelForAsset(a)?.score,
+            dynastyValue: getAssetValue(a, values),
+          }))
           .map((asset) => renderPlayerRow(asset, isTradeEligibleAsset(asset) ? "BN" : formatPlayerPositionLabel(asset)))
           .join("") || `<p class="muted small">No bench players.</p>`}
         <h4>Pick vault</h4>
@@ -9264,7 +9272,13 @@ function compareRosterStrength(left, right) {
 function buildOptimalStartingLineup(assets, starterSlots, values) {
   const playerEntries = assets
     .filter((asset) => asset.assetType === "player")
-    .map((asset) => ({ asset, value: getAssetValue(asset, values) }))
+    .map((asset) => ({
+      asset,
+      value: lineupFillValue({
+        startChance: weeklyModelForAsset(asset)?.score,
+        dynastyValue: getAssetValue(asset, values),
+      }),
+    }))
     .sort((a, b) => b.value - a.value);
 
   const candidates = buildLineupCandidatePool(playerEntries, starterSlots);
