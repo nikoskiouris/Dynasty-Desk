@@ -2364,13 +2364,35 @@ body:not(.league-loaded) .workspace-header {
 
 .sheet-row {
   display: grid;
-  grid-template-columns: 3.4rem minmax(0, 1fr) 4rem;
+  grid-template-columns: 3.4rem minmax(0, 1fr) auto;
   gap: 0.6rem;
   align-items: center;
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--panel-soft);
+}
+
+button.sheet-row {
+  width: 100%;
+  min-height: auto;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--text);
+  font-weight: 600;
+  text-align: left;
+}
+
+button.sheet-row:hover {
+  transform: none;
+  filter: none;
+  border-color: var(--line-strong);
+  background: var(--hover-fill);
+}
+
+button.sheet-row.open {
+  border-color: var(--blue);
+  box-shadow: var(--focus);
 }
 
 .sheet-row.flagged {
@@ -2428,6 +2450,192 @@ body:not(.league-loaded) .workspace-header {
   text-align: right;
   font-size: 0.86rem;
   font-weight: 700;
+}
+
+.sheet-metrics {
+  display: grid;
+  gap: 0.15rem;
+  justify-items: end;
+  min-width: 5.6rem;
+}
+
+.weekly-chip,
+.dynasty-chip {
+  display: grid;
+  justify-items: end;
+  line-height: 1.05;
+}
+
+.weekly-chip small,
+.dynasty-chip small {
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.weekly-chip strong {
+  color: var(--blue);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.dynasty-chip strong {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.player-week-sheet {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.player-week-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 1.2rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.player-week-head h3 {
+  margin: 0.1rem 0 0;
+  font-size: 1.2rem;
+}
+
+.player-week-scores {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.weekly-score-badge,
+.dynasty-value-badge {
+  min-width: 5.4rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius-sm);
+  text-align: right;
+}
+
+.weekly-score-badge {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.dynasty-value-badge {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.weekly-score-badge small,
+.dynasty-value-badge small {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.weekly-score-badge strong,
+.dynasty-value-badge strong {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  line-height: 1.1;
+}
+
+.player-week-note {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.week-input-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.week-input {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+}
+
+.week-input span {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.week-input strong {
+  font-size: 1.05rem;
+}
+
+.week-input small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.week-input.missing {
+  border-style: dashed;
+}
+
+.week-input.missing small {
+  color: var(--red);
+}
+
+.week-input.up strong {
+  color: var(--blue);
+}
+
+.week-input.down strong {
+  color: var(--red);
+}
+
+.week-games h4 {
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.week-games ol {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.week-game {
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.week-game span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.week-sheet-close {
+  justify-self: start;
 }
 
 .season-log {
@@ -4774,6 +4982,7 @@ body:not(.league-loaded) .workspace-header {
   .game-grid,
   .award-grid,
   .sheet-grid,
+  .week-input-grid,
   .calc-grid,
   .calc-summary,
   .mode-card-grid,
